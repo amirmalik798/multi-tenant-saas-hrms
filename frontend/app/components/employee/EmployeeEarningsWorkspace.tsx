@@ -218,16 +218,19 @@ export default function EmployeeEarningsWorkspace({ employeeId, showTitle = true
           <h2 className="mt-1 text-xl font-bold tracking-tight text-white sm:text-2xl">My Earnings</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">Review your estimated earnings or check salary payment records. Each view appears separately to keep the information clear.</p>
         </div>}
-        {showMonthSelector && activeView === "earnings" && <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor="employee-earnings-month" className="text-sm text-slate-400">Month</label>
-          <input id="employee-earnings-month" type="month" value={month} onChange={(event) => { monthTouchedByUser.current = true; setMonth(event.target.value); }} className="dm-earnings-month rounded-xl border border-slate-700 bg-[#0b111b] px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400" />
-        </div>}
+
       </div>
 
 
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div role="tablist" aria-label="My Earnings sections" className="inline-flex w-fit max-w-full flex-wrap gap-2 rounded-2xl border border-white/[0.08] bg-[#141c28] p-2">
         <button type="button" role="tab" aria-selected={activeView === "earnings"} onClick={() => setActiveView("earnings")} className={`dm-earnings-tab rounded-xl px-4 py-2.5 text-sm font-semibold transition ${activeView === "earnings" ? "bg-sky-600 text-white ring-1 ring-sky-500 shadow-sm" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>Earnings overview</button>
         <button type="button" role="tab" aria-selected={activeView === "payments"} onClick={() => setActiveView("payments")} className={`dm-earnings-tab rounded-xl px-4 py-2.5 text-sm font-semibold transition ${activeView === "payments" ? "bg-sky-600 text-white ring-1 ring-sky-500 shadow-sm" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>Payment history</button>
+      </div>
+      {showMonthSelector && activeView === "earnings" && <div className="flex flex-wrap items-center gap-2">
+        <label htmlFor="employee-earnings-month" className="text-sm text-slate-400">Month</label>
+        <input id="employee-earnings-month" type="month" value={month} onChange={(event) => { monthTouchedByUser.current = true; setMonth(event.target.value); }} className="dm-earnings-month rounded-xl border border-slate-700 bg-[#0b111b] px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400" />
+      </div>}
       </div>
 
       {activeView === "earnings" ? <>
