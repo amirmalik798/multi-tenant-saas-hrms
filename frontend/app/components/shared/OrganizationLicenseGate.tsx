@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { AlertTriangle, CreditCard, RefreshCw, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CreditCard, LogOut, RefreshCw, ShieldAlert } from "lucide-react";
 
 type LicensePayload = {
   status?: string;
@@ -23,6 +23,7 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
   const [state, setState] = useState<GateState>("checking");
   const [licenseStatus, setLicenseStatus] = useState("NOT_ACTIVATED");
   const [isOrganizationAdmin, setIsOrganizationAdmin] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const isLicensePaymentPage =
     pathname === "/org/license" || pathname.startsWith("/org/license/");
@@ -83,6 +84,25 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
       window.removeEventListener("focus", onFocus);
     };
   }, [checkLicense, state]);
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      const endpoint = isOrganizationAdmin
+        ? "/api/backend/org/auth/logout"
+        : "/api/backend/employee-auth/logout";
+      const response = await fetch(endpoint, {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Unable to sign out");
+      window.location.assign("/");
+    } catch {
+      setLoggingOut(false);
+    }
+  };
 
   if (state === "checking") {
     return (
@@ -163,6 +183,15 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
             >
               <RefreshCw size={16} />
               {state === "error" ? "Retry verification" : "Check license again"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              disabled={loggingOut}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] px-5 py-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-400/10 disabled:opacity-60"
+            >
+              <LogOut size={16} />
+              {loggingOut ? "Signing out…" : "Sign out"}
             </button>
           </div>
           <p className="mt-5 text-center text-[11px] leading-5 text-slate-500">
