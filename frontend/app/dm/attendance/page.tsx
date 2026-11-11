@@ -30,7 +30,7 @@ export default function DepartmentManagerAttendancePage() {
     <DepartmentManagerShell
       user={auth.user}
       title="Attendance & Time"
-      description="Team attendance, corrections and overtime."
+      description="Team attendance and overtime."
       onLogout={() => void auth.logout()}
       loggingOut={auth.loggingOut}
     >
