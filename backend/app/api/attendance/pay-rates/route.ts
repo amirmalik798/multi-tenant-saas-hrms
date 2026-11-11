@@ -69,7 +69,8 @@ export async function GET(request: Request) {
       return json({ message: "Organization Admin and HR Manager records are not eligible for employee pay rates" }, 403);
     }
 
-    const result = await pool.query(
+    const [result, settings] = await Promise.all([
+      pool.query(
       `SELECT r.id, r.employee_id AS "employeeId", r.hourly_rate::text AS "hourlyRate",
               r.overtime_rate::text AS "overtimeRate", r.currency_code AS "currencyCode",
               r.effective_from::text AS "effectiveFrom", r.effective_to::text AS "effectiveTo",
@@ -79,8 +80,13 @@ export async function GET(request: Request) {
        WHERE r.organization_id = $1::uuid AND r.employee_id = $2::uuid
        ORDER BY r.effective_from DESC, r.created_at DESC`,
       [actor.organizationId, employeeId],
-    );
-    return json({ status: "ok", rates: result.rows });
+      ),
+      pool.query<{ currency_code: string | null }>(
+        `SELECT currency_code FROM public.organization_settings WHERE organization_id = $1::uuid LIMIT 1`,
+        [actor.organizationId],
+      ),
+    ]);
+    return json({ status: "ok", rates: result.rows, organizationCurrencyCode: settings.rows[0]?.currency_code?.toUpperCase() ?? null });
   } catch (error) {
     console.error("Failed to load employee pay rates:", error);
     return json({ message: "Unable to load employee pay rates" }, 500);
@@ -122,6 +128,19 @@ export async function PUT(request: Request) {
     }
 
     await client.query("BEGIN");
+    const organizationSettings = await client.query<{ currency_code: string | null }>(
+      `SELECT currency_code FROM public.organization_settings WHERE organization_id = $1::uuid LIMIT 1`,
+      [actor.organizationId],
+    );
+    const organizationCurrencyCode = organizationSettings.rows[0]?.currency_code?.toUpperCase() ?? null;
+    if (!organizationCurrencyCode) {
+      await client.query("ROLLBACK");
+      return json({ message: "Configure the organization currency in Organization Profile & Settings before setting employee pay rates." }, 409);
+    }
+    if (currencyCode !== organizationCurrencyCode) {
+      await client.query("ROLLBACK");
+      return json({ message: `Pay rates must use the organization currency (${organizationCurrencyCode}).` }, 409);
+    }
     const employee = await client.query(
       `SELECT e.id, r.name AS workforce_role,
               EXISTS (
