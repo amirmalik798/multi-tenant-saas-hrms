@@ -1106,7 +1106,7 @@ export default function HRManagerDepartmentsPage() {
             <button
               type="button"
               onClick={openCreateDrawer}
-              className="inline-flex h-9 items-center gap-2 rounded-xl bg-blue-500 px-3.5 text-xs font-semibold text-white shadow-md shadow-blue-500/25 transition-all hover:bg-blue-400 active:scale-[0.98]"
+              className="inline-flex h-9 items-center gap-2 rounded-xl bg-blue-600 px-3.5 text-xs font-semibold !text-white shadow-md shadow-blue-500/25 transition-all hover:bg-blue-700 active:scale-[0.98] [&>svg]:!text-white"
             >
               <Plus size={15} />
               <span>Add department</span>

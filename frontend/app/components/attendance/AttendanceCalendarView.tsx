@@ -729,7 +729,7 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
     <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => setWeekRange(-1)} className="inline-flex h-9 items-center gap-1 rounded-lg border border-white/10 px-2.5 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.05]"><ChevronLeft size={14} /> Previous</button>
-        <button type="button" onClick={() => setWeekRange(0)} className="hr-calendar-this-week h-9 rounded-lg border border-sky-300/30 bg-sky-300 px-3 text-xs font-bold text-slate-950 transition hover:bg-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111a27]">This week</button>
+        <button type="button" onClick={() => setWeekRange(0)} className="hr-calendar-this-week h-9 rounded-lg border border-blue-700 bg-blue-600 px-3 text-xs font-bold !text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111a27]">This week</button>
         <button type="button" onClick={() => setWeekRange(1)} className="inline-flex h-9 items-center gap-1 rounded-lg border border-white/10 px-2.5 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.05]">Next <ChevronRight size={14} /></button>
       </div>
       <div className="flex flex-wrap items-center gap-3">

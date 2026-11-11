@@ -9,7 +9,7 @@ type Payment = { id?: string | null; employeeId: string; employeeCode?: string |
 type EmployeeRoleRecord = { id?: string; workforce_role?: unknown; workforceRole?: unknown; roleName?: unknown; role_name?: unknown; role?: unknown; userRole?: unknown; user_role?: unknown; user?: { role?: unknown } };
 type Props = { audience: "hr-manager" | "department-manager" | "employee"; employeeId?: string; excludeEmployeeId?: string };
 const INPUT = "mt-1.5 w-full rounded-xl border border-slate-700 bg-[#0b111b] px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-sky-400";
-const BUTTON = "inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-sky-500 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-400 disabled:opacity-50";
+const BUTTON = "inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold !text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 [&>svg]:!text-white";
 function monthNow() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
 function money(value: string | number | null, currency: string) { if (value === null || value === "") return "Not recorded"; const n = Number(value); if (!Number.isFinite(n)) return "—"; try { return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n); } catch { return `${currency} ${n.toFixed(2)}`; } }
 function isExcludedHrTarget(employee: EmployeeRoleRecord) {

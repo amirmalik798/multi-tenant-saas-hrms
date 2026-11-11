@@ -13,7 +13,7 @@ export default function HRManagerCommunicationsPage() {
   if (auth.checking) return <HRManagerLoading message="Loading messages…" />;
   if (!auth.user) return <HRManagerUnavailable message={auth.error || "Your HR Manager session is unavailable."} onRetry={() => void auth.reload()} />;
   return (
-    <HRManagerShell user={auth.user} activePage="communications" title="Messages" description="Private conversations with your Organization Admin and replies from your team." onLogout={() => void auth.logout()} loggingOut={auth.loggingOut}
+    <HRManagerShell user={auth.user} activePage="communications" title="" description="" onLogout={() => void auth.logout()} loggingOut={auth.loggingOut}
       logoutError={auth.error}>
       <CommunicationWorkspace roleLabel="HR Manager" />
     </HRManagerShell>

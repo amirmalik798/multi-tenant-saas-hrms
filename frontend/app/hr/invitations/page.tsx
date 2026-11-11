@@ -613,7 +613,7 @@ export default function HRManagerInvitationsPage() {
 
             <Link
               href="/hr/employees"
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-blue-500 px-4 text-xs font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400"
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-semibold !text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-700 [&>svg]:!text-white"
             >
               <Users size={15} />
               Employee directory
