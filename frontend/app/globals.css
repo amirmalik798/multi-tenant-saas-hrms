@@ -2296,33 +2296,33 @@ html[data-org-admin-theme="light"] body
 }
 
 /* Header and sidebar are restyled as a coherent light workspace shell. */
-html[data-org-admin-theme="light"] body aside[aria-label="Organization Admin navigation"],
-html[data-org-admin-theme="light"] body header.sticky {
+html[data-org-admin-theme="light"] .org-admin-workspace aside[aria-label="Organization Admin navigation"],
+html[data-org-admin-theme="light"] .org-admin-workspace header.sticky {
   color: var(--org-admin-ink) !important;
   background: rgba(255,255,255,.96) !important;
   border-color: var(--org-admin-line) !important;
   box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
 }
-html[data-org-admin-theme="light"] body aside[aria-label="Organization Admin navigation"] a {
+html[data-org-admin-theme="light"] .org-admin-workspace aside[aria-label="Organization Admin navigation"] a {
   color: #52637a !important;
 }
-html[data-org-admin-theme="light"] body aside[aria-label="Organization Admin navigation"] a[aria-current="page"] {
+html[data-org-admin-theme="light"] .org-admin-workspace aside[aria-label="Organization Admin navigation"] a[aria-current="page"] {
   color: #155b96 !important;
   background: #eaf3fc !important;
   border-color: #c7def2 !important;
 }
-html[data-org-admin-theme="light"] body aside[aria-label="Organization Admin navigation"] a:hover {
+html[data-org-admin-theme="light"] .org-admin-workspace aside[aria-label="Organization Admin navigation"] a:hover {
   color: #17243a !important;
   background: #f1f5f9 !important;
 }
-html[data-org-admin-theme="light"] body header.sticky button,
-html[data-org-admin-theme="light"] body header.sticky a[title] {
+html[data-org-admin-theme="light"] .org-admin-workspace header.sticky button,
+html[data-org-admin-theme="light"] .org-admin-workspace header.sticky a[title] {
   color: #35465d !important;
   background-color: #f7f9fc !important;
   border-color: var(--org-admin-line) !important;
 }
-html[data-org-admin-theme="light"] body header.sticky button:hover,
-html[data-org-admin-theme="light"] body header.sticky a[title]:hover {
+html[data-org-admin-theme="light"] .org-admin-workspace header.sticky button:hover,
+html[data-org-admin-theme="light"] .org-admin-workspace header.sticky a[title]:hover {
   background-color: #edf3f9 !important;
 }
 
@@ -2570,40 +2570,40 @@ html[data-org-admin-theme="light"] body
 
 /* Sidebar's brand tile may retain a blue identity accent, but its shell and
    navigation surfaces should be neutral in Light Mode. */
-html[data-org-admin-theme="light"] body aside[aria-label="Organization Admin navigation"] {
+html[data-org-admin-theme="light"] .org-admin-workspace aside[aria-label="Organization Admin navigation"] {
   background: #ffffff !important;
   color: var(--org-admin-ink) !important;
   border-color: var(--org-admin-line) !important;
 }
-html[data-org-admin-theme="light"] body aside[aria-label="Organization Admin navigation"] > a {
+html[data-org-admin-theme="light"] .org-admin-workspace aside[aria-label="Organization Admin navigation"] > a {
   background: #ffffff !important;
   border-color: var(--org-admin-line) !important;
 }
-html[data-org-admin-theme="light"] body aside[aria-label="Organization Admin navigation"] > a > span:first-child {
+html[data-org-admin-theme="light"] .org-admin-workspace aside[aria-label="Organization Admin navigation"] > a > span:first-child {
   color: #1769aa !important;
   background: #eaf3fc !important;
   border-color: #c7def2 !important;
   box-shadow: none !important;
 }
-html[data-org-admin-theme="light"] body aside[aria-label="Organization Admin navigation"] nav a {
+html[data-org-admin-theme="light"] .org-admin-workspace aside[aria-label="Organization Admin navigation"] nav a {
   border-color: transparent !important;
 }
 
 /* Header controls should not retain dark navy fills or pale text. */
-html[data-org-admin-theme="light"] body header.sticky {
+html[data-org-admin-theme="light"] .org-admin-workspace header.sticky {
   background: rgba(255,255,255,.97) !important;
   backdrop-filter: blur(16px);
 }
-html[data-org-admin-theme="light"] body header.sticky
+html[data-org-admin-theme="light"] .org-admin-workspace header.sticky
 :is(button, a, [role="button"]) {
   color: #35465d !important;
 }
-html[data-org-admin-theme="light"] body header.sticky
+html[data-org-admin-theme="light"] .org-admin-workspace header.sticky
 :is(button, a, [role="button"]):not([class*="bg-blue-"]):not([class*="bg-sky-"]) {
   background-color: #f7f9fc !important;
   border-color: var(--org-admin-line) !important;
 }
-html[data-org-admin-theme="light"] body header.sticky
+html[data-org-admin-theme="light"] .org-admin-workspace header.sticky
 :is(button, a, [role="button"]):hover {
   background-color: #edf3f9 !important;
 }
