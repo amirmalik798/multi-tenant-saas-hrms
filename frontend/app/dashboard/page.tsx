@@ -962,7 +962,7 @@ export default function DashboardPage() {
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8fa5be]">Organization portfolio</p>
                     <p className="mt-2 text-4xl font-bold leading-none tracking-[-0.045em] tabular-nums text-[#f2f7fc]">{statsError ? "—" : statsData ? totalOrganizations.toLocaleString() : "..."}</p>
-                    <p className="mt-2 text-xs text-[#91a3b8]">Total registered organizations</p>
+                    
                   </div>
                   <span className="rounded-md border border-[#293f56] bg-[#14263a] px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#a7c4df]">Lifecycle</span>
                 </div>

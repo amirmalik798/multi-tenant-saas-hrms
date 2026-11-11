@@ -600,7 +600,7 @@ export default function OrganizationDashboardPage() {
     {
       label: "Total Team Members",
       value: employeesLoading ? "…" : employeesError ? "—" : totalEmployees.toLocaleString(),
-      description: "Employee records across all employment statuses",
+      description: "All employment statuses",
       icon: "users" as IconName,
       iconStyle: "border-[#35465b] bg-[#182232] text-slate-200",
     },
@@ -614,14 +614,14 @@ export default function OrganizationDashboardPage() {
     {
       label: "Department Staffing Rate",
       value: employeesLoading || departmentsLoading ? "…" : employeesError || departmentsError ? "—" : `${staffingRate}%`,
-      description: "Portion of workforce assigned to specific departments",
+      description: "Workforce assigned to departments",
       icon: "activity" as IconName,
       iconStyle: "border-[#35465b] bg-[#182232] text-[#9ed8ff]",
     },
     {
       label: "Unassigned Members",
       value: employeesLoading || departmentsLoading ? "…" : employeesError || departmentsError ? "—" : unassignedEmployees.toLocaleString(),
-      description: "Team members not yet allocated to a department",
+      description: "Awaiting department assignment",
       icon: "alert" as IconName,
       iconStyle: "border-[#35465b] bg-[#182232] text-amber-200",
     },
@@ -750,7 +750,7 @@ export default function OrganizationDashboardPage() {
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ed8ff]">People analytics</p>
                     <h2 className="mt-1 text-base font-bold text-white">Workforce composition</h2>
-                    <p className="mt-1 text-xs leading-5 text-slate-400">Employment status across all recorded employee profiles.</p>
+                    
                   </div>
                   <span className="oa-workforce-icon-button rounded-xl border border-[#35465b] bg-[#0b1421]/70 p-2.5 text-[#9ed8ff]"><Icon name="users" size={18} /></span>
                 </div>
@@ -780,7 +780,7 @@ export default function OrganizationDashboardPage() {
                     {totalEmployees === 0 && <p className="text-[10px] leading-4 text-slate-500">No employee records are available for this snapshot.</p>}
                   </div>
                 </div>
-                <p className="relative mt-5 border-t border-white/[0.07] pt-3 text-[10px] leading-4 text-slate-500">Counts come from the current organization-scoped statistics response. This is a snapshot, not a historical trend.</p>
+                
               </article>
 
               <article className="min-w-0 rounded-2xl border border-[#29384b] bg-[#141f2e]/90 p-5 shadow-lg shadow-black/10 xl:col-span-7">
@@ -788,7 +788,7 @@ export default function OrganizationDashboardPage() {
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ed8ff]">Team structure</p>
                     <h2 className="mt-1 text-base font-bold text-white">Department size & allocation</h2>
-                    <p className="mt-1 text-xs leading-5 text-slate-400">Departments ranked by recorded headcount. Select any bar to inspect the department.</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-400">Ranked by team size. Select a department for details.</p>
                   </div>
                   <Link href="/org/departments" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#35465b] bg-[#0f1724] px-3 text-xs font-semibold text-slate-200 transition hover:border-[#75c7ff]/40 hover:text-white">Manage <Icon name="arrow" size={13} /></Link>
                 </div>
