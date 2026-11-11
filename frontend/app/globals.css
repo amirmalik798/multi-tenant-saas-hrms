@@ -7439,10 +7439,10 @@ html:is(
    blue/green/red CTA after neutral light-mode text normalization. */
 .hr-manager-theme-root[data-hr-manager-theme="light"] :is(button, a)[class*="bg-"] *,
 .hr-manager-theme-root[data-hr-manager-theme="light"] :is(button, a)[class*="bg-[#"] *,
-.org-admin-workspace :is(button, a)[class*="bg-"] *,
-.org-admin-workspace :is(button, a)[class*="bg-[#"] *,
-.super-admin-theme-root :is(button, a)[class*="bg-"] *,
-.super-admin-theme-root :is(button, a)[class*="bg-[#"] *,
+html[data-org-admin-theme="light"] .org-admin-workspace :is(button, a)[class*="bg-"] *,
+html[data-org-admin-theme="light"] .org-admin-workspace :is(button, a)[class*="bg-[#"] *,
+html[data-super-admin-theme="light"] .super-admin-theme-root :is(button, a)[class*="bg-"] *,
+html[data-super-admin-theme="light"] .super-admin-theme-root :is(button, a)[class*="bg-[#"] *,
 .department-manager-theme-root[data-department-manager-theme="light"] :is(button, a)[class*="bg-"] *,
 .department-manager-theme-root[data-department-manager-theme="light"] :is(button, a)[class*="bg-[#"] *,
 .employee-theme-root[data-employee-theme="light"] :is(button, a)[class*="bg-"] *,
@@ -7455,64 +7455,64 @@ html:is(
    (for example bg-emerald-500/10) are deliberately not matched. */
 :is(
   .hr-manager-theme-root[data-hr-manager-theme="light"],
-  .org-admin-workspace,
-  .super-admin-theme-root,
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
   .department-manager-theme-root[data-department-manager-theme="light"],
   .employee-theme-root[data-employee-theme="light"]
 ) :is(button, a[role="button"])[class~="bg-emerald-500"],
 :is(
   .hr-manager-theme-root[data-hr-manager-theme="light"],
-  .org-admin-workspace,
-  .super-admin-theme-root,
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
   .department-manager-theme-root[data-department-manager-theme="light"],
   .employee-theme-root[data-employee-theme="light"]
 ) :is(button, a[role="button"])[class~="bg-emerald-600"],
 :is(
   .hr-manager-theme-root[data-hr-manager-theme="light"],
-  .org-admin-workspace,
-  .super-admin-theme-root,
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
   .department-manager-theme-root[data-department-manager-theme="light"],
   .employee-theme-root[data-employee-theme="light"]
 ) :is(button, a[role="button"])[class~="bg-green-600"],
 :is(
   .hr-manager-theme-root[data-hr-manager-theme="light"],
-  .org-admin-workspace,
-  .super-admin-theme-root,
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
   .department-manager-theme-root[data-department-manager-theme="light"],
   .employee-theme-root[data-employee-theme="light"]
 ) :is(button, a[role="button"])[class~="bg-rose-500"],
 :is(
   .hr-manager-theme-root[data-hr-manager-theme="light"],
-  .org-admin-workspace,
-  .super-admin-theme-root,
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
   .department-manager-theme-root[data-department-manager-theme="light"],
   .employee-theme-root[data-employee-theme="light"]
 ) :is(button, a[role="button"])[class~="bg-rose-600"],
 :is(
   .hr-manager-theme-root[data-hr-manager-theme="light"],
-  .org-admin-workspace,
-  .super-admin-theme-root,
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
   .department-manager-theme-root[data-department-manager-theme="light"],
   .employee-theme-root[data-employee-theme="light"]
 ) :is(button, a[role="button"])[class~="bg-red-600"],
 :is(
   .hr-manager-theme-root[data-hr-manager-theme="light"],
-  .org-admin-workspace,
-  .super-admin-theme-root,
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
   .department-manager-theme-root[data-department-manager-theme="light"],
   .employee-theme-root[data-employee-theme="light"]
 ) :is(button, a[role="button"])[class~="bg-amber-600"],
 :is(
   .hr-manager-theme-root[data-hr-manager-theme="light"],
-  .org-admin-workspace,
-  .super-admin-theme-root,
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
   .department-manager-theme-root[data-department-manager-theme="light"],
   .employee-theme-root[data-employee-theme="light"]
 ) :is(button, a[role="button"])[class~="bg-blue-600"],
 :is(
   .hr-manager-theme-root[data-hr-manager-theme="light"],
-  .org-admin-workspace,
-  .super-admin-theme-root,
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
   .department-manager-theme-root[data-department-manager-theme="light"],
   .employee-theme-root[data-employee-theme="light"]
 ) :is(button, a[role="button"])[class~="bg-sky-600"] {
@@ -7524,15 +7524,15 @@ html:is(
    Employee and Department Manager keep their theme marker on the workspace
    root, while the other three also publish a document-level marker. */
 .hr-manager-theme-root[data-hr-manager-theme="light"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
-html[data-org-admin-theme="light"] .org-admin-workspace :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
-html[data-super-admin-theme="light"] .super-admin-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
+html[data-org-admin-theme="light"] html[data-org-admin-theme="light"] .org-admin-workspace :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
+html[data-super-admin-theme="light"] html[data-super-admin-theme="light"] .super-admin-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
 .department-manager-theme-root[data-department-manager-theme="light"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
 .employee-theme-root[data-employee-theme="light"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]) {
   color-scheme: light !important;
 }
 .hr-manager-theme-root[data-hr-manager-theme="light"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
-html[data-org-admin-theme="light"] .org-admin-workspace :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
-html[data-super-admin-theme="light"] .super-admin-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
+html[data-org-admin-theme="light"] html[data-org-admin-theme="light"] .org-admin-workspace :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
+html[data-super-admin-theme="light"] html[data-super-admin-theme="light"] .super-admin-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
 .department-manager-theme-root[data-department-manager-theme="light"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
 .employee-theme-root[data-employee-theme="light"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator {
   filter: none !important;
@@ -7541,15 +7541,15 @@ html[data-super-admin-theme="light"] .super-admin-theme-root :is(input[type="dat
 }
 
 html[data-hr-manager-theme="dark"] .hr-manager-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
-html[data-org-admin-theme="dark"] .org-admin-workspace :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
-html[data-super-admin-theme="dark"] .super-admin-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
+html[data-org-admin-theme="dark"] html[data-org-admin-theme="light"] .org-admin-workspace :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
+html[data-super-admin-theme="dark"] html[data-super-admin-theme="light"] .super-admin-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
 .department-manager-theme-root[data-department-manager-theme="dark"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
 .employee-theme-root[data-employee-theme="dark"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]) {
   color-scheme: dark !important;
 }
 html[data-hr-manager-theme="dark"] .hr-manager-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
-html[data-org-admin-theme="dark"] .org-admin-workspace :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
-html[data-super-admin-theme="dark"] .super-admin-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
+html[data-org-admin-theme="dark"] html[data-org-admin-theme="light"] .org-admin-workspace :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
+html[data-super-admin-theme="dark"] html[data-super-admin-theme="light"] .super-admin-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
 .department-manager-theme-root[data-department-manager-theme="dark"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
 .employee-theme-root[data-employee-theme="dark"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator {
   filter: brightness(0) invert(1) !important;
