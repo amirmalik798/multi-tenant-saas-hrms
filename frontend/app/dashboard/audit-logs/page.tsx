@@ -90,6 +90,7 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
     message: <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />,
     activity: <path d="M3 12h4l3-8 4 16 3-8h4" />,
     search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
+    refresh: <><path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5" /></>,
     logout: <><path d="M10 17l5-5-5-5M15 12H3" /><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" /></>,
     clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
     chevron: <path d="m7 10 5 5 5-5" />,
