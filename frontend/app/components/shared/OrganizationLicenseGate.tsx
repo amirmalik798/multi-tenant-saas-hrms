@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { AlertTriangle, CreditCard, RefreshCw, ShieldAlert } from "lucide-react";
 
 type LicensePayload = {
@@ -20,11 +20,9 @@ type GateState = "checking" | "allowed" | "restricted" | "error";
 
 export default function OrganizationLicenseGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [state, setState] = useState<GateState>("checking");
   const [licenseStatus, setLicenseStatus] = useState("NOT_ACTIVATED");
   const [isOrganizationAdmin, setIsOrganizationAdmin] = useState(false);
-  const [setupCompleted, setSetupCompleted] = useState(true);
 
   const isLicensePaymentPage =
     pathname === "/org/license" || pathname.startsWith("/org/license/");
@@ -53,7 +51,6 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
       const admin = payload.role === "ORGANIZATION_ADMIN";
       const completed = payload.setupCompleted !== false;
       setIsOrganizationAdmin(admin);
-      setSetupCompleted(completed);
       setLicenseStatus(payload.license.status ?? "NOT_ACTIVATED");
 
       // Preserve the mandatory first-time setup flow. License & Payments is
@@ -72,7 +69,7 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
 
   useEffect(() => {
     void checkLicense();
-  }, [checkLicense, searchParams]);
+  }, [checkLicense]);
 
   useEffect(() => {
     if (state === "checking") return;
