@@ -744,12 +744,6 @@ export function DepartmentManagerShell({
         <main className="mx-auto max-w-[1600px] px-4 py-6 pb-24 sm:px-7 sm:py-8 sm:pb-24 lg:px-9 lg:py-9">
           <div className="mb-7 flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
             <div className="min-w-0">
-              <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                <span>Department Manager</span>
-                <span className="text-slate-700">/</span>
-                <span className="text-sky-300">Team operations</span>
-              </div>
-
               <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
                 {title}
               </h1>
@@ -915,7 +909,6 @@ export function DepartmentManagerShell({
             </div>
 
             <div className="flex items-center justify-between gap-3 border-t border-slate-800 px-4 py-3 text-[10px] text-slate-500 sm:px-5">
-              <span>Department Manager workspace</span>
               <span>↑ ↓ navigate · Enter open · Esc close</span>
             </div>
           </section>

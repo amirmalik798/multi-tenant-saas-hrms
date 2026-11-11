@@ -845,9 +845,6 @@ export function HRManagerShell({
 
           {children}
 
-          <footer className="mt-12 flex flex-col justify-between gap-4 border-t border-[#344357]/80 pt-6 text-xs font-medium text-[#9AA8BA] sm:flex-row">
-            <span>HRMS Enterprise · HR Manager workspace</span>
-          </footer>
         </main>
       </div>
     </div>

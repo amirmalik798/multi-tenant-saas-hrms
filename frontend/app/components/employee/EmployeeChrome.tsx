@@ -717,9 +717,6 @@ export function EmployeeChrome({ children }: { children: ReactNode }) {
               </div>
             </main>
 
-            <footer className="border-t border-white/[0.06] px-5 py-4 text-center text-[11px] text-slate-600">
-              HRMS Employee Workspace
-            </footer>
           </div>
         </div>
 

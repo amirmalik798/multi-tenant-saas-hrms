@@ -1084,7 +1084,6 @@ export default function EmployeeDashboardPage() {
               </h1>
 
               <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-300/90 sm:text-sm">
-                Your work status, next shift, recorded time, and items needing follow-up — together in one workspace.
               </p>
 
               {user?.organizationName && (
@@ -1200,7 +1199,7 @@ export default function EmployeeDashboardPage() {
               <p className="mt-2.5 max-w-xl text-sm leading-relaxed text-slate-300/80">
                 {!clockStatusVerified
                   ? "Your current attendance state has not been confirmed. The system will recheck your attendance automatically; try again shortly."
-                  : "Record your actual working time. The server confirms each punch and uses it in your attendance history and worked-hours summary."}
+                   : "Clock in when your shift starts and clock out when you finish."}
               </p>
 
               {latestEvent && (
@@ -1381,7 +1380,7 @@ export default function EmployeeDashboardPage() {
 
         <Panel
           title="Next shift"
-          description="Your next scheduled work assignment, including tomorrow when assigned."
+          description="Next assigned shift."
           icon={CalendarClock}
           action={
             <Link href="/employee/attendance?tab=calendar" className="inline-flex shrink-0 items-center gap-1.5 text-xs font-bold text-sky-300 hover:text-sky-200">
@@ -1443,7 +1442,7 @@ export default function EmployeeDashboardPage() {
       <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
         <Panel
           title="Today's timeline"
-          description="The latest attendance events recorded for your workday."
+          description="Today’s clock events."
           icon={Activity}
           action={
             <Link href="/employee/attendance?tab=calendar" className="inline-flex shrink-0 items-center gap-1.5 text-xs font-bold text-sky-300 transition hover:text-sky-200 hover:underline">
@@ -1475,7 +1474,7 @@ export default function EmployeeDashboardPage() {
                       <span className={`flex size-9 shrink-0 items-center justify-center rounded-xl border ${isClockIn ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200" : "border-sky-400/20 bg-sky-400/10 text-sky-200"}`}>
                         {isClockIn ? <ArrowUpRight size={17} /> : <ArrowDownRight size={17} />}
                       </span>
-                      <div className="min-w-0"><p className="text-sm font-semibold text-white">{humanize(eventType)}</p><p className="mt-0.5 text-xs text-slate-500">Recorded attendance event</p></div>
+                      <div className="min-w-0"><p className="text-sm font-semibold text-white">{humanize(eventType)}</p></div>
                     </div>
                     <time className="shrink-0 rounded-lg border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 font-mono text-xs font-bold text-sky-200">{formatTime(timestampOf(row), read(row, "timeZone") || timeZone)}</time>
                   </div>
@@ -1489,7 +1488,7 @@ export default function EmployeeDashboardPage() {
         <div className="space-y-6">
           <Panel
             title="Needs your attention"
-            description="Only real items returned by the HRMS appear here."
+            description="Items requiring your attention."
             icon={ClipboardList}
             action={<Link href="/employee/requests" className="inline-flex shrink-0 items-center gap-1.5 text-xs font-bold text-sky-300 hover:text-sky-200">My requests <ArrowRight size={14} /></Link>}
           >

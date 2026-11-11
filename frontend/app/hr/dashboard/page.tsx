@@ -322,7 +322,7 @@ export default function HRManagerDashboardPage() {
   if (auth.checking) return <HRManagerLoading message="Verifying your HR Manager session…" />;
   if (!auth.user) return <HRManagerUnavailable message={auth.error || "Your HR Manager session is unavailable."} onRetry={() => void auth.reload()} />;
 
-  return <HRManagerShell user={auth.user} activePage="dashboard" title="HR operations hub" description="Your daily control center for people, time, leave, and pay." onLogout={() => void auth.logout()} loggingOut={auth.loggingOut} logoutError={auth.error}>
+  return <HRManagerShell user={auth.user} activePage="dashboard" title="HR dashboard" onLogout={() => void auth.logout()} loggingOut={auth.loggingOut} logoutError={auth.error}>
     <div className="hr-manager-dashboard space-y-7">
       <style jsx global>{`
         [data-hr-manager-theme="light"] .hr-manager-dashboard {
@@ -386,7 +386,7 @@ export default function HRManagerDashboardPage() {
       <section className="relative overflow-hidden rounded-2xl border border-[#344357] bg-gradient-to-br from-[#24354A] via-[#151C28] to-[#111827] p-4 shadow-lg shadow-black/15 sm:p-5">
         <div className="pointer-events-none absolute -right-12 -top-16 size-64 rounded-full bg-blue-500/[0.08] blur-3xl" />
         <div className="relative flex flex-col justify-between gap-3 xl:flex-row xl:items-center">
-          <div className="min-w-0"><div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-400/[0.07] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-blue-200"><ShieldCheck size={12} /> Daily operations · {workDateLabel}</div><h2 className="mt-2 text-xl font-bold tracking-tight text-white sm:text-2xl">Your people, time and pay at a glance.</h2><p className="mt-1 max-w-2xl text-xs leading-5 text-[#C5D0DE]">Focus on today’s attendance, leave decisions and payroll items that need action.</p><div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-[#C5D0DE]"><span className="inline-flex items-center gap-1.5"><Building2 size={14} className="text-blue-300" />{overview?.organization.name || auth.user.organizationName}</span>{timeZone && <span>{timeZone}</span>}<span className="inline-flex items-center gap-1.5"><CheckCircle2 size={14} className="text-emerald-300" />{overview ? "Organization data loaded" : "Loading organization data"}</span></div></div>
+          <div className="min-w-0"><div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-400/[0.07] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-blue-200"><ShieldCheck size={12} /> Daily operations · {workDateLabel}</div><h2 className="mt-2 text-xl font-bold tracking-tight text-white sm:text-2xl">Today’s priorities</h2><div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-[#C5D0DE]"><span className="inline-flex items-center gap-1.5"><Building2 size={14} className="text-blue-300" />{overview?.organization.name || auth.user.organizationName}</span>{timeZone && <span>{timeZone}</span>}<span className="inline-flex items-center gap-1.5"><CheckCircle2 size={14} className="text-emerald-300" />{overview ? "Data ready" : "Loading"}</span></div></div>
           <div className="relative grid grid-cols-2 gap-2 sm:flex sm:flex-wrap"><Link href="/hr/employees?create=1" className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-blue-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"><UserRoundPlus size={14} /> Add employee</Link><Link href="/hr/work-queue" className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-[#3A4A60] bg-[#0B0F17]/70 px-3 py-2 text-xs font-semibold text-[#F8FAFC] transition hover:border-[#53647A] hover:bg-[#202D40]/80"><CheckCircle2 size={14} /> Work queue{workQueueCountReady ? ` · ${formatNumber(workQueueCount)}` : ""}</Link></div>
         </div>
       </section>
@@ -404,7 +404,7 @@ export default function HRManagerDashboardPage() {
       {auxiliaryError && <p role="status" className="rounded-xl border border-amber-300/20 bg-amber-300/[0.05] px-4 py-3 text-xs leading-5 text-amber-100">Some leave, holiday, or payroll summaries could not be loaded. They will be retried automatically.</p>}
 
       <section>
-        <SectionHeading eyebrow="Your day at a glance" title="Start with the essentials" href="/hr/reports" linkLabel="Daily report" />
+        <SectionHeading title="Workforce overview" href="/hr/reports" linkLabel="Daily report" />
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Active employees" value={stats?.activeEmployees} detail={`${formatNumber(stats?.totalEmployees)} total workforce records`} icon={UsersRound} tone="blue" href="/hr/employees" />
           <MetricCard label="Clock-ins today" value={stats?.clockInsRecordedToday} detail={`${formatNumber(stats?.clockOutsRecordedToday)} clock-outs recorded`} icon={CalendarClock} tone="green" href="/hr/modules/attendance" />
