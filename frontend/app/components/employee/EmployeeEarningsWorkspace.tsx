@@ -142,7 +142,7 @@ function monthLabel(value: string) {
   return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(date) : value;
 }
 
-export default function EmployeeEarningsWorkspace({ employeeId, showTitle = true }: { employeeId?: string; showTitle?: boolean } = {}) {
+export default function EmployeeEarningsWorkspace({ employeeId, showTitle = true, showMonthSelector = true }: { employeeId?: string; showTitle?: boolean; showMonthSelector?: boolean } = {}) {
   const [month, setMonth] = useState(monthNow);
   const [activeView, setActiveView] = useState<"earnings" | "payments">("earnings");
   const [data, setData] = useState<EarningsPayload | null>(null);
@@ -218,7 +218,7 @@ export default function EmployeeEarningsWorkspace({ employeeId, showTitle = true
           <h2 className="mt-1 text-xl font-bold tracking-tight text-white sm:text-2xl">My Earnings</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">Review your estimated earnings or check salary payment records. Each view appears separately to keep the information clear.</p>
         </div>}
-        {activeView === "earnings" && <div className="flex flex-wrap items-center gap-2">
+        {showMonthSelector && activeView === "earnings" && <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="employee-earnings-month" className="text-sm text-slate-400">Month</label>
           <input id="employee-earnings-month" type="month" value={month} onChange={(event) => { monthTouchedByUser.current = true; setMonth(event.target.value); }} className="dm-earnings-month rounded-xl border border-slate-700 bg-[#0b111b] px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400" />
         </div>}

@@ -742,18 +742,12 @@ export function DepartmentManagerShell({
         </header>
 
         <main className="mx-auto max-w-[1600px] px-4 py-6 pb-24 sm:px-7 sm:py-8 sm:pb-24 lg:px-9 lg:py-9">
-          <div className="mb-7 flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
+          {(title || description) && <div className="mb-7 flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
             <div className="min-w-0">
-              <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                {title}
-              </h1>
-
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                {description}
-              </p>
-
+              {title && <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">{title}</h1>}
+              {description && <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">{description}</p>}
             </div>
-          </div>
+          </div>}
 
           {children}
         </main>

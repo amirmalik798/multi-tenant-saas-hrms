@@ -13,7 +13,7 @@ export default function DepartmentManagerCommunicationsPage() {
   if (auth.checking) return <DepartmentManagerLoading message="Loading messages…" />;
   if (!auth.user) return <DepartmentManagerUnavailable message={auth.error || "Your Department Manager session could not be verified."} onRetry={() => void auth.reload()} />;
   return (
-    <DepartmentManagerShell user={auth.user} title="Messages" description="Communicate privately with your HR Manager and reply to employee conversations." onLogout={() => void auth.logout()} loggingOut={auth.loggingOut}>
+    <DepartmentManagerShell user={auth.user} title="" description="" onLogout={() => void auth.logout()} loggingOut={auth.loggingOut}>
       <CommunicationWorkspace roleLabel="Department Manager" />
     </DepartmentManagerShell>
   );
