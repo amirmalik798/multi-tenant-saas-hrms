@@ -786,7 +786,7 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
                   />
                 </label>
 
-                <button type="button" onClick={() => void generateDailyPdf()} disabled={reportLoading || !reportDate} className="dm-download-pdf inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-sky-600 px-3.5 text-xs font-bold text-white transition hover:bg-sky-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:cursor-wait disabled:opacity-70">
+                <button type="button" onClick={() => void generateDailyPdf()} disabled={reportLoading || !reportDate} className="dm-download-pdf hr-manager-download-pdf inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-sky-600 px-3.5 text-xs font-bold text-white transition hover:bg-sky-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:cursor-wait disabled:opacity-70">
                   {reportLoading ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
                   {reportLoading ? "Preparing PDF…" : "Download PDF"}
                 </button>

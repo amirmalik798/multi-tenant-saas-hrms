@@ -120,7 +120,7 @@ export default function LeaveManagementWorkspace({ audience }: { audience: Audie
       <div className="flex gap-2"><button type="button" onClick={() => setTab("requests")} aria-pressed={tab === "requests"} className={`rounded-xl px-4 py-2 text-sm font-medium ${tab === "requests" ? "bg-sky-400/15 text-sky-200" : "text-slate-400 hover:bg-white/5"}`}>Leave requests</button><button type="button" onClick={() => setTab("holidays")} aria-pressed={tab === "holidays"} className={`rounded-xl px-4 py-2 text-sm font-medium ${tab === "holidays" ? "bg-sky-400/15 text-sky-200" : "text-slate-400 hover:bg-white/5"}`}>Public holidays</button></div>
 
     </div>
-    {tab === "requests" ? <div className="grid gap-5 ${isHr ? "grid-cols-1" : "xl:grid-cols-[minmax(0,1fr)_340px]"}">
+    {tab === "requests" ? <div className={`grid gap-5 ${isHr ? "grid-cols-1" : "xl:grid-cols-[minmax(0,1fr)_340px]"}`}>
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#111a28]">
 
         <div className="flex flex-wrap items-center gap-3 border-b border-white/10 p-4"><div className="min-w-[180px] flex-1"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employee, type, reason…" className="w-full rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2.5 text-sm outline-none focus:border-sky-400/40"/></div><select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2.5 text-sm"><option value="ALL">All statuses</option><option value="PENDING">Pending</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option><option value="CANCELLED">Cancelled</option></select></div>

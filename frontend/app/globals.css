@@ -8100,3 +8100,29 @@ html[data-super-admin-theme="light"] .super-admin-theme-root .sa-invitation-page
   background:#ffffff !important;
   border:1px solid #b9d2eb !important;
 }
+
+
+/* HR Manager light-mode: keep selected attendance navigation and PDF actions
+   unmistakably legible. These selectors are intentionally role-scoped. */
+html[data-hr-manager-theme="light"] .hr-manager-theme-root
+.hr-manager-attendance-section-tab[aria-current="page"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: #1769aa !important;
+  border-color: #1769aa !important;
+}
+html[data-hr-manager-theme="light"] .hr-manager-theme-root
+.hr-manager-attendance-section-tab[aria-current="page"] > svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+html[data-hr-manager-theme="light"] .hr-manager-theme-root .hr-manager-download-pdf:not(:disabled) {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: #1769aa !important;
+  border-color: #1769aa !important;
+}
+html[data-hr-manager-theme="light"] .hr-manager-theme-root .hr-manager-download-pdf > svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
