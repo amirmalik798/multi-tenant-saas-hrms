@@ -10,6 +10,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useEmployeeWorkspaceUser } from "./EmployeeChrome";
+import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
 type Row = Record<string, unknown>;
 type Category = "corrections" | "overtime";

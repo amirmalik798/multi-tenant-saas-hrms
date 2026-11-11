@@ -283,14 +283,23 @@ function statusOf(row: Row): string {
 
 function statusStyle(status: string): string {
   const value = status.toUpperCase();
-  if (/APPROVED|RESOLVED|CLOCKED_OUT|COMPLETED|ACTIVE/.test(value)) return "border-emerald-400/20 bg-emerald-400/10 text-emerald-300";
-  if (/REJECTED|DISMISSED|FAILED|ERROR/.test(value)) return "border-rose-400/20 bg-rose-400/10 text-rose-300";
-  if (/PENDING|OPEN|RETURNED|LATE|POTENTIAL|DRAFT|REVIEW|SUBMITTED|UNRESOLVED/.test(value)) return "border-amber-400/20 bg-amber-400/10 text-amber-200";
-  return "border-slate-600 bg-slate-700/30 text-slate-300";
+  if (value === "RECORDED" || value === "CHECKED_IN" || /APPROVED|RESOLVED|CLOCKED_OUT|COMPLETED|ACTIVE/.test(value)) return "border-emerald-400/35 bg-emerald-400/15 text-emerald-100";
+  if (value === "NO_RECORDS" || value === "NO_PUNCHES" || value === "NO_SHIFT") return "border-slate-500/60 bg-slate-700/60 text-slate-100";
+  if (value === "PUBLIC_HOLIDAY" || value === "APPROVED_LEAVE" || value === "LEAVE") return "border-violet-300/40 bg-violet-300/15 text-violet-100";
+  if (/REJECTED|DISMISSED|FAILED|ERROR/.test(value)) return "border-rose-400/35 bg-rose-400/15 text-rose-100";
+  if (/PENDING|OPEN|RETURNED|LATE|POTENTIAL|DRAFT|REVIEW|SUBMITTED|UNRESOLVED/.test(value)) return "border-amber-300/40 bg-amber-300/15 text-amber-100";
+  return "border-slate-500/50 bg-slate-700/45 text-slate-100";
 }
 
 function employeeStatusLabel(status: string): string {
   const labels: Record<string, string> = {
+    RECORDED: "Recorded",
+    NEEDS_REVIEW: "Incomplete punches",
+    NO_RECORDS: "No punches",
+    NO_PUNCHES: "No punches",
+    NO_SHIFT: "No shift",
+    PUBLIC_HOLIDAY: "Public holiday",
+    APPROVED_LEAVE: "Approved leave",
     PENDING: "Waiting for review",
     SUBMITTED: "Submitted for review",
     IN_REVIEW: "Under review",
@@ -993,8 +1002,8 @@ export default function EmployeeAttendanceWorkspace() {
             aria-current={activeTab === id ? "page" : undefined}
             className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition ${
               activeTab === id
-                ? "bg-sky-500/15 text-sky-200 ring-1 ring-sky-400/20"
-                : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-200"
+                ? "bg-sky-300 text-slate-950 ring-1 ring-sky-200 font-bold shadow-sm"
+                : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
             }`}
           >
             <Icon size={16} />
@@ -1210,8 +1219,23 @@ export default function EmployeeAttendanceWorkspace() {
                     const leave = isRecord(row.leaveRequest) ? row.leaveRequest : null;
                     const holiday = isRecord(row.publicHoliday) ? row.publicHoliday : null;
                     const hasSchedule = Boolean(text(row, "scheduleName"));
-                    const hasRecords = events.length > 0 || Boolean(text(row, "firstClockIn", "lastClockOut"));
-                    const dayStatus = holiday ? "PUBLIC HOLIDAY" : leave ? text(leave, "status") || "LEAVE" : hasRecords ? "RECORDED" : hasSchedule ? "NO_RECORDS" : "NO_SHIFT";
+                    const hasClockIn = events.some((event) => text(event, "eventType", "event_type").toUpperCase() === "CLOCK_IN") || Boolean(text(row, "firstClockIn"));
+                    const hasClockOut = events.some((event) => text(event, "eventType", "event_type").toUpperCase() === "CLOCK_OUT") || Boolean(text(row, "lastClockOut"));
+                    const hasRecords = events.length > 0 || hasClockIn || hasClockOut;
+                    const leaveStatus = text(leave, "status").toUpperCase();
+                    const dayStatus = holiday
+                      ? "PUBLIC_HOLIDAY"
+                      : leaveStatus === "APPROVED"
+                        ? "APPROVED_LEAVE"
+                        : leave
+                          ? leaveStatus || "LEAVE"
+                          : hasClockIn && hasClockOut
+                            ? "RECORDED"
+                            : hasRecords
+                              ? "NEEDS_REVIEW"
+                              : hasSchedule
+                                ? "NO_RECORDS"
+                                : "NO_SHIFT";
                     const workedMinutes = number(row, "workedMinutes", "worked_minutes");
                     const totalWorkedMinutes = workedMinutes === null ? null : Math.max(0, Math.round(workedMinutes));
                     const workedLabel = totalWorkedMinutes === null ? "—" : `${Math.floor(totalWorkedMinutes / 60)}h ${totalWorkedMinutes % 60}m`;
@@ -1242,7 +1266,7 @@ export default function EmployeeAttendanceWorkspace() {
                             </div>
                           ))}
                         </div>
-                        {events.length > 0 && <details className="mt-3 rounded-lg border border-white/[0.06] bg-white/[0.015] p-3">
+                        {hasRecords && <details className="mt-3 rounded-lg border border-white/[0.06] bg-white/[0.015] p-3">
                           <summary className="cursor-pointer text-xs font-semibold text-slate-300">Recorded events ({events.length})</summary>
                           <div className="mt-3 flex flex-wrap gap-2">{events.map((item, eventIndex) => <span key={idOf(item) || `${text(item, "eventType", "event_type")}-${eventIndex}`} className="rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-xs text-slate-300">{humanize(text(item, "eventType", "event_type"))} · {timeLabel(recordedAt(item), text(item, "timeZone") || rowTimeZone)}</span>)}</div>
                         </details>}
