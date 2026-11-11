@@ -650,7 +650,7 @@ export default function OrganizationLicensePage() {
                         <button
                           type="button"
                           onClick={() => openProof(payment)}
-                          className="inline-flex min-h-9 items-center justify-center gap-2 self-start rounded-lg border border-white/10 bg-white/[0.03] px-3 text-xs font-semibold text-slate-300 transition hover:border-sky-300/25 hover:bg-sky-300/[0.06] hover:text-sky-200 lg:self-center"
+                          className="license-view-receipt-button inline-flex min-h-9 items-center justify-center gap-2 self-start rounded-lg border border-white/10 bg-white/[0.03] px-3 text-xs font-semibold text-slate-300 transition hover:border-sky-300/25 hover:bg-sky-300/[0.06] hover:text-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121b29] lg:self-center"
                         >
                           <FileImage size={14} />
                           View receipt
