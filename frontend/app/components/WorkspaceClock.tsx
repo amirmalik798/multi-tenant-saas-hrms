@@ -62,7 +62,7 @@ export default function WorkspaceClock({
     let requestInFlight = false;
 
     const loadAttendanceStatus = async () => {
-      if (requestInFlight) return;
+      if (requestInFlight || document.visibilityState !== "visible") return;
       requestInFlight = true;
 
       try {
@@ -95,7 +95,7 @@ export default function WorkspaceClock({
     };
 
     void loadAttendanceStatus();
-    const timer = window.setInterval(() => void loadAttendanceStatus(), 10_000);
+    const timer = window.setInterval(refreshWhenVisible, 10_000);
     window.addEventListener("focus", refreshWhenVisible);
     window.addEventListener("hrms:attendance-status-changed", refreshWhenVisible);
     document.addEventListener("visibilitychange", refreshWhenVisible);

@@ -7343,4 +7343,40 @@ html[data-hr-manager-theme="dark"] .hr-manager-theme-root :is(input[type="dateti
   cursor: pointer;
 }
 
+/* Native date/time controls must follow the active workspace theme.
+   The global dark picker treatment is retained only for dark workspaces. */
+html:is(
+  [data-hr-manager-theme="light"],
+  [data-org-admin-theme="light"],
+  [data-super-admin-theme="light"]
+) :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]) {
+  color-scheme: light !important;
+}
 
+html:is(
+  [data-hr-manager-theme="light"],
+  [data-org-admin-theme="light"],
+  [data-super-admin-theme="light"]
+) :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator {
+  filter: none !important;
+  opacity: .9 !important;
+  cursor: pointer;
+}
+
+html:is(
+  [data-hr-manager-theme="dark"],
+  [data-org-admin-theme="dark"],
+  [data-super-admin-theme="dark"]
+) :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]) {
+  color-scheme: dark !important;
+}
+
+html:is(
+  [data-hr-manager-theme="dark"],
+  [data-org-admin-theme="dark"],
+  [data-super-admin-theme="dark"]
+) :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator {
+  filter: brightness(0) invert(1) !important;
+  opacity: .95 !important;
+  cursor: pointer;
+}

@@ -160,7 +160,7 @@ function HrmsNetworkVisualization({
     : accessGranted
       ? "Workspace access granted"
       : active
-        ? "Customer records connecting"
+        ? "Employee records connecting"
         : "HRMS workspace standby";
 
   const accessibleSummary = failed
