@@ -8062,3 +8062,35 @@ html[data-super-admin-theme="light"] .super-admin-theme-root .sa-invitation-page
   -webkit-text-fill-color: #e5edf7 !important;
 }
 
+
+
+/* Department Manager light-mode finishing pass. */
+.department-manager-theme-root[data-department-manager-theme="light"] .dm-download-pdf:not(:disabled) {
+  color:#fff !important; -webkit-text-fill-color:#fff !important; background:#1769aa !important; border-color:#1769aa !important;
+}
+.department-manager-theme-root[data-department-manager-theme="light"] .dm-download-pdf:disabled {
+  color:#17324d !important; -webkit-text-fill-color:#17324d !important; background:#dbeafe !important; border:1px solid #b6d3ef !important; opacity:1 !important;
+}
+.department-manager-theme-root[data-department-manager-theme="light"] .dm-profile-photo-button {
+  color:#fff !important; -webkit-text-fill-color:#fff !important; background:#1769aa !important; border-color:#1769aa !important;
+}
+.department-manager-theme-root[data-department-manager-theme="light"] .dm-earnings-month {
+  color:#17243a !important; -webkit-text-fill-color:#17243a !important; background:#fff !important; border-color:#cbd5e1 !important;
+}
+.department-manager-theme-root[data-department-manager-theme="light"] .dm-earnings-tab[aria-selected="true"] {
+  color:#fff !important; -webkit-text-fill-color:#fff !important; background:#1769aa !important; border-color:#1769aa !important;
+}
+.department-manager-theme-root[data-department-manager-theme="light"] .workforce-contact-section {
+  color:#17243a !important; background:#fff !important; border-color:#d7e0eb !important; box-shadow:0 1px 3px rgb(15 23 42 / .06) !important;
+}
+.department-manager-theme-root[data-department-manager-theme="light"] .workforce-contact-section .workforce-contact-heading { color:#17243a !important; }
+.department-manager-theme-root[data-department-manager-theme="light"] .workforce-contact-section .workforce-contact-description { color:#53657d !important; }
+.department-manager-theme-root[data-department-manager-theme="light"] .workforce-contact-section [class*="text-slate-500"],
+.department-manager-theme-root[data-department-manager-theme="light"] .workforce-contact-section [class*="text-slate-400"] { color:#64748b !important; }
+.department-manager-theme-root[data-department-manager-theme="light"] .workforce-contact-section [class*="text-white"] { color:#17243a !important; }
+.department-manager-theme-root[data-department-manager-theme="light"] .workforce-contact-section .rounded-xl.border {
+  background:#f8fafc !important; border-color:#d7e0eb !important;
+}
+.department-manager-theme-root[data-department-manager-theme="light"] .workforce-emergency-section > div > span {
+  color:#925000 !important; background:#fff7e8 !important; border-color:#f0d7a8 !important;
+}
