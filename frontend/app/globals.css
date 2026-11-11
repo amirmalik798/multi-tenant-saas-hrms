@@ -50,11 +50,11 @@ body {
   }
 }
 
-/* Brighter secondary text for HR Manager and Department Manager attendance. */
-div:has(> nav[aria-label="Attendance management sections"]) .text-slate-500,
-
-/* Brighter secondary text for Employee attendance and personal records. */
-div:has(> nav[aria-label="Employee attendance sections"]) .text-slate-500 {
+/* Secondary attendance labels are brightened only in dark workspaces.
+   A global rule here made these labels almost white on light surfaces. */
+.hr-manager-theme-root[data-hr-manager-theme="dark"] div:has(> nav[aria-label="Attendance management sections"]) .text-slate-500,
+.department-manager-theme-root[data-department-manager-theme="dark"] div:has(> nav[aria-label="Attendance management sections"]) .text-slate-500,
+.employee-theme-root[data-employee-theme="dark"] div:has(> nav[aria-label="Employee attendance sections"]) .text-slate-500 {
   color: #cbd5e1;
 }
 
@@ -74,18 +74,8 @@ div:has(> nav[aria-label="Employee attendance sections"]) .text-slate-500 {
 
 
 
-/* Improve visibility of native date and month picker icons. */
-input[type="date"],
-input[type="month"] {
-  color-scheme: dark;
-}
-
-input[type="date"]::-webkit-calendar-picker-indicator,
-input[type="month"]::-webkit-calendar-picker-indicator {
-  filter: brightness(0) invert(1) !important;
-  opacity: 1 !important;
-  cursor: pointer;
-}
+/* Native date/time controls are themed per workspace at the end of this file.
+   Avoid a global dark color-scheme that leaks into every light workspace. */
 
 
 /* Employee workspace light theme.
@@ -97,7 +87,10 @@ input[type="month"]::-webkit-calendar-picker-indicator {
   background: #f3f6fb !important;
 }
 
-.employee-theme-root[data-employee-theme="light"] [class*="bg-[#"],
+.employee-theme-root[data-employee-theme="light"] :is(
+  [class*="bg-[#0"], [class*="bg-[#1"], [class*="bg-[#2"],
+  [class*="bg-[#344357"], [class*="bg-[#3A4A60"], [class*="bg-[#344D68"], [class*="bg-[#46607B"]
+),
 .employee-theme-root[data-employee-theme="light"] [class*="bg-slate-9"],
 .employee-theme-root[data-employee-theme="light"] [class*="bg-slate-8"] {
   background-color: #ffffff !important;
@@ -614,7 +607,10 @@ input[type="month"]::-webkit-calendar-picker-indicator {
 }
 
 /* Main canvas and dark component surfaces */
-.department-manager-theme-root[data-department-manager-theme="light"] [class*="bg-[#"],
+.department-manager-theme-root[data-department-manager-theme="light"] :is(
+  [class*="bg-[#0"], [class*="bg-[#1"], [class*="bg-[#2"],
+  [class*="bg-[#344357"], [class*="bg-[#3A4A60"], [class*="bg-[#344D68"], [class*="bg-[#46607B"]
+),
 .department-manager-theme-root[data-department-manager-theme="light"] [class*="bg-slate-950"],
 .department-manager-theme-root[data-department-manager-theme="light"] [class*="bg-slate-900"],
 .department-manager-theme-root[data-department-manager-theme="light"] [class*="bg-slate-800"],
@@ -7188,8 +7184,14 @@ html[data-super-admin-theme="light"] .sa-invitations-page .sa-invitation-status-
   color: #64748b !important;
 }
 
-.department-manager-theme-root[data-department-manager-theme="light"] [class*="bg-[#"],
-.employee-theme-root[data-employee-theme="light"] [class*="bg-[#"] {
+.department-manager-theme-root[data-department-manager-theme="light"] :is(
+  [class*="bg-[#0"], [class*="bg-[#1"], [class*="bg-[#2"],
+  [class*="bg-[#344357"], [class*="bg-[#3A4A60"], [class*="bg-[#344D68"], [class*="bg-[#46607B"]
+),
+.employee-theme-root[data-employee-theme="light"] :is(
+  [class*="bg-[#0"], [class*="bg-[#1"], [class*="bg-[#2"],
+  [class*="bg-[#344357"], [class*="bg-[#3A4A60"], [class*="bg-[#344D68"], [class*="bg-[#46607B"]
+) {
   background-color: #ffffff !important;
 }
 
@@ -7379,4 +7381,188 @@ html:is(
   filter: brightness(0) invert(1) !important;
   opacity: .95 !important;
   cursor: pointer;
+}
+
+
+/* =========================================================================
+   FIVE-WORKSPACE LIGHT MODE STABILIZATION
+   Fixes are intentionally scoped to each workspace. In particular, do not
+   recolor semantic action text or arbitrary brand/status fills as neutrals.
+   ========================================================================= */
+
+/* Semantic foregrounds in Department Manager and Employee must remain
+   distinct from the neutral text scale. Earlier broad span/text rules could
+   wash out green, amber, red, violet and blue status indicators. */
+.department-manager-theme-root[data-department-manager-theme="light"]
+:is([class*="text-blue-"], [class*="text-sky-"], [class*="text-cyan-"], [class*="text-indigo-"]),
+.employee-theme-root[data-employee-theme="light"]
+:is([class*="text-blue-"], [class*="text-sky-"], [class*="text-cyan-"], [class*="text-indigo-"]) {
+  color: #155b96 !important;
+  -webkit-text-fill-color: #155b96 !important;
+  opacity: 1 !important;
+}
+.department-manager-theme-root[data-department-manager-theme="light"]
+:is([class*="text-emerald-"], [class*="text-green-"], [class*="text-teal-"]),
+.employee-theme-root[data-employee-theme="light"]
+:is([class*="text-emerald-"], [class*="text-green-"], [class*="text-teal-"]) {
+  color: #087443 !important;
+  -webkit-text-fill-color: #087443 !important;
+  opacity: 1 !important;
+}
+.department-manager-theme-root[data-department-manager-theme="light"]
+:is([class*="text-amber-"], [class*="text-yellow-"], [class*="text-orange-"]),
+.employee-theme-root[data-employee-theme="light"]
+:is([class*="text-amber-"], [class*="text-yellow-"], [class*="text-orange-"]) {
+  color: #925000 !important;
+  -webkit-text-fill-color: #925000 !important;
+  opacity: 1 !important;
+}
+.department-manager-theme-root[data-department-manager-theme="light"]
+:is([class*="text-rose-"], [class*="text-red-"]),
+.employee-theme-root[data-employee-theme="light"]
+:is([class*="text-rose-"], [class*="text-red-"]) {
+  color: #a32638 !important;
+  -webkit-text-fill-color: #a32638 !important;
+  opacity: 1 !important;
+}
+.department-manager-theme-root[data-department-manager-theme="light"]
+:is([class*="text-violet-"], [class*="text-purple-"], [class*="text-fuchsia-"], [class*="text-pink-"]),
+.employee-theme-root[data-employee-theme="light"]
+:is([class*="text-violet-"], [class*="text-purple-"], [class*="text-fuchsia-"], [class*="text-pink-"]) {
+  color: #6536a3 !important;
+  -webkit-text-fill-color: #6536a3 !important;
+  opacity: 1 !important;
+}
+
+/* A control's label/icon must inherit its parent button/link foreground.
+   This prevents a descendant text-white utility from becoming dark on a
+   blue/green/red CTA after neutral light-mode text normalization. */
+.hr-manager-theme-root[data-hr-manager-theme="light"] :is(button, a)[class*="bg-"] *,
+.hr-manager-theme-root[data-hr-manager-theme="light"] :is(button, a)[class*="bg-[#"] *,
+.org-admin-workspace :is(button, a)[class*="bg-"] *,
+.org-admin-workspace :is(button, a)[class*="bg-[#"] *,
+.super-admin-theme-root :is(button, a)[class*="bg-"] *,
+.super-admin-theme-root :is(button, a)[class*="bg-[#"] *,
+.department-manager-theme-root[data-department-manager-theme="light"] :is(button, a)[class*="bg-"] *,
+.department-manager-theme-root[data-department-manager-theme="light"] :is(button, a)[class*="bg-[#"] *,
+.employee-theme-root[data-employee-theme="light"] :is(button, a)[class*="bg-"] *,
+.employee-theme-root[data-employee-theme="light"] :is(button, a)[class*="bg-[#"] * {
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+/* Saturated semantic action fills use white foregrounds. Soft status chips
+   (for example bg-emerald-500/10) are deliberately not matched. */
+:is(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  .org-admin-workspace,
+  .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class~="bg-emerald-500"],
+:is(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  .org-admin-workspace,
+  .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class~="bg-emerald-600"],
+:is(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  .org-admin-workspace,
+  .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class~="bg-green-600"],
+:is(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  .org-admin-workspace,
+  .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class~="bg-rose-500"],
+:is(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  .org-admin-workspace,
+  .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class~="bg-rose-600"],
+:is(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  .org-admin-workspace,
+  .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class~="bg-red-600"],
+:is(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  .org-admin-workspace,
+  .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class~="bg-amber-600"],
+:is(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  .org-admin-workspace,
+  .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class~="bg-blue-600"],
+:is(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  .org-admin-workspace,
+  .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class~="bg-sky-600"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Native calendar/date-time controls must follow each workspace preference.
+   Employee and Department Manager keep their theme marker on the workspace
+   root, while the other three also publish a document-level marker. */
+.hr-manager-theme-root[data-hr-manager-theme="light"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
+html[data-org-admin-theme="light"] .org-admin-workspace :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
+html[data-super-admin-theme="light"] .super-admin-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
+.department-manager-theme-root[data-department-manager-theme="light"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
+.employee-theme-root[data-employee-theme="light"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]) {
+  color-scheme: light !important;
+}
+.hr-manager-theme-root[data-hr-manager-theme="light"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
+html[data-org-admin-theme="light"] .org-admin-workspace :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
+html[data-super-admin-theme="light"] .super-admin-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
+.department-manager-theme-root[data-department-manager-theme="light"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
+.employee-theme-root[data-employee-theme="light"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator {
+  filter: none !important;
+  opacity: .95 !important;
+  cursor: pointer;
+}
+
+html[data-hr-manager-theme="dark"] .hr-manager-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
+html[data-org-admin-theme="dark"] .org-admin-workspace :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
+html[data-super-admin-theme="dark"] .super-admin-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
+.department-manager-theme-root[data-department-manager-theme="dark"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]),
+.employee-theme-root[data-employee-theme="dark"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"]) {
+  color-scheme: dark !important;
+}
+html[data-hr-manager-theme="dark"] .hr-manager-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
+html[data-org-admin-theme="dark"] .org-admin-workspace :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
+html[data-super-admin-theme="dark"] .super-admin-theme-root :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
+.department-manager-theme-root[data-department-manager-theme="dark"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator,
+.employee-theme-root[data-employee-theme="dark"] :is(input[type="date"], input[type="datetime-local"], input[type="month"], input[type="week"])::-webkit-calendar-picker-indicator {
+  filter: brightness(0) invert(1) !important;
+  opacity: .95 !important;
+  cursor: pointer;
+}
+
+/* Consistent keyboard focus visibility across every light workspace. */
+.hr-manager-theme-root[data-hr-manager-theme="light"] :focus-visible,
+html[data-org-admin-theme="light"] .org-admin-workspace :focus-visible,
+html[data-super-admin-theme="light"] .super-admin-theme-root :focus-visible,
+.department-manager-theme-root[data-department-manager-theme="light"] :focus-visible,
+.employee-theme-root[data-employee-theme="light"] :focus-visible {
+  outline: 2px solid rgb(23 105 170 / 72%) !important;
+  outline-offset: 2px !important;
 }
