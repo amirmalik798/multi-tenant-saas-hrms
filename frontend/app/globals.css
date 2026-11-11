@@ -7658,3 +7658,96 @@ html[data-super-admin-theme="light"] .super-admin-theme-root :focus-visible,
   outline: 2px solid rgb(23 105 170 / 72%) !important;
   outline-offset: 2px !important;
 }
+
+
+/* =========================================================================
+   LIGHT THEME FINISHING PASS — country controls, calendar events and CTAs
+   Scoped to the active workspace; dark-mode styling remains unchanged.
+   ========================================================================= */
+
+/* CountrySelect previously carried an inline dark palette, so the selected
+   country name became white-on-white in light mode. Override that inline
+   presentation without changing its search, validation or stored value. */
+.hr-manager-theme-root[data-hr-manager-theme="light"] input[data-country-select-input="true"],
+html[data-org-admin-theme="light"] .org-admin-workspace input[data-country-select-input="true"],
+html[data-super-admin-theme="light"] .super-admin-theme-root input[data-country-select-input="true"],
+.department-manager-theme-root[data-department-manager-theme="light"] input[data-country-select-input="true"],
+.employee-theme-root[data-employee-theme="light"] input[data-country-select-input="true"] {
+  color: #172033 !important;
+  -webkit-text-fill-color: #172033 !important;
+  caret-color: #172033 !important;
+  background-color: #ffffff !important;
+  color-scheme: light !important;
+}
+
+/* Calendar event cards use neutral foregrounds on a white surface in light
+   mode. Their small status dots retain the semantic color classes. */
+.hr-manager-theme-root[data-hr-manager-theme="light"] .attendance-calendar button[title],
+html[data-org-admin-theme="light"] .org-admin-workspace .attendance-calendar button[title],
+html[data-super-admin-theme="light"] .super-admin-theme-root .attendance-calendar button[title],
+.department-manager-theme-root[data-department-manager-theme="light"] .attendance-calendar button[title],
+.employee-theme-root[data-employee-theme="light"] .attendance-calendar button[title] {
+  color: #334155 !important;
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+}
+.hr-manager-theme-root[data-hr-manager-theme="light"] .attendance-calendar button[title]:hover,
+html[data-org-admin-theme="light"] .org-admin-workspace .attendance-calendar button[title]:hover,
+html[data-super-admin-theme="light"] .super-admin-theme-root .attendance-calendar button[title]:hover,
+.department-manager-theme-root[data-department-manager-theme="light"] .attendance-calendar button[title]:hover,
+.employee-theme-root[data-employee-theme="light"] .attendance-calendar button[title]:hover {
+  background-color: #f1f7fd !important;
+  border-color: #8dbce3 !important;
+}
+
+/* Strong, predictable foregrounds for primary workforce actions. Sky brand
+   fills use dark ink; saturated blue fills use white. This covers Add
+   Department, Add Employee, Save, Save & Invite and equivalent primary CTAs. */
+.hr-manager-theme-root[data-hr-manager-theme="light"] :is(button, a[role="button"])[class*="bg-[#75c7ff]"],
+html[data-org-admin-theme="light"] .org-admin-workspace :is(button, a[role="button"])[class*="bg-[#75c7ff]"],
+html[data-super-admin-theme="light"] .super-admin-theme-root :is(button, a[role="button"])[class*="bg-[#75c7ff]"],
+.department-manager-theme-root[data-department-manager-theme="light"] :is(button, a[role="button"])[class*="bg-[#75c7ff]"],
+.employee-theme-root[data-employee-theme="light"] :is(button, a[role="button"])[class*="bg-[#75c7ff]"] {
+  color: #082033 !important;
+  -webkit-text-fill-color: #082033 !important;
+  background-color: #75c7ff !important;
+  border-color: #5bb8f5 !important;
+}
+.hr-manager-theme-root[data-hr-manager-theme="light"] :is(button, a[role="button"])[class~="bg-blue-500"],
+html[data-org-admin-theme="light"] .org-admin-workspace :is(button, a[role="button"])[class~="bg-blue-500"],
+html[data-super-admin-theme="light"] .super-admin-theme-root :is(button, a[role="button"])[class~="bg-blue-500"],
+.department-manager-theme-root[data-department-manager-theme="light"] :is(button, a[role="button"])[class~="bg-blue-500"],
+.employee-theme-root[data-employee-theme="light"] :is(button, a[role="button"])[class~="bg-blue-500"],
+.hr-manager-theme-root[data-hr-manager-theme="light"] :is(button, a[role="button"])[class~="bg-blue-600"],
+html[data-org-admin-theme="light"] .org-admin-workspace :is(button, a[role="button"])[class~="bg-blue-600"],
+html[data-super-admin-theme="light"] .super-admin-theme-root :is(button, a[role="button"])[class~="bg-blue-600"],
+.department-manager-theme-root[data-department-manager-theme="light"] :is(button, a[role="button"])[class~="bg-blue-600"],
+.employee-theme-root[data-employee-theme="light"] :is(button, a[role="button"])[class~="bg-blue-600"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #1769aa !important;
+  border-color: #1769aa !important;
+}
+
+
+/* Super Admin invitation heading: keep the title and its action on one calm,
+   compact row rather than leaving a tall, visually empty heading band. */
+html[data-super-admin-theme="light"] .super-admin-theme-root .sa-invitation-page-heading {
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+}
+html[data-super-admin-theme="light"] .super-admin-theme-root .sa-invitation-page-heading h1 {
+  color: #142238 !important;
+  font-size: clamp(1.65rem, 2.4vw, 2rem) !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.035em !important;
+}
+@media (max-width: 639px) {
+  html[data-super-admin-theme="light"] .super-admin-theme-root .sa-invitation-page-heading > div:last-child {
+    align-self: stretch;
+  }
+  html[data-super-admin-theme="light"] .super-admin-theme-root .sa-invitation-page-heading > div:last-child a {
+    width: 100%;
+  }
+}

@@ -881,7 +881,7 @@ export default function InvitationsPage() {
           </nav>
         </header>
 
-        <div className="mx-auto w-full max-w-[1600px] px-4 pb-8 pt-6 sm:px-6 lg:px-8 lg:pt-8">
+        <div className="mx-auto w-full max-w-[1600px] px-4 pb-8 pt-4 sm:px-6 sm:pt-5 lg:px-8 lg:pt-5">
           {logoutError && (
             <div
               role="alert"
@@ -899,7 +899,7 @@ export default function InvitationsPage() {
             </div>
           )}
 
-          <section className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <section className="sa-invitation-page-heading mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8db9df]">
                 <span className="h-px w-5 bg-[#75c7ff]/70" />
@@ -912,7 +912,7 @@ export default function InvitationsPage() {
               </h1>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 self-start">
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
 
               <Link
                 href="/dashboard/organizations"
