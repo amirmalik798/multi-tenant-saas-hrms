@@ -75,15 +75,16 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
   }, [checkLicense, searchParams]);
 
   useEffect(() => {
-    if (state === "allowed") {
-      const timer = window.setInterval(() => void checkLicense(), 30_000);
-      const onFocus = () => void checkLicense();
-      window.addEventListener("focus", onFocus);
-      return () => {
-        window.clearInterval(timer);
-        window.removeEventListener("focus", onFocus);
-      };
-    }
+    if (state === "checking") return;
+    // Keep restricted sessions in place and automatically restore access as
+    // soon as Super Admin activates or renews the tenant license.
+    const timer = window.setInterval(() => void checkLicense(), 30_000);
+    const onFocus = () => void checkLicense();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [checkLicense, state]);
 
   if (state === "checking") {
