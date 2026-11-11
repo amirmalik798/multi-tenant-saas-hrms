@@ -214,7 +214,7 @@ export default function DepartmentManagerSelfAttendance({ employeeId, organizati
 
   return <section className="mb-5 overflow-hidden rounded-2xl border border-sky-400/15 bg-gradient-to-br from-[#152438] via-[#131e2d] to-[#111821] shadow-lg shadow-black/10">
     <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/[.07] p-4 sm:p-5">
-      <div className="flex items-start gap-3"><div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-sky-400/10 text-sky-200"><Clock3 size={21}/></div><div><p className="dm-personal-attendance-label text-[10px] font-bold uppercase tracking-[.16em] text-sky-200/80">Personal attendance</p><h2 className="mt-1 text-lg font-semibold text-white">{loading ? "Verifying your workday…" : status === null ? "Status unavailable" : clockedIn ? "Your work session is active" : "You are clocked out"}</h2><p className="mt-1 max-w-2xl text-sm leading-5 text-slate-400">Your attendance, session timer and time-off status, using the same rules as employee self-service.</p></div></div>
+      <div className="flex items-start gap-3"><div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-sky-400/10 text-sky-200"><Clock3 size={21}/></div><div><p className="dm-personal-attendance-label text-[10px] font-bold uppercase tracking-[.16em] text-sky-200/80">Personal attendance</p><h2 className="mt-1 text-lg font-semibold text-white">{loading ? "Verifying your workday…" : status === null ? "Status unavailable" : clockedIn ? "Your work session is active" : "You are clocked out"}</h2></div></div>
 
     </div>
     <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5">
