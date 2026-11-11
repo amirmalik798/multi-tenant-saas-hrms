@@ -135,9 +135,21 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
     <div className="organization-license-gate relative min-h-screen">
       <div
         aria-hidden="true"
-        inert
+        inert={true}
         data-license-locked="true"
-        className="pointer-events-none select-none blur-[3px] opacity-45"
+        className="select-none blur-[3px] opacity-45"
+        onPointerDownCapture={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        onMouseDownCapture={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        onTouchStartCapture={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
         onClickCapture={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -146,7 +158,15 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
           event.preventDefault();
           event.stopPropagation();
         }}
+        onContextMenuCapture={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
         onKeyDownCapture={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        onSubmitCapture={(event) => {
           event.preventDefault();
           event.stopPropagation();
         }}
