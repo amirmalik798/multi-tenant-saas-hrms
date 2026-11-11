@@ -8208,3 +8208,36 @@ html[data-hr-manager-theme="light"] .hr-manager-theme-root .hr-manager-download-
 [data-license-locked="true"] :is(a, button, input, select, textarea, [role="button"], [tabindex]):focus {
   outline: none !important;
 }
+
+/* Attendance selected section: enforce a saturated blue active state in every
+   HR Manager theme so inherited workspace button rules cannot wash out its label. */
+.hr-manager-theme-root .hr-manager-attendance-section-tab[aria-current="page"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #1769aa !important;
+  border: 1px solid #1769aa !important;
+}
+.hr-manager-theme-root .hr-manager-attendance-section-tab[aria-current="page"] > svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* License receipt is an available action for every recorded submission. Keep
+   its enabled state visibly actionable in both organization-admin themes. */
+.org-admin-workspace .license-view-receipt-button {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #1769aa !important;
+  border: 1px solid #1769aa !important;
+  opacity: 1 !important;
+}
+.org-admin-workspace .license-view-receipt-button:hover {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #12568d !important;
+  border-color: #12568d !important;
+}
+.org-admin-workspace .license-view-receipt-button:focus-visible {
+  outline: 2px solid #7dd3fc !important;
+  outline-offset: 2px !important;
+}
