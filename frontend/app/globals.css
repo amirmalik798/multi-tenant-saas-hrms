@@ -7152,3 +7152,195 @@ html[data-super-admin-theme="light"] .sa-invitations-page .sa-invitation-status-
   background: #eff6ff !important;
   border-color: #93c5fd !important;
 }
+
+
+/* ======================================================================
+   Cross-workspace light-mode finish — HR Manager, Department Manager,
+   and Employee. Keep semantic status colours intact and scope every rule
+   to its own workspace root.
+   ====================================================================== */
+
+.department-manager-theme-root[data-department-manager-theme="light"],
+.employee-theme-root[data-employee-theme="light"] {
+  color: #17243a !important;
+  background: #f3f6fb !important;
+  color-scheme: light;
+}
+
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-slate-100"],
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-slate-200"],
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-slate-300"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-slate-100"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-slate-200"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-slate-300"] {
+  color: #243247 !important;
+}
+
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-slate-400"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-slate-400"] {
+  color: #52647a !important;
+}
+
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-slate-500"],
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-slate-600"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-slate-500"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-slate-600"] {
+  color: #64748b !important;
+}
+
+.department-manager-theme-root[data-department-manager-theme="light"] [class*="bg-[#"],
+.employee-theme-root[data-employee-theme="light"] [class*="bg-[#"] {
+  background-color: #ffffff !important;
+}
+
+.department-manager-theme-root[data-department-manager-theme="light"] [class*="border-white/"],
+.department-manager-theme-root[data-department-manager-theme="light"] [class*="border-slate-8"],
+.department-manager-theme-root[data-department-manager-theme="light"] [class*="border-slate-7"],
+.employee-theme-root[data-employee-theme="light"] [class*="border-white/"],
+.employee-theme-root[data-employee-theme="light"] [class*="border-slate-8"],
+.employee-theme-root[data-employee-theme="light"] [class*="border-slate-7"] {
+  border-color: #d8e1ec !important;
+}
+
+.department-manager-theme-root[data-department-manager-theme="light"] button[class*="bg-sky-"],
+.department-manager-theme-root[data-department-manager-theme="light"] a[class*="bg-sky-"],
+.employee-theme-root[data-employee-theme="light"] button[class*="bg-sky-"],
+.employee-theme-root[data-employee-theme="light"] a[class*="bg-sky-"] {
+  background-color: #1769aa !important;
+  border-color: #1769aa !important;
+  color: #ffffff !important;
+}
+
+.department-manager-theme-root[data-department-manager-theme="light"] button[class*="bg-sky-400"],
+.employee-theme-root[data-employee-theme="light"] button[class*="bg-sky-400"] {
+  background-color: #dceeff !important;
+  border-color: #b7d8f5 !important;
+  color: #123b5c !important;
+}
+
+.department-manager-theme-root[data-department-manager-theme="light"] input:not([type="checkbox"]):not([type="radio"]),
+.department-manager-theme-root[data-department-manager-theme="light"] select,
+.department-manager-theme-root[data-department-manager-theme="light"] textarea,
+.employee-theme-root[data-employee-theme="light"] input:not([type="checkbox"]):not([type="radio"]),
+.employee-theme-root[data-employee-theme="light"] select,
+.employee-theme-root[data-employee-theme="light"] textarea {
+  color: #17243a !important;
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color-scheme: light !important;
+}
+
+.department-manager-theme-root[data-department-manager-theme="light"] input::placeholder,
+.department-manager-theme-root[data-department-manager-theme="light"] textarea::placeholder,
+.employee-theme-root[data-employee-theme="light"] input::placeholder,
+.employee-theme-root[data-employee-theme="light"] textarea::placeholder {
+  color: #718198 !important;
+  opacity: 1;
+}
+
+.department-manager-theme-root[data-department-manager-theme="light"] input[type="date"],
+.department-manager-theme-root[data-department-manager-theme="light"] input[type="datetime-local"],
+.department-manager-theme-root[data-department-manager-theme="light"] input[type="month"],
+.employee-theme-root[data-employee-theme="light"] input[type="date"],
+.employee-theme-root[data-employee-theme="light"] input[type="datetime-local"],
+.employee-theme-root[data-employee-theme="light"] input[type="month"] {
+  color-scheme: light !important;
+}
+
+.department-manager-theme-root[data-department-manager-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator,
+.department-manager-theme-root[data-department-manager-theme="light"] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.department-manager-theme-root[data-department-manager-theme="light"] input[type="month"]::-webkit-calendar-picker-indicator,
+.employee-theme-root[data-employee-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator,
+.employee-theme-root[data-employee-theme="light"] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.employee-theme-root[data-employee-theme="light"] input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: none !important;
+  opacity: .9 !important;
+  cursor: pointer;
+}
+
+.department-manager-theme-root[data-department-manager-theme="dark"] input[type="date"],
+.department-manager-theme-root[data-department-manager-theme="dark"] input[type="datetime-local"],
+.department-manager-theme-root[data-department-manager-theme="dark"] input[type="month"],
+.employee-theme-root[data-employee-theme="dark"] input[type="date"],
+.employee-theme-root[data-employee-theme="dark"] input[type="datetime-local"],
+.employee-theme-root[data-employee-theme="dark"] input[type="month"] {
+  color-scheme: dark !important;
+}
+
+.department-manager-theme-root[data-department-manager-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+.department-manager-theme-root[data-department-manager-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.department-manager-theme-root[data-department-manager-theme="dark"] input[type="month"]::-webkit-calendar-picker-indicator,
+.employee-theme-root[data-employee-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+.employee-theme-root[data-employee-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.employee-theme-root[data-employee-theme="dark"] input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: brightness(0) invert(1) !important;
+  opacity: .95 !important;
+  cursor: pointer;
+}
+
+.department-manager-theme-root[data-department-manager-theme="light"] :focus-visible,
+.employee-theme-root[data-employee-theme="light"] :focus-visible {
+  outline: 2px solid rgb(23 105 170 / .68);
+  outline-offset: 2px;
+}
+
+
+/* Semantic text contrast for the two additional role light themes. */
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-sky-100"],
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-sky-200"],
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-sky-300"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-sky-100"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-sky-200"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-sky-300"] { color: #1769aa !important; }
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-emerald-100"],
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-emerald-200"],
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-emerald-300"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-emerald-100"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-emerald-200"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-emerald-300"] { color: #166534 !important; }
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-amber-100"],
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-amber-200"],
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-amber-300"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-amber-100"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-amber-200"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-amber-300"] { color: #92400e !important; }
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-rose-100"],
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-rose-200"],
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-rose-300"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-rose-100"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-rose-200"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-rose-300"] { color: #b4233c !important; }
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-violet-100"],
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-violet-200"],
+.department-manager-theme-root[data-department-manager-theme="light"] [class~="text-violet-300"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-violet-100"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-violet-200"],
+.employee-theme-root[data-employee-theme="light"] [class~="text-violet-300"] { color: #6336a3 !important; }
+
+/* Neutral controls use dark ink on light surfaces; filled semantic actions
+   retain their dedicated high-contrast colors. */
+.department-manager-theme-root[data-department-manager-theme="light"] button:not([class*="bg-sky-"]):not([class*="bg-blue-"]):not([class*="bg-emerald-"]):not([class*="bg-green-"]):not([class*="bg-rose-"]):not([class*="bg-red-"]):not([class*="bg-amber-"]):not([class*="bg-yellow-"]),
+.employee-theme-root[data-employee-theme="light"] button:not([class*="bg-sky-"]):not([class*="bg-blue-"]):not([class*="bg-emerald-"]):not([class*="bg-green-"]):not([class*="bg-rose-"]):not([class*="bg-red-"]):not([class*="bg-amber-"]):not([class*="bg-yellow-"]) {
+  color: #334155 !important;
+}
+
+.department-manager-theme-root[data-department-manager-theme="light"] button[class*="bg-blue-"],
+.department-manager-theme-root[data-department-manager-theme="light"] a[class*="bg-blue-"],
+.employee-theme-root[data-employee-theme="light"] button[class*="bg-blue-"],
+.employee-theme-root[data-employee-theme="light"] a[class*="bg-blue-"] {
+  background-color: #1769aa !important;
+  border-color: #1769aa !important;
+  color: #ffffff !important;
+}
+
+/* HR Manager dark-mode calendar affordances for all native date controls. */
+html[data-hr-manager-theme="dark"] .hr-manager-theme-root :is(input[type="datetime-local"], input[type="week"]) {
+  color-scheme: dark !important;
+}
+html[data-hr-manager-theme="dark"] .hr-manager-theme-root :is(input[type="datetime-local"], input[type="week"])::-webkit-calendar-picker-indicator {
+  filter: brightness(0) invert(1) !important;
+  opacity: .95 !important;
+  cursor: pointer;
+}
+
+

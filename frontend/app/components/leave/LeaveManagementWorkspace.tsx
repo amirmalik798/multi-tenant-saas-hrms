@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { CalendarDays, Check, Clock3, Plus, RefreshCw, ShieldCheck, Trash2, X } from "lucide-react";
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
+import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
 type Audience = "hr-manager" | "department-manager" | "employee";
 type LeaveRequest = { id: string; employeeId: string; isOwnRequest?: boolean; leaveType: string; startDate: string; endDate: string; isPaid: boolean; reason: string; status: string; reviewerNote?: string | null; createdAt?: string; employeeCode?: string | null; firstName?: string | null; lastName?: string | null; departmentName?: string | null };
@@ -16,6 +17,7 @@ function apiError(payload: Payload | null, fallback: string) { return payload?.m
 
 export default function LeaveManagementWorkspace({ audience }: { audience: Audience }) {
   const isEmployee = audience === "employee";
+  const isHr = audience === "hr-manager";
   const canReview = audience !== "employee";
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -35,9 +37,8 @@ export default function LeaveManagementWorkspace({ audience }: { audience: Audie
   const [holidayPaid, setHolidayPaid] = useState(true);
   const [filter, setFilter] = useState("ALL");
   const [search, setSearch] = useState("");
-
-  const load = useCallback(async () => {
-    setLoading(true); setError("");
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true); setError("");
     try {
       const [requestResponse, holidayResponse] = await Promise.all([
         fetch("/api/backend/leave/requests", { credentials: "same-origin", cache: "no-store" }),
@@ -53,6 +54,11 @@ export default function LeaveManagementWorkspace({ audience }: { audience: Audie
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
+  useWorkspaceAutoRefresh(() => load(true), {
+    enabled: true,
+    intervalMs: 60_000,
+    shouldRefresh: () => !loading && !saving,
+  });
 
   const visibleRequests = useMemo(() => requests.filter((r) => (filter === "ALL" || r.status === filter) && `${r.firstName ?? ""} ${r.lastName ?? ""} ${r.employeeCode ?? ""} ${r.departmentName ?? ""} ${r.leaveType} ${r.reason}`.toLowerCase().includes(search.toLowerCase())), [requests, filter, search]);
   const pendingCount = requests.filter((r) => r.status === "PENDING").length;
@@ -112,10 +118,11 @@ export default function LeaveManagementWorkspace({ audience }: { audience: Audie
     {notice && <div role="status" className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">{notice}</div>}
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3">
       <div className="flex gap-2"><button type="button" onClick={() => setTab("requests")} aria-pressed={tab === "requests"} className={`rounded-xl px-4 py-2 text-sm font-medium ${tab === "requests" ? "bg-sky-400/15 text-sky-200" : "text-slate-400 hover:bg-white/5"}`}>Leave requests</button><button type="button" onClick={() => setTab("holidays")} aria-pressed={tab === "holidays"} className={`rounded-xl px-4 py-2 text-sm font-medium ${tab === "holidays" ? "bg-sky-400/15 text-sky-200" : "text-slate-400 hover:bg-white/5"}`}>Public holidays</button></div>
-      <button type="button" onClick={() => void load()} disabled={loading || saving} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5 disabled:opacity-50"><RefreshCw size={15} className={loading ? "animate-spin" : ""}/> Refresh</button>
+
     </div>
     {tab === "requests" ? <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#111a28]">
+
         <div className="flex flex-wrap items-center gap-3 border-b border-white/10 p-4"><div className="min-w-[180px] flex-1"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employee, type, reason…" className="w-full rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2.5 text-sm outline-none focus:border-sky-400/40"/></div><select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2.5 text-sm"><option value="ALL">All statuses</option><option value="PENDING">Pending</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option><option value="CANCELLED">Cancelled</option></select></div>
         {loading ? <div className="p-10 text-center text-sm text-slate-400">Loading leave requests…</div> : visibleRequests.length === 0 ? <div className="p-10 text-center"><CalendarDays className="mx-auto text-slate-600"/><p className="mt-3 text-sm font-medium text-slate-300">No leave requests found</p><p className="mt-1 text-xs text-slate-500">Requests will appear here when submitted.</p></div> : <div className="divide-y divide-white/[.07]">{visibleRequests.map((r) => <article key={r.id} className="p-4 sm:p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div className="flex min-w-0 items-start gap-3"><EmployeeProfilePhoto employeeId={r.isOwnRequest ? undefined : r.employeeId} name={[r.firstName, r.lastName].filter(Boolean).join(" ") || "Employee"} className="size-11 rounded-xl border border-sky-300/20 bg-slate-900 text-sm" textClassName="text-sm font-bold text-sky-100" /><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{TYPES.find((t) => t.value === r.leaveType)?.label ?? r.leaveType}</h3><span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusStyle(r.status)}`}>{r.status.replaceAll("_", " ")}</span><span className="rounded-full bg-white/5 px-2.5 py-1 text-[11px] text-slate-400">{r.isPaid ? "Paid leave" : "Unpaid leave"}</span></div><p className="mt-2 text-sm text-slate-300">{dateLabel(r.startDate)} – {dateLabel(r.endDate)}</p><p className="mt-2 text-sm leading-6 text-slate-400">{r.reason}</p>{!isEmployee && <p className="mt-2 text-xs text-slate-500">{[r.firstName, r.lastName].filter(Boolean).join(" ") || "Employee"}{r.employeeCode ? ` · ${r.employeeCode}` : ""}{r.departmentName ? ` · ${r.departmentName}` : ""}</p>}{r.reviewerNote && <p className="mt-3 rounded-lg bg-white/[.04] px-3 py-2 text-xs text-slate-400">Reviewer note: {r.reviewerNote}</p>}</div></div></div>
           {r.status === "PENDING" && <div className="mt-4 flex flex-wrap gap-2">{canReview && !r.isOwnRequest ? <><button type="button" disabled={saving} onClick={() => void decide(r, "APPROVED")} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-400/15 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-400/25 disabled:opacity-50"><Check size={14}/> Approve</button><button type="button" disabled={saving} onClick={() => void decide(r, "REJECTED")} className="inline-flex items-center gap-1.5 rounded-lg border border-rose-300/15 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-400/10 disabled:opacity-50"><X size={14}/> Reject</button></> : <button type="button" disabled={saving} onClick={() => void decide(r, "CANCELLED")} className="rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-50">Cancel request</button>}</div>}
@@ -130,3 +137,4 @@ export default function LeaveManagementWorkspace({ audience }: { audience: Audie
     <p className="text-xs leading-5 text-slate-500"><Clock3 className="mr-1 inline" size={13}/>Leave approvals and holiday entries affect salary estimates after the migration is applied. The system preserves attendance events and never treats leave as a clock-in or clock-out event.</p>
   </section>;
 }
+

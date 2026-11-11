@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { BadgeDollarSign, RefreshCw, Save } from "lucide-react";
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
+import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
 type Row = Record<string, unknown>;
 type Employee = { id: string; first_name?: string; last_name?: string; employee_code?: string; department_name?: string; employment_status?: string; workforce_role?: string; workforceRole?: string; roleName?: string; role_name?: string; role?: string | { name?: string; title?: string; slug?: string }; userRole?: string; user_role?: string; user?: { role?: string | { name?: string; title?: string; slug?: string } } };
@@ -68,20 +69,22 @@ export default function EmployeePayRatesWorkspace() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const rateRequestId = useRef(0);
+  const employeeIdRef = useRef(employeeId);
+  employeeIdRef.current = employeeId;
 
-  const loadEmployees = useCallback(async () => {
-    setLoading(true);
+  const loadEmployees = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError("");
     try {
       const firstPage = await api("/employees?page=1&limit=100&status=ACTIVE&sortBy=name&sortOrder=asc");
-      if (!Array.isArray(firstPage.employees)) throw new Error("The employee list response was invalid. Refresh and try again.");
+      if (!Array.isArray(firstPage.employees)) throw new Error("The employee list response was invalid. Try again in a moment.");
       const responseRows = firstPage.employees as Employee[];
       const pagination = firstPage.pagination && typeof firstPage.pagination === "object" ? firstPage.pagination as { totalPages?: unknown } : {};
       const totalPages = Math.max(1, Number(pagination.totalPages) || 1);
       if (totalPages > 10001) throw new Error("The employee list is too large to load safely. Use employee search or contact your administrator.");
       for (let page = 2; page <= totalPages; page += 1) {
         const next = await api(`/employees?page=${page}&limit=100&status=ACTIVE&sortBy=name&sortOrder=asc`);
-        if (!Array.isArray(next.employees)) throw new Error("The employee list response was incomplete. Please refresh and try again.");
+        if (!Array.isArray(next.employees)) throw new Error("The employee list response was incomplete. Try again in a moment.");
         responseRows.push(...next.employees as Employee[]);
       }
       const rows = responseRows.filter((employee) => !isExcludedHrTarget(employee));
@@ -90,7 +93,7 @@ export default function EmployeePayRatesWorkspace() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load employees.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -126,6 +129,32 @@ export default function EmployeePayRatesWorkspace() {
   }, [employeeId]);
 
   useEffect(() => { void loadEmployees(); }, [loadEmployees]);
+
+  const refreshRates = useCallback(async () => {
+    if (!employeeId) return;
+    const requestId = ++rateRequestId.current;
+    const targetEmployeeId = employeeId;
+    try {
+      const payload = await api(`/attendance/pay-rates?employeeId=${encodeURIComponent(targetEmployeeId)}`);
+      if (requestId === rateRequestId.current && employeeIdRef.current === targetEmployeeId) {
+        setRates(Array.isArray(payload.rates) ? payload.rates as Rate[] : []);
+      }
+    } catch (caught) {
+      if (requestId === rateRequestId.current && employeeIdRef.current === targetEmployeeId) {
+        setError(caught instanceof Error ? caught.message : "Unable to refresh pay rates.");
+      }
+    }
+  }, [employeeId]);
+
+  const refreshWorkspace = useCallback(async () => {
+    await Promise.all([loadEmployees(true), refreshRates()]);
+  }, [loadEmployees, refreshRates]);
+
+  useWorkspaceAutoRefresh(refreshWorkspace, {
+    enabled: true,
+    intervalMs: 60_000,
+    shouldRefresh: () => !loading && !saving && !editingRateId,
+  });
   useEffect(() => {
     void loadRates();
     return () => { rateRequestId.current += 1; };
@@ -158,10 +187,12 @@ export default function EmployeePayRatesWorkspace() {
           <div className="flex flex-wrap gap-2"><button type="submit" disabled={saving || loading || !employeeId} className={PRIMARY}>{saving ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}{editingRateId ? "Save rate changes" : "Save effective-dated rates"}</button>{editingRateId && <button type="button" disabled={saving} onClick={() => { setEditingRateId(null); setEffectiveFrom(localDate()); setEffectiveTo(""); const latest = rates[0]; if (latest) { setHourlyRate(latest.hourlyRate); setOvertimeRate(latest.overtimeRate); setCurrencyCode(latest.currencyCode); } }} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/[0.04] disabled:opacity-50">Cancel edit</button>}</div>
         </div>
       </form>
-      <div className="rounded-2xl border border-white/[0.08] bg-[#141c28] p-5 sm:p-6"><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3">{employees.find((item) => item.id === employeeId) && <EmployeeProfilePhoto employeeId={employeeId} name={name(employees.find((item) => item.id === employeeId)!)} className="size-10 rounded-xl border border-slate-700 bg-slate-800" textClassName="text-xs font-bold text-slate-200" />}<div className="min-w-0"><h3 className="font-semibold text-white">Rate history</h3><p className="mt-1 truncate text-sm text-slate-400">{employees.find((item) => item.id === employeeId) ? name(employees.find((item) => item.id === employeeId)!) : "Choose an employee"}</p></div></div><button type="button" onClick={() => void loadRates()} disabled={loading || saving || !employeeId} className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:bg-white/[0.04] disabled:opacity-50" aria-label="Refresh rate history"><RefreshCw size={15} /></button></div>
+      <div className="rounded-2xl border border-white/[0.08] bg-[#141c28] p-5 sm:p-6"><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3">{employees.find((item) => item.id === employeeId) && <EmployeeProfilePhoto employeeId={employeeId} name={name(employees.find((item) => item.id === employeeId)!)} className="size-10 rounded-xl border border-slate-700 bg-slate-800" textClassName="text-xs font-bold text-slate-200" />}<div className="min-w-0"><h3 className="font-semibold text-white">Rate history</h3><p className="mt-1 truncate text-sm text-slate-400">{employees.find((item) => item.id === employeeId) ? name(employees.find((item) => item.id === employeeId)!) : "Choose an employee"}</p></div></div></div>
         {loading ? <p className="mt-5 text-sm text-slate-400">Loading employees…</p> : rates.length === 0 ? <p className="mt-5 rounded-xl border border-dashed border-slate-700 p-5 text-sm leading-6 text-slate-400">No rates have been saved for this employee yet.</p> : <div className="mt-5 space-y-3">{rates.map((rate) => <article key={rate.id} className="rounded-xl border border-white/[0.07] bg-black/10 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-semibold text-white">{rate.currencyCode} {Number(rate.hourlyRate).toLocaleString()} / hour</p><p className="mt-1 text-sm text-violet-200">{rate.currencyCode} {Number(rate.overtimeRate).toLocaleString()} overtime / hour</p></div><div className="flex items-center gap-2"><span className="rounded-full border border-white/[0.08] px-2.5 py-1 text-xs text-slate-300">{rate.effectiveTo ? "Fixed period" : "Ongoing"}</span><button type="button" disabled={saving} className="rounded-lg border border-sky-400/30 px-3 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-400/10 disabled:opacity-50" onClick={() => { setEditingRateId(rate.id); setHourlyRate(rate.hourlyRate); setOvertimeRate(rate.overtimeRate); setCurrencyCode(rate.currencyCode); setEffectiveFrom(rate.effectiveFrom); setEffectiveTo(rate.effectiveTo || ""); setError(""); setSuccess(""); }}>Edit</button></div></div><p className="mt-3 text-xs leading-5 text-slate-400">Effective {rate.effectiveFrom}{rate.effectiveTo ? ` through ${rate.effectiveTo}` : " onward"}</p></article>)}</div>}
       </div>
     </div>
+
     <p className="text-xs leading-5 text-slate-500">This module configures rates and estimated earnings only. It does not calculate taxes, deductions, statutory contributions, or generate final payslips.</p>
   </section>;
 }
+

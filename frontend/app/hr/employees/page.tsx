@@ -1354,7 +1354,7 @@ function HRManagerEmployeesPageContent() {
 
         if (!created?.id || !(created.email || form.email.trim())) {
           setDrawerMode(null);
-          setNotice("The workforce profile was created, but its invitation could not be started because the server did not return the employee identity and email. Refresh the directory to retry from the row action.");
+          setNotice("The workforce profile was created, but its invitation could not be started because the server did not return the employee identity and email. The directory will update automatically. Use the invitation action on the employee row once the record is available.");
           return;
         }
 
@@ -1376,7 +1376,7 @@ function HRManagerEmployeesPageContent() {
           }
           setNotice(`Workforce profile created and invitation email sent to ${created.email || form.email.trim()}.`);
         } catch (invitationFailure) {
-          setNotice(`The workforce profile was created, but its invitation email could not be confirmed: ${invitationFailure instanceof Error ? invitationFailure.message : "Unknown email delivery error"} Refresh the directory and use the invitation action to retry.`);
+          setNotice(`The workforce profile was created, but its invitation email could not be confirmed: ${invitationFailure instanceof Error ? invitationFailure.message : "Unknown email delivery error"} The directory will update automatically. Use the invitation action on the employee row once the record is available.`);
         } finally {
           setDrawerMode(null);
         }
@@ -3516,3 +3516,4 @@ export default function HRManagerEmployeesPage() {
     </Suspense>
   );
 }
+

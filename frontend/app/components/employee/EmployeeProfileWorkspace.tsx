@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { useEmployeeWorkspaceUser } from "./EmployeeChrome";
 import EmployeeProfilePhoto from "./EmployeeProfilePhoto";
+import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 import {
   CountrySelect,
   formatCountryWithFlag,
@@ -336,8 +337,8 @@ export default function EmployeeProfileWorkspace({
     );
   }, [draft, editing, profile]);
 
-  const loadProfile = useCallback(async () => {
-    setLoading(true);
+  const loadProfile = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError("");
 
     try {
@@ -369,13 +370,22 @@ export default function EmployeeProfileWorkspace({
           : "Unable to load your employee profile.",
       );
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [employeeId]);
 
   useEffect(() => {
     void loadProfile();
   }, [loadProfile]);
+
+  useWorkspaceAutoRefresh(
+    () => loadProfile(true),
+    {
+      enabled: true,
+      intervalMs: 60_000,
+      shouldRefresh: () => !loading && !saving && !editing && !uploadingPhoto && !hasUnsavedChanges,
+    },
+  );
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -890,24 +900,11 @@ export default function EmployeeProfileWorkspace({
           </h2>
 
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-            Your employment information, reporting line, and permitted
-            personal contact details.
+            Employment details, reporting line, and personal contact information.
           </p>
         </div>
 
         <div className="employee-profile-actions flex min-w-0 flex-wrap items-center gap-2">
-          <button
-            type="button"
-            className={BUTTON}
-            onClick={() => void loadProfile()}
-            disabled={loading || saving}
-          >
-            <RefreshCw
-              size={15}
-              className={loading ? "animate-spin" : ""}
-            />
-            Refresh
-          </button>
 
           <Link
             href={homeHref}
@@ -972,22 +969,10 @@ export default function EmployeeProfileWorkspace({
               <p className="mt-1 break-words text-sm leading-6 text-rose-200/80">
                 {error}
               </p>
-
-              <button
-                type="button"
-                className={`${BUTTON} mt-4`}
-                onClick={() => void loadProfile()}
-                disabled={loading}
-              >
-                <RefreshCw
-                  size={15}
-                  className={loading ? "animate-spin" : ""}
-                />
-                Try again
-              </button>
             </div>
           </div>
         </section>
+
       )}
 
       {loading && !profile ? (
@@ -1540,3 +1525,4 @@ export default function EmployeeProfileWorkspace({
     </div>
   );
 }
+

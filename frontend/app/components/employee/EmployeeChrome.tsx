@@ -622,9 +622,6 @@ export function EmployeeChrome({ children }: { children: ReactNode }) {
                 >
                   <Search size={15} />
                   <span className="hidden sm:inline">Search workspace</span>
-                  <span className="ml-auto hidden rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500 md:inline">
-                    Ctrl K
-                  </span>
                 </button>
 
                 <button
@@ -850,3 +847,4 @@ export function EmployeeChrome({ children }: { children: ReactNode }) {
     </EmployeeWorkspaceContext.Provider>
   );
 }
+

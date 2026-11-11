@@ -140,9 +140,8 @@ export default function EmployeeRequestsWorkspace() {
   const user = useEmployeeWorkspaceUser();
   const [collections, setCollections] = useState<Collections>(EMPTY_COLLECTIONS);
   const [loading, setLoading] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!user || user.role !== "EMPLOYEE") {
       setLoading(false);
       return;
@@ -151,7 +150,7 @@ export default function EmployeeRequestsWorkspace() {
     const today = localDate(new Date());
     const fromDate = addDays(today, -30);
     const toDate = addDays(today, 14);
-    setLoading(true);
+    if (!silent) setLoading(true);
     const results = await Promise.allSettled([
       requestRows("/attendance/corrections", "requests"),
       requestRows("/attendance/overtime", "requests"),
@@ -168,7 +167,11 @@ export default function EmployeeRequestsWorkspace() {
     setLoading(false);
   }, [user]);
 
-  useEffect(() => { void load(); }, [load, refreshKey]);
+  useEffect(() => { void load(); }, [load]);
+  useWorkspaceAutoRefresh(() => load(true), {
+    intervalMs: 60_000,
+    shouldRefresh: () => !loading,
+  });
 
   if (!user || user.role !== "EMPLOYEE") return null;
 
@@ -188,7 +191,6 @@ export default function EmployeeRequestsWorkspace() {
           <h1 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">My Requests</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Track attendance corrections and advance overtime requests.</p>
         </div>
-        <button type="button" className={LINK} disabled={loading} onClick={() => setRefreshKey((value) => value + 1)}><RefreshCw size={15} className={loading ? "animate-spin" : ""} /> Refresh statuses</button>
       </header>
 
       <section className="grid gap-3 sm:grid-cols-2">
@@ -208,10 +210,11 @@ export default function EmployeeRequestsWorkspace() {
                 <div className="flex min-w-0 items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-sky-300/15 bg-sky-300/[0.06] text-sky-200"><Icon size={18} /></span><div><h2 className="text-sm font-bold text-white">{card.title}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{card.description}</p></div></div>
                 <span className="rounded-lg border border-white/[0.08] bg-white/[0.025] px-2 py-1 text-xs font-bold text-slate-300">{loading ? "—" : data.rows.length}</span>
               </div>
-              {data.error ? <div role="alert" className="mt-4 rounded-xl border border-rose-300/20 bg-rose-300/[0.05] p-3 text-xs leading-5 text-rose-200">Could not load this section: {data.error}</div> : loading ? <div className="mt-4 flex items-center gap-2 rounded-xl bg-black/10 p-4 text-xs text-slate-400"><RefreshCw size={14} className="animate-spin" />Loading records…</div> : latest.length === 0 ? <div className="mt-4 rounded-xl border border-dashed border-white/[0.1] p-4 text-xs text-slate-500">No records were returned for this category. This is not a confirmation that other systems contain no records.</div> : <div className="mt-4 space-y-2">{latest.map((row, index) => {
+              {data.error ? <div role="alert" className="mt-4 rounded-xl border border-rose-300/20 bg-rose-300/[0.05] p-3 text-xs leading-5 text-rose-200">Could not load this section: {data.error}</div> : loading ? <div className="mt-4 flex items-center gap-2 rounded-xl bg-black/10 p-4 text-xs text-slate-400"><RefreshCw size={14} className="animate-spin" />Loading records…</div> : latest.length === 0 ? <div className="mt-4 rounded-xl border border-dashed border-white/[0.1] p-4 text-xs text-slate-500">No requests are currently listed in this category.</div> : <div className="mt-4 space-y-2">{latest.map((row, index) => {
                 const status = statusOf(row);
                 const detail = card.detailsFields.map((field) => read(row, field)).find(Boolean);
                 const id = read(row, "id") || `${card.key}-${index}`;
+
                 return <div key={id} className="flex min-w-0 items-start justify-between gap-3 rounded-xl border border-white/[0.06] bg-black/10 p-3"><div className="min-w-0"><p className="text-xs font-semibold text-slate-200">{shortDate(card.dateFields.map((field) => read(row, field)).find(Boolean) || dateOf(row))}</p>{detail && <p className="mt-1 break-words text-xs text-slate-400">{humanize(detail)}{read(row, "requestedMinutes", "requested_minutes") ? ` · ${read(row, "requestedMinutes", "requested_minutes")} minutes` : ""}</p>}<p className="mt-1 break-words text-xs leading-5 text-slate-500">{employeeStatusDescription(status, card.key)}</p>{read(row, "reviewerNote", "reviewer_note") && <p className="mt-2 break-words rounded-lg border border-white/[0.06] bg-white/[0.025] p-2 text-xs leading-5 text-slate-300">Reviewer note: {read(row, "reviewerNote", "reviewer_note")}</p>}</div><span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold ${statusTone(status)}`}>{employeeStatusLabel(status)}</span></div>;
               })}</div>}
               <Link href={card.href} className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-sky-300 hover:text-sky-200">{card.linkLabel} <ArrowRight size={14} /></Link>
@@ -223,3 +226,4 @@ export default function EmployeeRequestsWorkspace() {
     </div>
   );
 }
+

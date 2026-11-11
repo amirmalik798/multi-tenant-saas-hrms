@@ -16,6 +16,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEmployeeWorkspaceUser } from "../employee/EmployeeChrome";
+import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 import AttendanceMonthlyHoursView from "./AttendanceMonthlyHoursView";
 import { formatDateTime, formatTime } from "../../../lib/attendance-format";
 
@@ -404,7 +405,7 @@ export default function EmployeeAttendanceWorkspace() {
     setOvertimeWorkDate(plusDays(todayValue, 1));
   }, []);
 
-  const loadAttendance = useCallback(async () => {
+  const loadAttendance = useCallback(async (silent = false) => {
     if (!loadedFromDate || !loadedToDate) return;
 
     if (loadedFromDate > loadedToDate) {
@@ -415,7 +416,7 @@ export default function EmployeeAttendanceWorkspace() {
       return;
     }
 
-    setLoading(true);
+    if (!silent) setLoading(true);
     setServerClockStatus("");
     try {
       const query = `?fromDate=${encodeURIComponent(loadedFromDate)}&toDate=${encodeURIComponent(loadedToDate)}`;
@@ -437,7 +438,7 @@ export default function EmployeeAttendanceWorkspace() {
               rows: rowsFrom(payload, "events"),
               error: clockStatus
                 ? ""
-                : "Your current clock status was not included in the server response. Refresh before recording a punch.",
+                : "Your current clock status was not included in the server response. The system will recheck your attendance automatically; try again shortly.",
               clockStatus,
             };
           } catch (error) {
@@ -477,6 +478,11 @@ export default function EmployeeAttendanceWorkspace() {
       setLoading(false);
     }
   }, [loadedFromDate, loadedToDate]);
+
+  useWorkspaceAutoRefresh(() => loadAttendance(true), {
+    intervalMs: 60_000,
+    shouldRefresh: () => !loading && !saving && !correctionEventId && !correctionReason.trim() && !overtimeReason.trim(),
+  });
 
   useEffect(() => {
     if (user?.role === "EMPLOYEE" && loadedFromDate && loadedToDate) {
@@ -633,7 +639,7 @@ export default function EmployeeAttendanceWorkspace() {
       await loadAttendance();
       setNotice({
         type: "error",
-        message: `${error instanceof Error ? error.message : "Unable to confirm the attendance action."} We refreshed your server status. Check it before trying again.`,
+        message: `${error instanceof Error ? error.message : "Unable to confirm the attendance action."} Your server status has been checked. Review it before trying again.`,
       });
     } finally {
       setSaving("");
@@ -841,7 +847,7 @@ export default function EmployeeAttendanceWorkspace() {
           value={!clockStatusVerified ? "Status unavailable" : clockedIn ? "Clocked in" : todayEvents.length ? "Clocked out" : "Not started"}
           detail={
             !clockStatusVerified
-              ? "Refresh to verify your current attendance status"
+              ? "Wait for the system to verify your current attendance status"
               : latestEvent
               ? `Last event: ${timeLabel(recordedAt(latestEvent), text(latestEvent, "timeZone") || calendarTimeZone)}`
               : "No attendance event recorded today"
@@ -897,7 +903,7 @@ export default function EmployeeAttendanceWorkspace() {
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
               {!clockStatusVerified
-                ? "Your current attendance state has not been confirmed by the server. Refresh before recording a punch."
+                ? "Your current attendance state has not been confirmed by the server. The system will recheck your attendance automatically; try again shortly."
                 : "Record the beginning and end of your work period. If you forget a punch or record the wrong time, submit a correction request rather than overwriting the original event."}
             </p>
 
@@ -926,7 +932,7 @@ export default function EmployeeAttendanceWorkspace() {
             )}
             {!leaveAndHolidayStatusVerified && !loading && (
               <div role="alert" className="w-full max-w-sm rounded-xl border border-rose-300/25 bg-rose-300/[0.07] p-3 text-xs leading-5 text-rose-100 lg:max-w-72">
-                Today's leave/holiday status could not be verified. Clock-in is disabled until you refresh or the status can be loaded.
+                Today's leave/holiday status could not be verified. Clock-in remains disabled until the system confirms your status.
               </div>
             )}
             <button
@@ -962,11 +968,11 @@ export default function EmployeeAttendanceWorkspace() {
             </button>
             <p className="max-w-64 text-xs leading-5 text-slate-500 lg:text-right">
               {!clockStatusVerified
-                ? "Refresh your attendance status before recording a punch."
+                ? "Wait for automatic attendance verification before recording a punch."
                 : clockedIn
                   ? "You can always clock out to close an open work session."
                   : !leaveAndHolidayStatusVerified
-                    ? "We cannot confirm today's leave and holiday status. Refresh before clocking in."
+                    ? "We cannot confirm today's leave and holiday status. Wait for automatic leave and holiday verification before clocking in."
                     : attendanceBlock
                       ? "No clock-in is allowed on approved leave or a public holiday."
                       : "The server records the event time and validates the punch sequence."}
@@ -1005,15 +1011,6 @@ export default function EmployeeAttendanceWorkspace() {
             </p>
             <h2 className="mt-1 text-xl font-bold">{tabLabel}</h2>
           </div>
-          <button
-            type="button"
-            className={SECONDARY}
-            onClick={() => void loadAttendance()}
-            disabled={loading}
-          >
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-            Refresh
-          </button>
         </div>
 
         {loading && (
@@ -1172,9 +1169,6 @@ export default function EmployeeAttendanceWorkspace() {
                   <h3 className="mt-1 text-lg font-bold text-white">Your work history</h3>
                   <p className="mt-1 text-sm leading-5 text-slate-400">Review planned shifts, punches, leave, holidays, and recorded work time by date.</p>
                 </div>
-                <button type="button" className={SECONDARY} onClick={() => void loadAttendance()} disabled={loading}>
-                  <RefreshCw size={15} className={loading ? "animate-spin" : ""} /> Refresh records
-                </button>
               </div>
               <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)_auto] lg:items-end">
                 <label className="block min-w-0 text-xs font-semibold text-slate-400">From date
@@ -1558,3 +1552,4 @@ export default function EmployeeAttendanceWorkspace() {
     </div>
   );
 }
+

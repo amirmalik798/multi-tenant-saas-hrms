@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { CalendarClock, FileClock, RefreshCw, Send } from "lucide-react";
+import { CalendarClock, FileClock, Send } from "lucide-react";
+import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
 type Row = Record<string, unknown>;
 type Payload = { message?: string; events?: Row[]; requests?: Row[]; clockStatus?: string };
@@ -49,10 +50,9 @@ export default function DepartmentManagerSelfRequests({ employeeId }: { employee
   const [overtimeDate, setOvertimeDate] = useState(plusDays(localDate(new Date()), 1));
   const [minutes, setMinutes] = useState("60");
   const [overtimeReason, setOvertimeReason] = useState("");
-  const [refreshKey, setRefreshKey] = useState(0);
 
-  const load = useCallback(async () => {
-    setLoading(true); setError("");
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true); setError("");
     try {
       const [eventData, correctionData, overtimeData, overviewData] = await Promise.all([
         api("/attendance/events"), api("/attendance/corrections"), api("/attendance/overtime"), api("/department-manager/overview"),
@@ -65,7 +65,11 @@ export default function DepartmentManagerSelfRequests({ employeeId }: { employee
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to load your requests."); }
     finally { setLoading(false); }
   }, [employeeId]);
-  useEffect(() => { void load(); }, [load, refreshKey]);
+  useEffect(() => { void load(); }, [load]);
+  useWorkspaceAutoRefresh(() => load(true), {
+    intervalMs: 60_000,
+    shouldRefresh: () => !loading && !saving && !correctionReason.trim() && !overtimeReason.trim(),
+  });
 
   async function submitCorrection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving("correction"); setError(""); setNotice("");
@@ -89,10 +93,11 @@ export default function DepartmentManagerSelfRequests({ employeeId }: { employee
   }
 
   return <section className="space-y-4">
-    <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-sky-300">Personal self-service</p><h2 className="mt-1 text-xl font-bold text-white">My attendance requests</h2><p className="mt-1 text-sm leading-6 text-slate-400">Request corrections to your own punches and seek overtime approval before the future work date. Team-review actions stay separate.</p></div><button type="button" onClick={() => setRefreshKey((n)=>n+1)} disabled={loading} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-white/[0.08] px-3 text-xs font-semibold text-slate-300 hover:bg-white/[0.04] disabled:opacity-50"><RefreshCw size={14} className={loading ? "animate-spin" : ""}/> Refresh requests</button></div>
+    <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-sky-300">Personal self-service</p><h2 className="mt-1 text-xl font-bold text-white">My attendance requests</h2><p className="mt-1 text-sm leading-6 text-slate-400">Request corrections to your own punches and seek overtime approval before the future work date. Team-review actions stay separate.</p></div></div>
     {(error || notice) && <p role={error ? "alert" : "status"} className={`rounded-xl border p-3 text-sm ${error ? "border-rose-300/20 bg-rose-300/[0.05] text-rose-200" : "border-emerald-300/20 bg-emerald-300/[0.05] text-emerald-200"}`}>{error || notice}</p>}
     <div className="grid min-w-0 gap-4 xl:grid-cols-2">
       <form onSubmit={submitCorrection} className={panel}><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-sky-300/15 bg-sky-300/[0.06] text-sky-200"><FileClock size={18}/></span><div><h3 className="text-sm font-bold text-white">Attendance correction</h3><p className="mt-1 text-xs leading-5 text-slate-500">Correct one of your recorded punches or request a missing punch.</p></div></div>
+
         <label className="mt-4 block text-xs font-semibold text-slate-300">Existing punch (optional)<select className={input} value={eventId} onChange={(e)=>{setEventId(e.target.value);const row=events.find((item)=>read(item,"id")===e.target.value);if(row)setEventType(read(row,"eventType","event_type")==="CLOCK_OUT"?"CLOCK_OUT":"CLOCK_IN");}}><option value="">Missing punch / new correction</option>{events.map((row,index)=><option key={read(row,"id")||index} value={read(row,"id")}>{read(row,"eventType","event_type")==="CLOCK_OUT"?"Clock-out":"Clock-in"} · {read(row,"recordedAt","recorded_at")}</option>)}</select></label>
         {!eventId && <><label className="mt-3 block text-xs font-semibold text-slate-300">Punch type<select className={input} value={eventType} onChange={(e)=>setEventType(e.target.value as "CLOCK_IN"|"CLOCK_OUT")}><option value="CLOCK_IN">Clock-in</option><option value="CLOCK_OUT">Clock-out</option></select></label><label className="mt-3 block text-xs font-semibold text-slate-300">Work date<input className={input} type="date" value={workDate} max={localDate(new Date())} onChange={(e)=>setWorkDate(e.target.value)} required/></label></>}
         <label className="mt-3 block text-xs font-semibold text-slate-300">Correct time<input className={input} type="datetime-local" value={requestedAt} max={`${localDate(new Date())}T23:59`} onChange={(e)=>setRequestedAt(e.target.value)} required/></label><label className="mt-3 block text-xs font-semibold text-slate-300">Reason<textarea className={input} rows={3} maxLength={500} value={correctionReason} onChange={(e)=>setCorrectionReason(e.target.value)} placeholder="Explain what needs to be corrected" required/></label><button className={`${button} mt-4 w-full`} type="submit" disabled={Boolean(saving)}><Send size={15}/>{saving==="correction"?"Submitting…":"Submit correction"}</button></form>
@@ -102,3 +107,4 @@ export default function DepartmentManagerSelfRequests({ employeeId }: { employee
   </section>;
 }
 function RequestList({title,rows,loading}:{title:string;rows:Row[];loading:boolean}) { return <article className={panel}><h3 className="text-sm font-bold text-white">{title}</h3>{loading?<p className="mt-3 text-xs text-slate-500">Loading…</p>:rows.length===0?<p className="mt-3 rounded-xl border border-dashed border-white/[0.1] p-3 text-xs text-slate-500">No personal requests returned.</p>:<div className="mt-3 divide-y divide-white/[0.06]">{rows.slice(0,5).map((row,index)=><div key={read(row,"id")||index} className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"><div className="min-w-0"><p className="text-xs font-semibold text-slate-200">{read(row,"workDate","work_date")||read(row,"requestedAt","requested_at")||"Request"}</p><p className="mt-1 break-words text-xs text-slate-500">{read(row,"reason")||`${read(row,"requestedMinutes","requested_minutes")} minutes`}</p></div><span className="shrink-0 rounded-full border border-sky-300/15 bg-sky-300/[0.05] px-2 py-1 text-[10px] font-bold text-sky-200">{read(row,"status")||"Unknown"}</span></div>)}</div>}</article>; }
+

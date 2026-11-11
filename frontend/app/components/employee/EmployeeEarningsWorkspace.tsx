@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 import { Award, BadgeDollarSign, CalendarDays, Clock3, Flame, RefreshCw, TrendingUp } from "lucide-react";
 import SalaryPaymentsWorkspace from "../payroll/SalaryPaymentsWorkspace";
 import { formatDate as formatWorkDate } from "../../../lib/attendance-format";
@@ -151,9 +152,9 @@ export default function EmployeeEarningsWorkspace({ employeeId, showTitle = true
   const monthTouchedByUser = useRef(false);
   const loadRequestId = useRef(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     const requestId = ++loadRequestId.current;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError("");
     try {
       const response = await fetch(`/api/backend/employee/earnings?month=${encodeURIComponent(month)}`, {
@@ -192,6 +193,10 @@ export default function EmployeeEarningsWorkspace({ employeeId, showTitle = true
     void load();
     return () => { loadRequestId.current += 1; };
   }, [load]);
+  useWorkspaceAutoRefresh(() => load(true), {
+    intervalMs: 60_000,
+    shouldRefresh: () => !loading,
+  });
 
   const scheduledDays = useMemo(() => data?.days.filter((day) => Boolean(day.scheduleName)).length ?? 0, [data]);
   const attendanceProgress = useMemo(() => scheduledDays > 0 && data ? Math.min(100, Math.round((data.summary.daysWorked / scheduledDays) * 100)) : 0, [data, scheduledDays]);
@@ -216,11 +221,9 @@ export default function EmployeeEarningsWorkspace({ employeeId, showTitle = true
         {activeView === "earnings" && <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="employee-earnings-month" className="text-sm text-slate-400">Month</label>
           <input id="employee-earnings-month" type="month" value={month} onChange={(event) => { monthTouchedByUser.current = true; setMonth(event.target.value); }} className="rounded-xl border border-slate-700 bg-[#0b111b] px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400" />
-          <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/[0.05] disabled:opacity-50">
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} /> Refresh
-          </button>
         </div>}
       </div>
+
 
       <div role="tablist" aria-label="My Earnings sections" className="flex flex-wrap gap-2 rounded-2xl border border-white/[0.08] bg-[#141c28] p-2">
         <button type="button" role="tab" aria-selected={activeView === "earnings"} onClick={() => setActiveView("earnings")} className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${activeView === "earnings" ? "bg-sky-400/15 text-sky-100 ring-1 ring-sky-300/20" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>Earnings overview</button>
@@ -318,3 +321,4 @@ export default function EmployeeEarningsWorkspace({ employeeId, showTitle = true
     </section>
   );
 }
+

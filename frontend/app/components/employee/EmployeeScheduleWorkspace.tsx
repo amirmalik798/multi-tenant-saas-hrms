@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -11,6 +11,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useEmployeeWorkspaceUser } from "./EmployeeChrome";
+import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
 type Row = Record<string, unknown>;
 type ViewMode = "week" | "agenda";
@@ -145,6 +146,7 @@ export default function EmployeeScheduleWorkspace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  const backgroundRefreshKeyRef = useRef<number | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [manuallyNavigated, setManuallyNavigated] = useState(false);
   const [clockTick, setClockTick] = useState(0);
@@ -164,10 +166,17 @@ export default function EmployeeScheduleWorkspace() {
   const rangeStart = weekStart;
   const rangeEnd = weekStart ? addDays(weekStart, 27) : "";
 
+  useWorkspaceAutoRefresh(() => { setReloadKey((value) => { backgroundRefreshKeyRef.current = value + 1; return value + 1; }); }, {
+    intervalMs: 60_000,
+    shouldRefresh: () => Boolean(user && user.role === "EMPLOYEE" && rangeStart && rangeEnd) && !loading,
+  });
+
   useEffect(() => {
     if (!user || user.role !== "EMPLOYEE" || !rangeStart || !rangeEnd) return;
     let cancelled = false;
-    setLoading(true);
+    const isBackgroundRefresh = backgroundRefreshKeyRef.current === reloadKey;
+    if (isBackgroundRefresh) backgroundRefreshKeyRef.current = null;
+    if (!isBackgroundRefresh) setLoading(true);
     setError("");
     loadCalendar(rangeStart, rangeEnd)
       .then((rows) => {
@@ -229,9 +238,6 @@ export default function EmployeeScheduleWorkspace() {
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">See assigned shifts, check upcoming work, and compare the plan with recorded attendance where available.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={SECONDARY} disabled={loading} onClick={() => setReloadKey((value) => value + 1)}>
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} /> Refresh
-          </button>
           <Link href="/employee/attendance" className={SECONDARY}>Attendance &amp; Time <ArrowRight size={15} /></Link>
         </div>
       </header>
@@ -265,9 +271,9 @@ export default function EmployeeScheduleWorkspace() {
           <div role="alert" className="mx-4 mb-4 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-4 text-sm text-rose-200 sm:mx-5">
             <p className="font-semibold">Schedule unavailable</p>
             <p className="mt-1 leading-6">{error}</p>
-            <button type="button" className={`${SECONDARY} mt-3`} onClick={() => setReloadKey((value) => value + 1)}><RefreshCw size={14} /> Try again</button>
           </div>
         )}
+
 
         {loading ? (
           <div className="flex items-center gap-3 px-5 py-12 text-sm text-slate-400"><RefreshCw size={17} className="animate-spin text-sky-300" />Loading assigned shifts…</div>
@@ -370,3 +376,4 @@ export default function EmployeeScheduleWorkspace() {
     </div>
   );
 }
+

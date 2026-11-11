@@ -22,6 +22,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import EmployeeProfilePhoto from "../../components/employee/EmployeeProfilePhoto";
+import { useWorkspaceAutoRefresh } from "../../components/shared/useWorkspaceAutoRefresh";
 import { useEmployeeWorkspaceUser } from "../../components/employee/EmployeeChrome";
 import AttendanceCalendarView from "../../components/attendance/AttendanceCalendarView";
 
@@ -610,10 +611,10 @@ export default function EmployeeDashboardPage() {
   const [eventsError, setEventsError] = useState("");
   const [notice, setNotice] = useState<Notice | null>(null);
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useCallback(async (silent = false) => {
     if (!employeeId) return;
 
-    setLoading(true);
+    if (!silent) setLoading(true);
     setServerClockStatus("");
 
     const browserToday = dateInTimeZone(new Date(), timeZone);
@@ -677,7 +678,7 @@ export default function EmployeeDashboardPage() {
       if (status === "CLOCKED_IN" || status === "CLOCKED_OUT") {
         nextClockStatus = status;
       } else {
-        nextEventsError = "The server did not confirm whether you are clocked in. Refresh before recording a punch.";
+        nextEventsError = "The server did not confirm whether you are clocked in. The system will recheck your attendance automatically; try again shortly.";
       }
     } else {
       nextEventsError =
@@ -780,6 +781,11 @@ export default function EmployeeDashboardPage() {
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+
+  useWorkspaceAutoRefresh(() => loadDashboard(true), {
+    intervalMs: 60_000,
+    shouldRefresh: () => !loading && !savingAction && Boolean(employeeId),
+  });
 
   useEffect(() => {
     setDateTick(Date.now());
@@ -948,7 +954,7 @@ export default function EmployeeDashboardPage() {
       : timeOffError
         ? {
             title: "Unable to verify leave or holiday",
-            detail: "Clock-in is temporarily disabled because the system could not verify today's leave and public-holiday status. Refresh the page or contact your HR Manager.",
+            detail: "Clock-in is temporarily disabled because the system could not verify today's leave and public-holiday status. The system will recheck automatically. If the status remains unavailable, contact your HR Manager.",
             kind: "error" as const,
           }
         : null;
@@ -1101,20 +1107,6 @@ export default function EmployeeDashboardPage() {
               <CalendarDays size={14} className="text-sky-400" />
               <span>{formatDate(tenantToday, timeZone)}</span>
             </div>
-
-            <button
-              type="button"
-              onClick={() => void loadDashboard()}
-              disabled={loading || Boolean(savingAction)}
-              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-white/[0.11] bg-[#0f1723] px-3 py-2 text-xs font-semibold text-slate-200 transition-colors hover:border-sky-300/35 hover:bg-sky-300/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="Refresh home page information"
-            >
-              <RefreshCw
-                size={14}
-                className={loading ? "animate-spin text-sky-400" : ""}
-              />
-              <span>Refresh</span>
-            </button>
           </div>
         </div>
       </header>
@@ -1207,7 +1199,7 @@ export default function EmployeeDashboardPage() {
 
               <p className="mt-2.5 max-w-xl text-sm leading-relaxed text-slate-300/80">
                 {!clockStatusVerified
-                  ? "Your current attendance state has not been confirmed. Refresh before recording a punch."
+                  ? "Your current attendance state has not been confirmed. The system will recheck your attendance automatically; try again shortly."
                   : "Record your actual working time. The server confirms each punch and uses it in your attendance history and worked-hours summary."}
               </p>
 
@@ -1237,7 +1229,7 @@ export default function EmployeeDashboardPage() {
                 >
                   {eventsError}
                   <p className="mt-1 font-medium">
-                    Please refresh your attendance information before recording another punch.
+                    Wait until the system confirms your attendance status before recording another punch.
                   </p>
                 </div>
               )}
@@ -1372,7 +1364,7 @@ export default function EmployeeDashboardPage() {
                     {clockedIn
                       ? workTimeSummary.activeSessionStartMs !== null
                         ? `Clocked in at ${formatTime(new Date(workTimeSummary.activeSessionStartMs).toISOString(), timeZone)}. Timer updates every second.`
-                        : "Your clock-in is active. Refresh attendance if the session timer does not appear."
+                        : "Your clock-in is active. The attendance status will update automatically."
                       : workTimeSummary.lastCompletedSessionMs !== null
                         ? "Duration of your most recent completed clock-in/clock-out session today."
                         : "A completed session duration will appear after you clock out."}
@@ -1422,7 +1414,7 @@ export default function EmployeeDashboardPage() {
               {calendarError || timeOffError ? (
                 <div role="alert" className="rounded-xl border border-amber-300/25 bg-amber-300/[0.05] p-4">
                   <p className="text-sm font-semibold text-amber-100">Upcoming schedule could not be verified</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-300">The dashboard could not confirm your shifts, approved leave, and public holidays. Refresh to try again before relying on this summary.</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-300">The dashboard could not confirm your shifts, approved leave, and public holidays. The dashboard will check again automatically before updating this summary.</p>
                 </div>
               ) : nextShiftEntry ? (
                 <div className="rounded-xl border border-sky-300/15 bg-sky-300/[0.035] p-4">
@@ -1461,10 +1453,11 @@ export default function EmployeeDashboardPage() {
         >
           {eventsError ? (
             <div role="alert" className="rounded-xl border border-rose-400/30 bg-rose-950/40 p-4 text-sm leading-relaxed text-rose-200">
-              Attendance history could not be loaded. Refresh to retry. {eventsError}
+              Attendance history could not be loaded. It will be checked again automatically. {eventsError}
             </div>
           ) : loading && todayEvents.length === 0 ? (
             <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-black/20 p-5 text-sm text-slate-300"><RefreshCw size={17} className="animate-spin text-sky-400" />Loading today's records…</div>
+
           ) : todayEvents.length === 0 ? (
             <div className="rounded-xl border border-dashed border-white/[0.12] bg-black/10 px-5 py-8 text-center">
               <Clock3 size={24} className="mx-auto text-slate-500" />
@@ -1526,3 +1519,4 @@ export default function EmployeeDashboardPage() {
     </div>
   );
 }
+

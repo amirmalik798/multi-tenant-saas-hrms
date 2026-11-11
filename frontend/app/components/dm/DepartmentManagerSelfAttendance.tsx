@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarDays, Clock3, LogIn, LogOut, RefreshCw, ShieldCheck, Timer } from "lucide-react";
+import { CalendarDays, Clock3, LogIn, LogOut, RefreshCw, Timer } from "lucide-react";
+import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
 type Row = Record<string, unknown>;
 type EventRow = Row & { id?: string; employeeId?: string; eventType?: string; recordedAt?: string; workDate?: string; timeZone?: string };
@@ -89,8 +90,8 @@ export default function DepartmentManagerSelfAttendance({ employeeId, organizati
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true); setError("");
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true); setError("");
     try {
       const assumedZone = organizationTimeZone || timeZone || "Africa/Kigali";
       const day = dateInZone(new Date(), assumedZone);
@@ -101,7 +102,7 @@ export default function DepartmentManagerSelfAttendance({ employeeId, organizati
       ]);
       const zone = calendarData.timeZone || eventData.events?.find((event) => event.timeZone)?.timeZone || assumedZone;
       const orgToday = calendarData.today || dateInZone(new Date(), zone);
-      if (eventData.clockStatus !== "CLOCKED_IN" && eventData.clockStatus !== "CLOCKED_OUT") throw new Error("Your personal clock status could not be verified. Refresh before recording time.");
+      if (eventData.clockStatus !== "CLOCKED_IN" && eventData.clockStatus !== "CLOCKED_OUT") throw new Error("Your personal clock status could not be verified. Wait for automatic attendance verification before recording time.");
       setStatus(eventData.clockStatus); setTimeZone(zone); setToday(orgToday);
       const ownEvents = (eventData.personalEvents ?? eventData.events ?? [])
         .filter((event) => event.employeeId === employeeId && ["CLOCK_IN","CLOCK_OUT"].includes(String(event.eventType).toUpperCase()));
@@ -117,6 +118,10 @@ export default function DepartmentManagerSelfAttendance({ employeeId, organizati
   }, [employeeId, organizationTimeZone, timeZone]);
 
   useEffect(() => { void load(); }, [load]);
+  useWorkspaceAutoRefresh(() => load(true), {
+    intervalMs: 60_000,
+    shouldRefresh: () => !loading && !saving,
+  });
   useEffect(() => {
     if (status !== "CLOCKED_IN") { setNowMs(0); return; }
     setNowMs(Date.now()); const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -210,14 +215,16 @@ export default function DepartmentManagerSelfAttendance({ employeeId, organizati
   return <section className="mb-5 overflow-hidden rounded-2xl border border-sky-400/15 bg-gradient-to-br from-[#152438] via-[#131e2d] to-[#111821] shadow-lg shadow-black/10">
     <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/[.07] p-4 sm:p-5">
       <div className="flex items-start gap-3"><div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-sky-400/10 text-sky-200"><Clock3 size={21}/></div><div><p className="dm-personal-attendance-label text-[10px] font-bold uppercase tracking-[.16em] text-sky-200/80">Personal attendance</p><h2 className="mt-1 text-lg font-semibold text-white">{loading ? "Verifying your workday…" : status === null ? "Status unavailable" : clockedIn ? "Your work session is active" : "You are clocked out"}</h2><p className="mt-1 max-w-2xl text-sm leading-5 text-slate-400">Your attendance, session timer and time-off status, using the same rules as employee self-service.</p></div></div>
-      <button type="button" onClick={() => void load()} disabled={loading || saving} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/5 disabled:opacity-50"><RefreshCw size={14} className={loading ? "animate-spin" : ""}/> Refresh</button>
+
     </div>
     <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5">
       <div className="rounded-xl border border-white/[.07] bg-black/10 p-3.5"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.13em] text-slate-400"><CalendarDays size={14} className="text-sky-300"/> Today's status</div><p className={`dm-personal-attendance-status mt-2 text-sm font-semibold ${leaveToday ? "text-amber-200" : holidayToday ? "text-sky-200" : error ? "text-rose-200" : "text-emerald-200"}`}>{timeOffTitle}</p><p className="mt-1 text-xs leading-5 text-slate-400">{timeOffDetail}</p>{todayEntry && <p className="mt-2 text-xs text-slate-300">Shift: {read(todayEntry,"scheduleName","schedule_name") || "No shift assigned"}{read(todayEntry,"expectedStart") && read(todayEntry,"expectedEnd") ? ` · ${timeLabel(read(todayEntry,"expectedStart"),timeZone)}–${timeLabel(read(todayEntry,"expectedEnd"),timeZone)}` : ""}</p>}</div>
       <div className="rounded-xl border border-sky-300/15 bg-sky-300/[.04] p-3.5"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.13em] text-sky-200"><Timer size={14}/>{clockedIn ? "Current work session" : "Time worked today"}{clockedIn && <span className="ml-auto rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[9px] font-bold text-emerald-200">LIVE</span>}</div><p className="mt-2 font-mono text-3xl font-bold tracking-tight text-white tabular-nums">{clockedIn ? sessionSummary.active === null ? "Start unavailable" : duration(sessionSummary.active,true) : duration(sessionSummary.total)}</p><p className="mt-1 text-xs leading-5 text-slate-400">{clockedIn ? sessionSummary.activeStart ? `Clocked in at ${timeLabel(new Date(sessionSummary.activeStart).toISOString(),timeZone)}. Timer updates every second.` : "Your clock-in is confirmed, but its starting punch was not included in the attendance history response." : `${sessionSummary.completed} completed session${sessionSummary.completed === 1 ? "" : "s"} today. Elapsed time is separate from payable hours.`}</p></div>
     </div>
     {(error || notice) && <p role={error ? "alert" : "status"} className={`mx-4 rounded-lg px-3 py-2 text-sm sm:mx-5 ${error ? "border border-rose-400/20 bg-rose-400/10 text-rose-200" : "border border-emerald-400/20 bg-emerald-400/10 text-emerald-200"}`}>{error || notice}</p>}
-    <div className="flex flex-wrap items-center gap-3 px-4 pb-4 sm:px-5 sm:pb-5"><button type="button" onClick={() => void toggleClock()} disabled={loading || saving || status === null || (!clockedIn && clockInBlocked)} className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${clockedIn ? "border border-rose-300/20 bg-rose-400/10 text-rose-100 hover:bg-rose-400/15" : "bg-sky-400 text-[#07111d] hover:bg-sky-300"}`}>{saving ? <RefreshCw size={17} className="animate-spin"/> : clockedIn ? <LogOut size={17}/> : <LogIn size={17} />}{saving ? "Recording…" : !status ? "Status unavailable" : clockedIn ? "Clock out" : clockInBlocked ? "Clock-in unavailable" : "Clock in"}</button><span className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/[.07] px-3 text-xs text-slate-400"><ShieldCheck size={14}/> Server-validated · own record only</span></div>
+    <div className="flex flex-wrap items-center gap-3 px-4 pb-4 sm:px-5 sm:pb-5"><button type="button" onClick={() => void toggleClock()} disabled={loading || saving || status === null || (!clockedIn && clockInBlocked)} className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${clockedIn ? "border border-rose-300/20 bg-rose-400/10 text-rose-100 hover:bg-rose-400/15" : "bg-sky-400 text-[#07111d] hover:bg-sky-300"}`}>{saving ? <RefreshCw size={17} className="animate-spin"/> : clockedIn ? <LogOut size={17}/> : <LogIn size={17} />}{saving ? "Recording…" : !status ? "Status unavailable" : clockedIn ? "Clock out" : clockInBlocked ? "Clock-in unavailable" : "Clock in"}</button></div>
     <div className="border-t border-white/[.07] px-4 py-3 sm:px-5"><p className="mb-2 text-[10px] font-bold uppercase tracking-[.14em] text-slate-500">Recent personal attendance events</p>{loading ? <p className="text-sm text-slate-500">Loading attendance history…</p> : events.length === 0 ? <p className="text-sm text-slate-500">No attendance events have been recorded yet.</p> : <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{events.slice(0,4).map((event,index) => <div key={event.id ?? `${event.eventType}-${event.recordedAt}-${index}`} className="rounded-xl border border-white/[.06] bg-black/10 px-3 py-2"><p className="text-xs text-slate-500">{String(event.eventType).toUpperCase() === "CLOCK_IN" ? "Clock-in" : "Clock-out"} · {dateLabel(recordedDateOf(event,timeZone))}</p><p className="mt-1 text-sm font-medium text-slate-200">{timeLabel(read(event,"recordedAt","recorded_at"),read(event,"timeZone") || timeZone)}</p></div>)}</div>}</div>
   </section>;
 }
+
+

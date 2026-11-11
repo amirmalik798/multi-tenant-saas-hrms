@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Clock3, RefreshCw, Users } from "lucide-react";
 import { formatDate, formatTime } from "../../../lib/attendance-format";
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
+import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
 type EventRow = { id?: string; eventType?: string; recordedAt?: string; timeZone?: string };
 type Entry = {
@@ -78,6 +79,7 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
+  const [compensationRefresh, setCompensationRefresh] = useState(0);
   const [truncated, setTruncated] = useState(false);
   const [payRates, setPayRates] = useState<PayRate[]>([]);
   const [ratesLoading, setRatesLoading] = useState(false);
@@ -89,10 +91,10 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
   const isEmployee = audience === "employee";
   const isHr = audience === "hr-manager";
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     const requestId = ++loadRequestId.current;
     if (!/^\d{4}-\d{2}$/.test(month)) { setLoading(false); return; }
-    setLoading(true); setError("");
+    if (!silent) setLoading(true); setError("");
     const range = monthBounds(month);
     try {
       const allEntries: Entry[] = [];
@@ -114,7 +116,7 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
         allEntries.push(...pageEntries);
         const hasMore = pagePayload?.hasMore === true;
         if (!hasMore) break;
-        if (pageEntries.length === 0) throw new Error("Attendance pagination stopped unexpectedly. Refresh and try again.");
+        if (pageEntries.length === 0) throw new Error("Attendance pagination stopped unexpectedly. Try again in a moment.");
         offset += pageEntries.length;
       }
       setTruncated(false);
@@ -134,7 +136,9 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
         setEntries([]); setTruncated(false); setError(cause instanceof Error ? cause.message : "Unable to load monthly attendance.");
       }
     } finally {
-      if (requestId === loadRequestId.current) setLoading(false);
+      if (requestId === loadRequestId.current) {
+        setLoading(false);
+      }
     }
   }, [month]);
 
@@ -142,6 +146,18 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
     void load();
     return () => { loadRequestId.current += 1; };
   }, [load, refresh]);
+
+  useWorkspaceAutoRefresh(
+    () => {
+      void load(true);
+      setCompensationRefresh((current) => current + 1);
+    },
+    {
+      enabled: true,
+      intervalMs: 60_000,
+      shouldRefresh: () => !loading && !ratesLoading && !payrollEstimateLoading,
+    },
+  );
 
   // Compensation is deliberately available only to HR Manager views and only for one
   // selected employee at a time. The backend independently enforces this permission.
@@ -165,7 +181,7 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
       .catch((cause) => { if (!cancelled) { setPayRates([]); setRatesError(cause instanceof Error ? cause.message : "Unable to load pay rates."); } })
       .finally(() => { if (!cancelled) setRatesLoading(false); });
     return () => { cancelled = true; };
-  }, [isHr, selectedEmployee]);
+  }, [isHr, selectedEmployee, compensationRefresh]);
 
   useEffect(() => {
     let cancelled = false;
@@ -188,7 +204,7 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
       .catch((cause) => { if (!cancelled) { setPayrollEstimate(null); setPayrollEstimateError(cause instanceof Error ? cause.message : "Unable to load the payroll-calculated estimate."); } })
       .finally(() => { if (!cancelled) setPayrollEstimateLoading(false); });
     return () => { cancelled = true; };
-  }, [isHr, selectedEmployee, month]);
+  }, [isHr, selectedEmployee, month, compensationRefresh]);
 
   const employees = useMemo(() => {
     const map = new Map<string, { id: string; name: string; department: string }>();
@@ -277,8 +293,10 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
     </section>
 
     <section className={`${PANEL} !p-0`}>
-      <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] px-4 py-3 sm:px-5"><div><h3 className="font-semibold text-slate-100">Daily breakdown</h3><p className="mt-1 text-xs text-slate-500">{formatDate(`${month}-01`)} · Times shown in AM/PM format</p></div><button type="button" onClick={() => setRefresh((value) => value + 1)} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 disabled:opacity-50"><RefreshCw size={14} className={loading ? "animate-spin" : ""}/>Refresh</button></div>
+      <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] px-4 py-3 sm:px-5"><div><h3 className="font-semibold text-slate-100">Daily breakdown</h3><p className="mt-1 text-xs text-slate-500">{formatDate(`${month}-01`)} · Times shown in AM/PM format</p></div></div>
       {loading ? <div className="flex items-center gap-2 p-6 text-sm text-slate-400"><RefreshCw size={16} className="animate-spin"/>Loading monthly attendance…</div> : visible.length === 0 ? <div className="p-8 text-center"><p className="font-semibold text-slate-200">No attendance entries for this month</p><p className="mt-1 text-sm text-slate-500">Scheduled days and recorded attendance will appear here.</p></div> : <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="bg-white/[0.025] text-xs uppercase tracking-wide text-slate-500"><tr>{!isEmployee && <th className="whitespace-nowrap px-4 py-3 font-semibold">Employee</th>}<th className="whitespace-nowrap px-4 py-3 font-semibold">Work date</th><th className="whitespace-nowrap px-4 py-3 font-semibold">Shift</th><th className="whitespace-nowrap px-4 py-3 font-semibold">Clock in</th><th className="whitespace-nowrap px-4 py-3 font-semibold">Clock out</th><th className="whitespace-nowrap px-4 py-3 font-semibold">Worked</th><th className="whitespace-nowrap px-4 py-3 font-semibold">Overtime</th><th className="whitespace-nowrap px-4 py-3 font-semibold">Status</th></tr></thead><tbody>{visible.map((entry, index) => <tr key={`${entry.employeeId}-${entry.workDate}-${index}`} className="border-t border-white/[0.055] hover:bg-white/[0.02]">{!isEmployee && <td className="px-4 py-3"><div className="flex min-w-0 items-center gap-2.5">{(audience === "department-manager" || audience === "hr-manager") && <EmployeeProfilePhoto employeeId={actorEmployeeId && entry.employeeId === actorEmployeeId ? undefined : entry.employeeId} name={`${entry.firstName ?? ""} ${entry.lastName ?? ""}`.trim() || entry.employeeCode || "Employee"} className="size-9 rounded-lg border border-white/10 bg-slate-800" textClassName="text-[10px] font-bold text-slate-300" />}<div className="min-w-0"><p className="font-medium text-slate-200">{`${entry.firstName ?? ""} ${entry.lastName ?? ""}`.trim() || entry.employeeCode || "Employee"}</p><p className="mt-0.5 text-xs text-slate-500">{entry.departmentName || "Unassigned department"}</p></div></div></td>}<td className="whitespace-nowrap px-4 py-3 text-slate-300">{formatDate(entry.workDate)}</td><td className="px-4 py-3 text-slate-300"><div>{entry.scheduleName || "No shift"}</div>{entry.publicHoliday && <p className="mt-1 text-xs text-violet-300">Public holiday{entry.publicHoliday.name ? ` · ${entry.publicHoliday.name}` : ""}{entry.publicHoliday.isPaid ? " · Paid" : ""}</p>}{entry.leaveRequest && <p className={`mt-1 text-xs ${entry.leaveRequest.status === "APPROVED" ? "text-emerald-300" : "text-amber-200"}`}>Leave · {entry.leaveRequest.leaveType?.replaceAll("_", " ") || "Leave"} ({entry.leaveRequest.status || "status unavailable"})</p>}</td><td className="whitespace-nowrap px-4 py-3 tabular-nums text-slate-300">{formatTime(entry.firstClockIn, entry.timeZone)}</td><td className="whitespace-nowrap px-4 py-3 tabular-nums text-slate-300">{formatTime(entry.lastClockOut, entry.timeZone)}</td><td className="whitespace-nowrap px-4 py-3 font-semibold tabular-nums text-slate-100">{minutesLabel(entry.workedMinutes ?? 0)}</td><td className="whitespace-nowrap px-4 py-3 tabular-nums"><span className="text-amber-200">{minutesLabel(entry.potentialOvertimeMinutes ?? 0)}</span>{(entry.excessUnapprovedOvertimeMinutes ?? 0) > 0 && <><p className="mt-1 text-xs text-rose-300">{minutesLabel(entry.excessUnapprovedOvertimeMinutes ?? 0)} unapproved excess — not payable</p><p className="mt-1 text-xs text-slate-500">{excessReviewLabel(entry.excessOvertimeReviewStatus)}</p></>}</td><td className="whitespace-nowrap px-4 py-3"><span className={`employee-monthly-status-pill inline-flex whitespace-nowrap rounded-full border px-2 py-1 text-xs font-medium ${entry.publicHoliday ? "border-violet-300/20 bg-violet-300/10 text-violet-200" : entry.leaveRequest?.status === "APPROVED" ? "border-emerald-300/20 bg-emerald-300/10 text-emerald-200" : entry.leaveRequest?.status === "PENDING" ? "border-amber-300/20 bg-amber-300/10 text-amber-200" : entry.calculationStatus === "REVIEW_REQUIRED" ? "border-amber-300/20 bg-amber-300/10 text-amber-200" : entry.calculationStatus === "IN_PROGRESS" ? "border-sky-300/20 bg-sky-300/10 text-sky-200" : "border-slate-600 bg-slate-700/20 text-slate-300"}`}>{entry.publicHoliday ? "Public holiday" : entry.leaveRequest?.status === "APPROVED" ? "Approved leave" : entry.leaveRequest?.status === "PENDING" ? "Leave pending" : entry.calculationStatus === "IN_PROGRESS" ? "Clocked in" : entry.calculationStatus === "REVIEW_REQUIRED" ? "Review required" : entry.calculationStatus === "NO_RECORDS" ? "No punches" : entry.calculationStatus === "NO_SHIFT" ? "No shift" : "Recorded"}</span></td></tr>)}</tbody></table></div>}
     </section>
   </div>;
+
 }
+

@@ -1906,13 +1906,7 @@ export default function HRManagerDepartmentsPage() {
                     {managerCandidatesError && (
                       <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs leading-relaxed text-amber-300">
                         {managerCandidatesError}
-                        <button
-                          type="button"
-                          onClick={() => void loadManagerCandidates()}
-                          className="ml-2 font-semibold underline text-amber-200"
-                        >
-                          Retry
-                        </button>
+
                       </div>
                     )}
 
@@ -2022,3 +2016,4 @@ export default function HRManagerDepartmentsPage() {
     </HRManagerShell>
   );
 }
+

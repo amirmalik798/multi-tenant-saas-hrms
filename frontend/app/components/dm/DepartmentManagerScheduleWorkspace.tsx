@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
@@ -230,14 +231,13 @@ export default function DepartmentManagerScheduleWorkspace({ actorEmployeeId }: 
   const [calendarError, setCalendarError] = useState("");
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
   const calendarRequestId = useRef(0);
   const [assignments, setAssignments] = useState<ScheduleAssignment[]>([]);
   const [assignmentsError, setAssignmentsError] = useState("");
   const [assignmentsLoading, setAssignmentsLoading] = useState(true);
   const [assignmentSearch, setAssignmentSearch] = useState("");
 
-  const loadOverview = useCallback(async () => {
+  const loadOverview = useCallback(async (silent = false) => {
     setOverviewError("");
     try {
       const data = await getJson<OverviewResponse>("/department-manager/overview");
@@ -246,21 +246,23 @@ export default function DepartmentManagerScheduleWorkspace({ actorEmployeeId }: 
       setAnchorDate((current) => current || date);
       setSelectedDate((current) => current || date);
     } catch (error) {
-      setOverview(null);
+      if (!silent) {
+        setOverview(null);
+        const fallback = localDateString(new Date(), "Africa/Kigali");
+        setAnchorDate((current) => current || fallback);
+        setSelectedDate((current) => current || fallback);
+      }
       setOverviewError(error instanceof Error ? error.message : "Unable to load department and time-zone settings.");
-      const fallback = localDateString(new Date(), "Africa/Kigali");
-      setAnchorDate((current) => current || fallback);
-      setSelectedDate((current) => current || fallback);
     }
   }, []);
 
   useEffect(() => { void loadOverview(); }, [loadOverview]);
 
-  const loadAssignments = useCallback(async () => {
-    setAssignmentsLoading(true); setAssignmentsError("");
+  const loadAssignments = useCallback(async (silent = false) => {
+    if (!silent) setAssignmentsLoading(true); setAssignmentsError("");
     try { const data = await getJson<AssignmentsResponse>("/schedule-assignments"); setAssignments(Array.isArray(data.assignments) ? data.assignments : []); }
-    catch (error) { setAssignments([]); setAssignmentsError(error instanceof Error ? error.message : "Unable to load shift assignments."); }
-    finally { setAssignmentsLoading(false); }
+    catch (error) { if (!silent) setAssignments([]); setAssignmentsError(error instanceof Error ? error.message : "Unable to load shift assignments."); }
+    finally { if (!silent) setAssignmentsLoading(false); }
   }, []);
   useEffect(() => { void loadAssignments(); }, [loadAssignments]);
 
@@ -269,13 +271,15 @@ export default function DepartmentManagerScheduleWorkspace({ actorEmployeeId }: 
   const weekEnd = weekDates[6] || weekStart;
   const timeZone = overview?.timeZone || "Africa/Kigali";
 
-  const loadCalendar = useCallback(async () => {
+  const loadCalendar = useCallback(async (silent = false) => {
     if (!anchorDate || !weekStart || !weekEnd) return;
     const requestId = ++calendarRequestId.current;
-    setCalendarLoading(true);
+    if (!silent) {
+      setCalendarLoading(true);
+      setEntries([]);
+      setHasMore(false);
+    }
     setCalendarError("");
-    setEntries([]);
-    setHasMore(false);
     try {
       const params = new URLSearchParams({ fromDate: weekStart, toDate: weekEnd });
       const data = await getJson<CalendarResponse>(`/attendance/calendar?${params.toString()}`);
@@ -284,15 +288,24 @@ export default function DepartmentManagerScheduleWorkspace({ actorEmployeeId }: 
       setHasMore(Boolean(data.hasMore));
     } catch (error) {
       if (requestId !== calendarRequestId.current) return;
-      setEntries([]);
-      setHasMore(false);
+      if (!silent) {
+        setEntries([]);
+        setHasMore(false);
+      }
       setCalendarError(error instanceof Error ? error.message : "Unable to load the team schedule.");
     } finally {
-      if (requestId === calendarRequestId.current) setCalendarLoading(false);
+      if (!silent && requestId === calendarRequestId.current) setCalendarLoading(false);
     }
-  }, [anchorDate, weekStart, weekEnd, refreshKey]);
+  }, [anchorDate, weekStart, weekEnd]);
 
   useEffect(() => { void loadCalendar(); }, [loadCalendar]);
+
+  useWorkspaceAutoRefresh(async () => {
+    await Promise.all([loadOverview(), loadAssignments(true), loadCalendar(true)]);
+  }, {
+    intervalMs: 60_000,
+    shouldRefresh: () => !calendarLoading && !assignmentsLoading,
+  });
 
   const scopedEntries = useMemo(() => entries.filter((entry) => departmentFilter === "ALL" || entry.departmentId === departmentFilter), [entries, departmentFilter]);
   const scheduledEntries = scopedEntries.filter((entry) => Boolean(entry.scheduleName && entry.expectedStart));
@@ -334,10 +347,10 @@ export default function DepartmentManagerScheduleWorkspace({ actorEmployeeId }: 
         <div className="flex min-w-0 items-start gap-3"><span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-sky-500/20 bg-sky-500/10 text-sky-200"><CalendarRange size={20} /></span><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300">Planning view</p><h2 className="mt-1 text-lg font-semibold text-white">{anchorDate ? `${dayLabel(weekStart, timeZone)} – ${dayLabel(weekEnd, timeZone)}` : "Team schedule"}</h2><p className="mt-1 text-sm leading-6 text-slate-400">Review assigned shifts beside recorded attendance. This view does not create or change assignments.</p></div></div>
 
       </div>
-      <div className="grid gap-3 border-b border-slate-800/80 p-4 sm:grid-cols-[minmax(220px,0.75fr)_1fr] sm:p-5"><label className="block min-w-0 text-xs font-semibold text-slate-400">Department scope<select value={departmentFilter} onChange={(event) => setDepartmentFilter(event.target.value)} className={`${INPUT} mt-1.5`}><option value="ALL">All assigned departments</option>{(overview?.departments ?? []).map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></label><div className="flex flex-wrap items-end justify-between gap-3"><div className="inline-flex rounded-xl border border-slate-800 bg-[#0e141c] p-1"><button type="button" onClick={() => setViewMode("week")} aria-pressed={viewMode === "week"} className={`min-h-9 rounded-lg px-3 text-xs font-semibold ${viewMode === "week" ? "bg-sky-500/15 text-sky-200" : "text-slate-400 hover:text-slate-200"}`}>Week overview</button><button type="button" onClick={() => setViewMode("agenda")} aria-pressed={viewMode === "agenda"} className={`min-h-9 rounded-lg px-3 text-xs font-semibold ${viewMode === "agenda" ? "bg-sky-500/15 text-sky-200" : "text-slate-400 hover:text-slate-200"}`}>Agenda</button></div><button type="button" onClick={() => setRefreshKey((n) => n + 1)} disabled={calendarLoading} className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-700 bg-white/[0.025] px-3 text-xs font-semibold text-slate-300 hover:bg-white/[0.06] disabled:opacity-50"><RefreshCw size={14} className={calendarLoading ? "animate-spin" : ""} />Refresh schedule</button></div></div>
+      <div className="grid gap-3 border-b border-slate-800/80 p-4 sm:grid-cols-[minmax(220px,0.75fr)_1fr] sm:p-5"><label className="block min-w-0 text-xs font-semibold text-slate-400">Department scope<select value={departmentFilter} onChange={(event) => setDepartmentFilter(event.target.value)} className={`${INPUT} mt-1.5`}><option value="ALL">All assigned departments</option>{(overview?.departments ?? []).map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></label><div className="flex flex-wrap items-end justify-between gap-3"><div className="inline-flex rounded-xl border border-slate-800 bg-[#0e141c] p-1"><button type="button" onClick={() => setViewMode("week")} aria-pressed={viewMode === "week"} className={`min-h-9 rounded-lg px-3 text-xs font-semibold ${viewMode === "week" ? "bg-sky-500/15 text-sky-200" : "text-slate-400 hover:text-slate-200"}`}>Week overview</button><button type="button" onClick={() => setViewMode("agenda")} aria-pressed={viewMode === "agenda"} className={`min-h-9 rounded-lg px-3 text-xs font-semibold ${viewMode === "agenda" ? "bg-sky-500/15 text-sky-200" : "text-slate-400 hover:text-slate-200"}`}>Agenda</button></div></div></div>
     </section>
 
-    {(overviewError || calendarError) && <div role="alert" className="rounded-xl border border-rose-500/20 bg-rose-500/[0.06] p-4 text-sm leading-6 text-rose-200"><AlertCircle size={16} className="mr-2 inline" />{overviewError || calendarError}<button type="button" onClick={() => { void loadOverview(); setRefreshKey((n) => n + 1); }} className="ml-2 font-semibold underline underline-offset-2">Retry</button></div>}
+    {(overviewError || calendarError) && <div role="alert" className="rounded-xl border border-rose-500/20 bg-rose-500/[0.06] p-4 text-sm leading-6 text-rose-200"><AlertCircle size={16} className="mr-2 inline" />{overviewError || calendarError}</div>}
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Metric label="Scheduled shifts" value={calendarError ? "—" : calendarLoading && entries.length === 0 ? "…" : scheduledEntries.length} detail="Employee-days with an assigned shift" icon={CalendarDays} tone="sky" />
@@ -470,14 +483,16 @@ export default function DepartmentManagerScheduleWorkspace({ actorEmployeeId }: 
     )}
 
     <section className={`${PANEL} overflow-hidden`}>
-      <div className="flex flex-col gap-3 border-b border-slate-800/80 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6"><div><h3 className="text-base font-semibold text-white">Shift assignments</h3><p className="mt-1 text-xs text-slate-500">Employee shifts and effective dates in your managed departments.</p></div><button type="button" onClick={() => void loadAssignments()} disabled={assignmentsLoading} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-slate-700 px-3 text-xs font-semibold text-slate-300 hover:bg-white/[0.04] disabled:opacity-50"><RefreshCw size={13} className={assignmentsLoading ? "animate-spin" : ""}/>Refresh assignments</button></div>
+      <div className="flex flex-col gap-3 border-b border-slate-800/80 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6"><div><h3 className="text-base font-semibold text-white">Shift assignments</h3><p className="mt-1 text-xs text-slate-500">Employee shifts and effective dates in your managed departments.</p></div></div>
       <div className="grid gap-3 border-b border-slate-800/70 p-4 sm:grid-cols-[minmax(220px,1fr)_auto] sm:items-end sm:px-5"><label className="block text-xs font-semibold text-slate-400">Find employee, department or shift<input value={assignmentSearch} onChange={(event) => setAssignmentSearch(event.target.value)} placeholder="Search assignments…" className={`${INPUT} mt-1.5`} /></label><p className="text-xs text-slate-500">{assignmentsLoading ? "Loading…" : `${visibleAssignments.length} assignment${visibleAssignments.length === 1 ? "" : "s"}`}</p></div>
-      {assignmentsError ? <div role="alert" className="p-5 text-sm text-rose-200"><AlertCircle size={15} className="mr-2 inline"/>{assignmentsError}<button type="button" onClick={() => void loadAssignments()} className="ml-2 underline underline-offset-2">Retry</button></div>
+      {assignmentsError ? <div role="alert" className="p-5 text-sm text-rose-200"><AlertCircle size={15} className="mr-2 inline"/>{assignmentsError}</div>
       : assignmentsLoading && assignments.length === 0 ? <div className="space-y-3 p-5">{[1,2,3].map((item) => <div key={item} className="h-16 animate-pulse rounded-xl border border-slate-800 bg-[#0e141c]" />)}</div>
       : visibleAssignments.length === 0 ? <div className="px-5 py-8 text-center"><CalendarRange size={22} className="mx-auto text-slate-500"/><p className="mt-2 text-sm font-semibold text-slate-200">No matching assignments</p><p className="mt-1 text-xs text-slate-500">Try another search or department scope.</p></div>
       : <div className="divide-y divide-slate-800/70">{visibleAssignments.map((a) => { const name = `${a.firstName ?? ""} ${a.lastName ?? ""}`.trim() || a.employeeCode || "Employee"; const days = Array.isArray(a.days) ? a.days : []; const today = overview?.workDate || localDateString(new Date()); const effective = a.effectiveFrom <= today && (!a.effectiveTo || a.effectiveTo >= today); return <article key={a.id} className="grid min-w-0 gap-3 p-4 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.4fr)] sm:items-start sm:px-5"><div className="flex min-w-0 items-start gap-3"><EmployeeProfilePhoto employeeId={a.employeeId} name={name} className="size-10 rounded-xl border border-slate-700 bg-slate-800/80" textClassName="text-xs font-bold text-slate-300" /><div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-100">{name}</p><p className="mt-1 text-xs text-slate-500">{a.employeeCode || "No employee code"}{a.departmentName ? ` · ${a.departmentName}` : ""}</p></div></div><div className="min-w-0"><p className="text-sm font-semibold text-sky-200">{a.scheduleName || "Shift name unavailable"}</p><p className="mt-1 text-xs text-slate-400">{a.effectiveFrom} → {a.effectiveTo || "No end date"}</p><span className={`mt-2 inline-flex rounded-full border px-2 py-1 text-[10px] font-semibold ${effective ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200" : "border-slate-700 bg-slate-800/70 text-slate-400"}`}>{effective ? "Effective today" : "Outside current dates"}</span></div><div className="flex flex-wrap gap-1.5">{days.length ? days.map((d) => <span key={`${a.id}-${d.dayOfWeek}`} className="rounded-lg border border-slate-700/80 bg-[#0e141c] px-2 py-1.5 text-[11px] text-slate-300">{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.dayOfWeek] ?? `Day ${d.dayOfWeek}`} · {d.startTime}–{d.endTime}</span>) : <span className="text-xs text-slate-500">Shift hours unavailable</span>}</div></article>; })}</div>}
+
     </section>
 
     <section className="rounded-2xl border border-slate-800/90 bg-gradient-to-r from-[#151e2b] to-[#121821] p-5 sm:p-6"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-sky-500/20 bg-sky-500/10 text-sky-300"><ShieldCheck size={18} /></span><div><h3 className="text-sm font-semibold text-slate-200">Schedule ownership and data confidence</h3><p className="mt-1 text-xs leading-5 text-slate-500">Department Managers can review the schedule assignments returned for their managed departments. Schedule definitions and assignments remain managed by authorized HR staff. Planned times, attendance events and payable hours are different concepts.</p><div className="mt-3 flex flex-wrap gap-2"><Link href="/dm/reviews" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-700 px-3 text-xs font-semibold text-slate-300 hover:bg-white/[0.04]">Open review queue <ArrowRight size={13} /></Link><Link href="/dm/team" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-700 px-3 text-xs font-semibold text-slate-300 hover:bg-white/[0.04]"><Users size={13} />Open team directory</Link></div></div></div></section>
   </div>;
 }
+

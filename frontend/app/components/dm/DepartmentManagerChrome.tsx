@@ -19,7 +19,6 @@ import {
   ClipboardCheck,
   ChevronRight,
   ChevronDown,
-  Command,
   FileBarChart,
   KeyRound,
   LayoutDashboard,
@@ -680,9 +679,6 @@ export function DepartmentManagerShell({
                 Search workspace and team shortcuts…
               </span>
 
-              <span className="hidden items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-1.5 py-1 text-[10px] font-semibold text-slate-500 sm:inline-flex">
-                <Command size={11} /> K
-              </span>
             </button>
           </div>
 
@@ -757,11 +753,11 @@ export function DepartmentManagerShell({
               <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
                 {title}
               </h1>
-  
+
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
                 {description}
               </p>
-     
+
             </div>
           </div>
 
@@ -928,3 +924,4 @@ export function DepartmentManagerShell({
     </div>
   );
 }
+

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BadgeDollarSign, CheckCircle2, RefreshCw, Search, SlidersHorizontal, CalendarDays, Clock3, AlertTriangle, CheckCircle, CircleDollarSign } from "lucide-react";
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
+import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
 type Payment = { id?: string | null; employeeId: string; employeeCode?: string | null; firstName?: string | null; lastName?: string | null; departmentName?: string | null; payMonth: string; amount: string | number | null; calculatedAmount?: string | number | null; workedMinutes?: number; payableMinutes?: number; paidLeaveMinutes?: number; paidHolidayMinutes?: number; currencyCode: string; status: "PAID" | "UNPAID" | "NO_RECORDED_HOURS" | "RATE_REQUIRED" | "CURRENCY_MISMATCH"; currencyMismatch?: boolean; paidAt?: string | null; paymentReference?: string | null; notes?: string | null };
 type EmployeeRoleRecord = { id?: string; workforce_role?: unknown; workforceRole?: unknown; roleName?: unknown; role_name?: unknown; role?: unknown; userRole?: unknown; user_role?: unknown; user?: { role?: unknown } };
@@ -59,9 +60,9 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   const [nameSortOrder, setNameSortOrder] = useState<"asc" | "desc">("asc");
   const [drafts, setDrafts] = useState<Record<string, { amount: string; currencyCode: string; status: "PAID" | "UNPAID"; paymentReference: string; notes: string }>>({});
   const loadRequestId = useRef(0);
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     const requestId = ++loadRequestId.current;
-    setLoading(true); setError("");
+    if (!silent) setLoading(true); setError("");
     try {
       const paymentRequest = fetch(`/api/backend/payroll/payments?month=${encodeURIComponent(month)}`, { credentials: "same-origin", cache: "no-store" });
       const eligibleIdsRequest = canEdit ? loadEligibleEmployeeIds() : Promise.resolve(null);
@@ -95,6 +96,20 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     void load();
     return () => { loadRequestId.current += 1; };
   }, [load]);
+
+  useWorkspaceAutoRefresh(() => load(true), {
+    enabled: true,
+    intervalMs: 60_000,
+    shouldRefresh: () => !loading && !saving && (!canEdit || !payments.some((payment) => {
+      const draft = drafts[payment.employeeId];
+      return !draft ||
+        draft.amount !== (payment.amount == null ? "" : String(payment.amount)) ||
+        draft.currencyCode !== (payment.currencyCode || "RWF") ||
+        draft.status !== (payment.status === "PAID" ? "PAID" : "UNPAID") ||
+        draft.paymentReference !== (payment.paymentReference || "") ||
+        draft.notes !== (payment.notes || "");
+    })),
+  });
   const paidCount = payments.filter((payment) => payment.status === "PAID").length;
   const noHoursCount = payments.filter((payment) => payment.status === "NO_RECORDED_HOURS").length;
   const unpaidCount = payments.filter((payment) => payment.status === "UNPAID").length;
@@ -159,10 +174,11 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             ["NO_HOURS", "No hours", noHoursCount],
           ] as const).map(([value, label, count]) => <button key={value} type="button" onClick={() => setPaymentFilter(value)} aria-pressed={paymentFilter === value} className={`inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition ${paymentFilter === value ? "border-sky-400/30 bg-sky-400/10 text-sky-200" : "border-slate-700 bg-white/[0.02] text-slate-400 hover:text-slate-200"}`}>{label}<span className="rounded-md bg-black/20 px-1.5 py-0.5 tabular-nums">{loading ? "—" : count}</span></button>)}
           <button type="button" onClick={() => setNameSortOrder((current) => current === "asc" ? "desc" : "asc")} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-white/[0.02] px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.06]" aria-label={`Sort employee names ${nameSortOrder === "asc" ? "descending" : "ascending"}`}>Name {nameSortOrder === "asc" ? "A–Z" : "Z–A"}</button>
-          <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-white/[0.02] px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.06] disabled:opacity-50"><RefreshCw size={13} className={loading ? "animate-spin" : ""} />Refresh</button>
+
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] pt-3 text-xs text-slate-500"><span>{loading ? "Loading payment records…" : `Showing ${visiblePayments.length} of ${payments.length} employees`}</span><span className="inline-flex items-center gap-1.5"><CalendarDays size={13} />{month}</span></div>
+
     </div>
     {loading ? <div className="mt-4 grid gap-3 xl:grid-cols-2"><div className="h-40 animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.025]" /><div className="h-40 animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.025]" /></div> : payments.length === 0 ? <div className="mt-4 rounded-2xl border border-dashed border-slate-700 p-8 text-center"><CircleDollarSign size={24} className="mx-auto text-slate-500" /><p className="mt-3 font-semibold text-slate-200">No payment records for this month</p><p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-400">{canEdit ? "Payment records appear when employees have payable time. Check attendance and pay rates if you expected records here." : "Payment records will appear here when HR records them."}</p></div> : visiblePayments.length === 0 ? <div className="mt-4 rounded-2xl border border-dashed border-slate-700 p-8 text-center"><Search size={20} className="mx-auto text-slate-500" /><p className="mt-3 font-semibold text-slate-200">No matching employees</p><p className="mt-1 text-sm text-slate-400">Try a different search or select another payment status.</p><button type="button" onClick={() => { setSearchQuery(""); setPaymentFilter("ALL"); }} className="mt-3 text-sm font-semibold text-sky-300 hover:text-sky-200">Clear filters</button></div> : <div className="mt-4 space-y-3">{visiblePayments.map((p) => {
       const name = [p.firstName, p.lastName].filter(Boolean).join(" ") || p.employeeCode || "Employee";
@@ -184,3 +200,4 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     {canEdit && <p className="mt-4 text-xs leading-5 text-slate-500">Salary amounts and currency are calculated from recorded working time, approved paid leave, paid public holidays, and effective pay rates. Only the payment status and reference/notes are editable here. Employees with no payable hours cannot be marked paid.</p>}
   </section>;
 }
+

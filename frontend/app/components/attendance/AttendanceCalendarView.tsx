@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 import { formatDateTime as formatDateTimeShared } from "../../../lib/attendance-format";
 import {
   AlertCircle,
@@ -114,7 +115,7 @@ async function fetchAllCalendarEntries(params: URLSearchParams, signal?: AbortSi
     if (!data || !Array.isArray(data.entries)) throw new Error("The attendance calendar returned an invalid response.");
     entries.push(...data.entries);
     if (!data.hasMore) return { ...data, entries, hasMore: false };
-    if (typeof data.nextOffset !== "number" || data.nextOffset <= offset) throw new Error("Attendance pagination did not advance. Refresh and try again.");
+    if (typeof data.nextOffset !== "number" || data.nextOffset <= offset) throw new Error("Attendance pagination did not advance. Try again in a moment.");
     offset = data.nextOffset;
   }
   throw new Error("Attendance records exceed the supported page limit. Narrow the week or contact your administrator.");
@@ -362,6 +363,8 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
   const [error, setError] = useState("");
   const [hasMore, setHasMore] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const calendarBackgroundRefreshRef = useRef(false);
+  const dailyBackgroundRefreshRef = useRef(false);
   const [reportDate, setReportDate] = useState(() => localDateString(new Date()));
   const [organizationToday, setOrganizationToday] = useState(() => localDateString(new Date()));
   const [organizationTimeZone, setOrganizationTimeZone] = useState("Africa/Kigali");
@@ -405,6 +408,18 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
   }, [selectedEmployee]);
 
   const isEmployee = audience === "employee";
+  useWorkspaceAutoRefresh(
+    () => {
+      calendarBackgroundRefreshRef.current = true;
+      dailyBackgroundRefreshRef.current = true;
+      setReloadKey((key) => key + 1);
+    },
+    {
+      enabled: true,
+      intervalMs: 60_000,
+      shouldRefresh: () => !loading && !dailyLoading && !reportLoading && /^\d{4}-\d{2}-\d{2}$/.test(fromDate) && /^\d{4}-\d{2}-\d{2}$/.test(toDate) && fromDate <= toDate && /^\d{4}-\d{2}-\d{2}$/.test(reportDate),
+    },
+  );
   const title = isEmployee
     ? "My attendance calendar"
     : "Team attendance calendar";
@@ -434,7 +449,7 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
     const controller = new AbortController();
 
     async function loadCalendar() {
-      setLoading(true);
+      if (!calendarBackgroundRefreshRef.current) setLoading(true);
       setError("");
 
       if (
@@ -444,6 +459,7 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
       ) {
         setError("Choose a valid date range. The start date must not be after the end date.");
         setEntries([]);
+        calendarBackgroundRefreshRef.current = false;
         setLoading(false);
         return;
       }
@@ -457,6 +473,7 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
       if (range > 30) {
         setError("Choose a date range of 31 calendar days or fewer.");
         setEntries([]);
+        calendarBackgroundRefreshRef.current = false;
         setLoading(false);
         return;
       }
@@ -489,9 +506,8 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
             : "Unable to load the attendance calendar",
         );
       } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
+        calendarBackgroundRefreshRef.current = false;
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
 
@@ -510,11 +526,12 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
         setDailyRows([]);
         setDailyRowsDate(reportDate);
         setDailyError("Choose a valid date to review daily attendance.");
+        dailyBackgroundRefreshRef.current = false;
         setDailyLoading(false);
         return;
       }
 
-      setDailyLoading(true);
+      if (!dailyBackgroundRefreshRef.current) setDailyLoading(true);
       setDailyRowsDate("");
       setDailyError("");
       // Do not briefly show the previous date's roster totals while the new
@@ -562,6 +579,7 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
           setDailyError(caught instanceof Error ? caught.message : "Unable to load daily attendance.");
         }
       } finally {
+        dailyBackgroundRefreshRef.current = false;
         if (!controller.signal.aborted) setDailyLoading(false);
       }
     }
@@ -716,7 +734,7 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-xs font-semibold text-slate-200">{weekLabel}</p>
-        <button type="button" onClick={() => setReloadKey((key) => key + 1)} disabled={loading} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 px-3 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.04] disabled:cursor-wait disabled:opacity-50"><RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Refresh</button>
+
       </div>
     </div>
   );
@@ -768,9 +786,7 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
                     className="mt-1.5 h-10 w-full rounded-xl border border-white/10 bg-[#0b111b] px-3 text-sm text-slate-200 outline-none transition focus:border-sky-300/40 focus:ring-2 focus:ring-sky-300/10"
                   />
                 </label>
-                <button type="button" onClick={() => setReloadKey((key) => key + 1)} disabled={dailyLoading} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 px-3.5 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.05] disabled:cursor-wait disabled:opacity-50">
-                  <RefreshCw size={14} className={dailyLoading ? "animate-spin" : ""} /> Refresh roster
-                </button>
+
                 <button type="button" onClick={() => void generateDailyPdf()} disabled={reportLoading || !reportDate} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-sky-500 px-3.5 text-xs font-semibold text-white transition hover:bg-sky-400 disabled:cursor-wait disabled:opacity-50">
                   {reportLoading ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
                   {reportLoading ? "Preparing PDF…" : "Download PDF"}
@@ -1010,7 +1026,7 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
               </div>
             </div>
           </div>
-          {hasMore && <p role="status" className="border-t border-amber-300/15 bg-amber-300/[0.035] p-3 text-xs leading-5 text-amber-100">Some attendance records could not be loaded. Refresh the calendar or contact your administrator before relying on these totals.</p>}
+          {hasMore && <p role="status" className="border-t border-amber-300/15 bg-amber-300/[0.035] p-3 text-xs leading-5 text-amber-100">Some attendance records could not be loaded. Some attendance records could not be loaded. The calendar will check again automatically; contact your administrator if the issue continues.</p>}
         </section>
       )}
 
@@ -1160,3 +1176,4 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
     </div>
   );
 }
+

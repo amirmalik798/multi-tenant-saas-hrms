@@ -25,6 +25,7 @@ import {
   Workflow,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useWorkspaceAutoRefresh } from "../../components/shared/useWorkspaceAutoRefresh";
 import EmployeeProfilePhoto from "../../components/employee/EmployeeProfilePhoto";
 
 import {
@@ -320,12 +321,11 @@ export default function DepartmentManagerDashboardPage() {
   const [employeeError, setEmployeeError] = useState("");
   const [calendarError, setCalendarError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [alertsExpanded, setAlertsExpanded] = useState(false);
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useCallback(async (silent = false) => {
     if (!auth.user) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setOverviewError("");
     setEmployeeError("");
     setCalendarError("");
@@ -364,9 +364,13 @@ export default function DepartmentManagerDashboardPage() {
     }
 
     setLoading(false);
-  }, [auth.user, refreshKey]);
+  }, [auth.user]);
 
   useEffect(() => { void loadDashboard(); }, [loadDashboard]);
+  useWorkspaceAutoRefresh(() => loadDashboard(true), {
+    intervalMs: 60_000,
+    shouldRefresh: () => !loading && Boolean(auth.user),
+  });
 
   const workDate = overview?.workDate || localDateString(new Date());
   const timeZone = overview?.timeZone || "Africa/Kigali";
@@ -396,17 +400,10 @@ export default function DepartmentManagerDashboardPage() {
       description="Understand today's team operations, resolve pending decisions, and plan ahead—within your assigned department scope."
       onLogout={() => void auth.logout()}
       loggingOut={auth.loggingOut}
-      actions={
-        <button type="button" onClick={() => setRefreshKey((current) => current + 1)} disabled={loading} className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-800 bg-[#151b24] px-3 text-xs font-semibold text-slate-300 transition hover:border-slate-700 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50">
-          <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-          <span className="hidden sm:inline">Refresh</span>
-        </button>
-      }
     >
       {(auth.error || overviewError) && <div role="alert" className="mb-5 flex flex-col gap-3 rounded-2xl border border-rose-500/25 bg-rose-500/[0.07] p-4 sm:flex-row sm:items-start">
         <AlertCircle size={18} className="mt-0.5 shrink-0 text-rose-300" />
         <div className="min-w-0 flex-1"><p className="text-sm font-semibold text-rose-200">Command center summary unavailable</p><p className="mt-1 text-sm leading-6 text-rose-200/80">{overviewError || auth.error}</p></div>
-        <button type="button" onClick={() => setRefreshKey((n) => n + 1)} disabled={loading} className="self-start rounded-lg border border-rose-400/20 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-500/10 disabled:opacity-50">Retry</button>
       </div>}
 
       <section className={`${PANEL} mb-5 p-4 sm:p-5`}>
@@ -496,10 +493,11 @@ export default function DepartmentManagerDashboardPage() {
             <Link href="/dm/attendance" className="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs font-semibold text-slate-300 hover:border-slate-700 hover:text-white">Open attendance <ArrowRight size={13} /></Link>
           </div>
           {loading && !overview && !calendarEntries.length ? <div className="space-y-3 p-5">{[1, 2, 3].map((item) => <div key={item} className="flex animate-pulse items-center gap-3 rounded-xl border border-slate-800/60 p-3"><div className="size-10 rounded-xl bg-slate-800" /><div className="flex-1 space-y-2"><div className="h-3 w-40 rounded bg-slate-800" /><div className="h-2.5 w-56 max-w-full rounded bg-slate-800/70" /></div></div>)}</div>
-            : calendarError ? <div className="px-6 py-12 text-center"><AlertCircle size={23} className="mx-auto text-rose-300" /><p className="mt-3 text-sm font-semibold text-slate-200">Activity records unavailable</p><p className="mt-1 text-xs leading-5 text-slate-500">Refresh the command center to try again.</p></div>
+            : calendarError ? <div className="px-6 py-12 text-center"><AlertCircle size={23} className="mx-auto text-rose-300" /><p className="mt-3 text-sm font-semibold text-slate-200">Activity records unavailable</p><p className="mt-1 text-xs leading-5 text-slate-500">The command center will check again automatically.</p></div>
             : todayEntries.length === 0 ? <div className="px-6 py-12 text-center"><CalendarDays size={24} className="mx-auto text-slate-500" /><p className="mt-3 text-sm font-semibold text-slate-200">No activity entries returned for today</p><p className="mx-auto mt-1 max-w-md text-xs leading-5 text-slate-500">This calendar endpoint returns days with a schedule or attendance event. Check Team Schedule and your review queue for other context.</p></div>
             : <div className="divide-y divide-slate-800/70">
               {todayEntries.slice(0, 7).map((entry) => {
+
                 const name = calendarName(entry);
                 const current = currentStatus(entry);
                 return <article key={`${entry.employeeId}-${entry.workDate}`} className="flex min-w-0 flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
@@ -544,3 +542,4 @@ function addDays(date: string, days: number): string {
   parsed.setUTCDate(parsed.getUTCDate() + days);
   return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}-${String(parsed.getUTCDate()).padStart(2, "0")}`;
 }
+

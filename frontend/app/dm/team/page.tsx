@@ -41,6 +41,7 @@ import { HRManagerDrawerTheme } from "../../components/hr/HRManagerDrawerTheme";
 import { formatCountryWithFlag } from "../../components/workforce/CountryPhoneFields";
 import { WorkforceContactDetails } from "../../components/workforce/WorkforceContactDetails";
 import EmployeeProfilePhoto from "../../components/employee/EmployeeProfilePhoto";
+import { useWorkspaceAutoRefresh } from "../../components/shared/useWorkspaceAutoRefresh";
 
 type EmploymentStatus = "ACTIVE" | "INACTIVE" | "FORMER";
 type StatusFilter = "ALL" | EmploymentStatus;
@@ -426,7 +427,6 @@ export default function DepartmentManagerTeamPage() {
 
   const [loading, setLoading] = useState(true);
   const [directoryError, setDirectoryError] = useState("");
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
@@ -483,7 +483,7 @@ export default function DepartmentManagerTeamPage() {
     setPage(1);
   }, [debouncedSearch, statusFilter, departmentFilter, sortBy, sortOrder]);
 
-  const loadDepartments = useCallback(async () => {
+  const loadDepartments = useCallback(async (silent = false) => {
     if (!user) return;
 
     try {
@@ -511,15 +511,15 @@ export default function DepartmentManagerTeamPage() {
 
       setDepartments(data.departments);
     } catch {
-      // Keep the directory usable. Its own request will expose errors.
-      setDepartments([]);
+      // Preserve the last successful department list during a background refresh.
+      if (!silent) setDepartments([]);
     }
   }, [user, auth.reload]);
 
-  const loadSummary = useCallback(async () => {
+  const loadSummary = useCallback(async (silent = false) => {
     if (!user) return;
 
-    setSummaryLoading(true);
+    if (!silent) setSummaryLoading(true);
     setSummaryError("");
 
     const options: RequestInit = {
@@ -584,16 +584,16 @@ export default function DepartmentManagerTeamPage() {
           ? caught.message
           : "Unable to load the team summary.",
       );
-      setSummary(null);
+      if (!silent) setSummary(null);
     } finally {
-      setSummaryLoading(false);
+      if (!silent) setSummaryLoading(false);
     }
-  }, [user, auth.reload, departments.length, refreshKey]);
+  }, [user, auth.reload, departments.length]);
 
-  const loadDirectory = useCallback(async () => {
+  const loadDirectory = useCallback(async (silent = false) => {
     if (!user) return;
 
-    setLoading(true);
+    if (!silent) setLoading(true);
     setDirectoryError("");
 
     const params = new URLSearchParams({
@@ -649,11 +649,13 @@ export default function DepartmentManagerTeamPage() {
           ? caught.message
           : "Unable to load employee records.",
       );
-      setEmployees([]);
-      setTotal(0);
-      setTotalPages(1);
+      if (!silent) {
+        setEmployees([]);
+        setTotal(0);
+        setTotalPages(1);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [
     user,
@@ -664,7 +666,6 @@ export default function DepartmentManagerTeamPage() {
     debouncedSearch,
     statusFilter,
     departmentFilter,
-    refreshKey,
   ]);
 
   useEffect(() => {
@@ -678,6 +679,13 @@ export default function DepartmentManagerTeamPage() {
   useEffect(() => {
     void loadSummary();
   }, [loadSummary]);
+
+  useWorkspaceAutoRefresh(async () => {
+    await Promise.all([loadDepartments(true), loadDirectory(true), loadSummary(true)]);
+  }, {
+    intervalMs: 60_000,
+    shouldRefresh: () => Boolean(user) && !loading && !summaryLoading && !drawerOpen && !detailLoading && !savingStatus,
+  });
 
   const departmentOptions = useMemo(
     () =>
@@ -725,10 +733,10 @@ export default function DepartmentManagerTeamPage() {
   }, [drawerOpen, closeDrawer]);
 
   const loadEmployeeDetails = useCallback(
-    async (employeeId: string) => {
+    async (employeeId: string, silent = false) => {
       if (!user || !employeeId) return;
 
-      setDetailLoading(true);
+      if (!silent) setDetailLoading(true);
       setDetailError("");
       setActionError("");
       setActionSuccess("");
@@ -765,7 +773,7 @@ export default function DepartmentManagerTeamPage() {
             : "Unable to load employee details.",
         );
       } finally {
-        setDetailLoading(false);
+        if (!silent) setDetailLoading(false);
       }
     },
     [user, auth.reload],
@@ -797,11 +805,11 @@ export default function DepartmentManagerTeamPage() {
   );
 
   const loadHistory = useCallback(
-    async (employeeId: string, force = false) => {
+    async (employeeId: string, force = false, silent = false) => {
       if (!user || !canViewHistory || !employeeId) return;
       if (!force && historyLoadedFor === employeeId) return;
 
-      setHistoryLoading(true);
+      if (!silent) setHistoryLoading(true);
       setHistoryError("");
 
       try {
@@ -837,7 +845,7 @@ export default function DepartmentManagerTeamPage() {
             : "Unable to load employee history.",
         );
       } finally {
-        setHistoryLoading(false);
+        if (!silent) setHistoryLoading(false);
       }
     },
     [user, canViewHistory, historyLoadedFor, auth.reload],
@@ -861,11 +869,11 @@ export default function DepartmentManagerTeamPage() {
   ]);
 
   const loadEmployeeCalendar = useCallback(
-    async (employeeId: string, mode: "attendance" | "schedule", force = false) => {
+    async (employeeId: string, mode: "attendance" | "schedule", force = false, silent = false) => {
       if (!user || !employeeId) return;
       const key = `${employeeId}:${mode}`;
       if (!force && employeeCalendarLoadedKey === key) return;
-      setEmployeeCalendarLoadingKey(key);
+      if (!silent) setEmployeeCalendarLoadingKey(key);
       setEmployeeCalendarError("");
       setEmployeeCalendarErrorKey("");
       try {
@@ -908,7 +916,7 @@ export default function DepartmentManagerTeamPage() {
         setEmployeeCalendarErrorKey(key);
         setEmployeeCalendarDataKey(key);
       } finally {
-        setEmployeeCalendarLoadingKey((current) => current === key ? "" : current);
+        if (!silent) setEmployeeCalendarLoadingKey((current) => current === key ? "" : current);
       }
     },
     [user, employeeCalendarLoadedKey, auth.reload],
@@ -919,6 +927,18 @@ export default function DepartmentManagerTeamPage() {
       void loadEmployeeCalendar(selectedEmployeeId, drawerTab);
     }
   }, [drawerOpen, selectedEmployeeId, drawerTab, loadEmployeeCalendar]);
+
+  useWorkspaceAutoRefresh(async () => {
+    if (!selectedEmployeeId) return;
+    if (drawerTab === "overview") await loadEmployeeDetails(selectedEmployeeId, true);
+    else if (drawerTab === "history" && canViewHistory) await loadHistory(selectedEmployeeId, true, true);
+    else if (drawerTab === "attendance" || drawerTab === "schedule") await loadEmployeeCalendar(selectedEmployeeId, drawerTab, true, true);
+  }, {
+    intervalMs: 60_000,
+    shouldRefresh: () => Boolean(user && drawerOpen && selectedEmployeeId) &&
+      !detailLoading && !historyLoading && !savingStatus &&
+      employeeCalendarLoadingKey !== `${selectedEmployeeId}:${drawerTab}`,
+  });
 
   function toggleSort(field: SortBy) {
     if (field === sortBy) {
@@ -1049,23 +1069,9 @@ export default function DepartmentManagerTeamPage() {
     <DepartmentManagerShell
       user={user}
       title="My Team"
-      description="Search, filter, and review employees across your assigned departments. Your accessible team scope is enforced by the existing backend."
+      description="Search and review employees in your assigned departments."
       onLogout={() => void auth.logout()}
       loggingOut={auth.loggingOut}
-      actions={
-        <button
-          type="button"
-          onClick={() => setRefreshKey((value) => value + 1)}
-          disabled={loading || summaryLoading}
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-800 bg-[#151b24] px-3 text-xs font-semibold text-slate-300 transition hover:border-slate-700 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <RefreshCw
-            size={15}
-            className={loading || summaryLoading ? "animate-spin" : ""}
-          />
-          <span className="hidden sm:inline">Refresh</span>
-        </button>
-      }
     >
       <HRManagerDrawerTheme />
 
@@ -1285,13 +1291,6 @@ export default function DepartmentManagerTeamPage() {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setRefreshKey((value) => value + 1)}
-              className="shrink-0 rounded-lg border border-rose-400/20 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-500/10"
-            >
-              Retry
-            </button>
           </div>
         )}
 
@@ -1661,15 +1660,6 @@ export default function DepartmentManagerTeamPage() {
                   <p className="mt-2 text-sm leading-6 text-rose-200/80">
                     {detailError}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void loadEmployeeDetails(selectedEmployeeId)
-                    }
-                    className="mt-4 rounded-xl border border-rose-400/20 px-3.5 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-500/10"
-                  >
-                    Try again
-                  </button>
                 </div>
               ) : selectedEmployee && drawerTab === "overview" ? (
                 <div className="space-y-5">
@@ -1858,7 +1848,7 @@ export default function DepartmentManagerTeamPage() {
                   {employeeCalendarLoadingKey === `${selectedEmployee.id}:${drawerTab}` ? (
                     <div className="space-y-3" aria-label="Loading employee calendar records">{[1, 2, 3].map((index) => <div key={index} className="h-24 animate-pulse rounded-xl bg-slate-800/60" />)}</div>
                   ) : employeeCalendarDataKey === `${selectedEmployee.id}:${drawerTab}` && employeeCalendarErrorKey === `${selectedEmployee.id}:${drawerTab}` && employeeCalendarError ? (
-                    <div role="alert" className="rounded-xl border border-rose-500/25 bg-rose-500/[0.06] p-4"><p className="text-sm leading-6 text-rose-200">{employeeCalendarError}</p><button type="button" onClick={() => void loadEmployeeCalendar(selectedEmployee.id, drawerTab, true)} className="mt-3 rounded-lg border border-rose-400/20 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-500/10">Try again</button></div>
+                    <div role="alert" className="rounded-xl border border-rose-500/25 bg-rose-500/[0.06] p-4"><p className="text-sm leading-6 text-rose-200">{employeeCalendarError}</p></div>
                   ) : employeeCalendarDataKey !== `${selectedEmployee.id}:${drawerTab}` ? (
                     <div className="rounded-xl border border-slate-800 bg-[#131a24] p-5 text-sm text-slate-400">Preparing {drawerTab === "attendance" ? "attendance history" : "schedule"}…</div>
                   ) : employeeCalendarEntries.length === 0 ? (
@@ -1906,15 +1896,6 @@ export default function DepartmentManagerTeamPage() {
                       <p className="text-sm text-rose-200">
                         {historyError}
                       </p>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void loadHistory(selectedEmployee.id, true)
-                        }
-                        className="mt-3 rounded-lg border border-rose-400/20 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-500/10"
-                      >
-                        Try again
-                      </button>
                     </div>
                   ) : history.length === 0 ? (
                     <div className="mt-4 rounded-2xl border border-slate-800/90 bg-[#131a24] px-5 py-12 text-center">
@@ -1996,3 +1977,4 @@ export default function DepartmentManagerTeamPage() {
     </DepartmentManagerShell>
   );
 }
+

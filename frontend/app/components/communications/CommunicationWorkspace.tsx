@@ -276,14 +276,15 @@ export default function CommunicationWorkspace({ roleLabel }: { roleLabel: strin
           <div>
             <div className="flex items-center gap-2 text-sky-300"><MessageCircle size={18} /><span className="text-xs font-bold uppercase tracking-[0.16em]">{roleLabel}</span></div>
             <h2 className="mt-2 text-xl font-bold text-white">Messages</h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">Private in-app conversations with your reporting line. New messages and replies refresh automatically while this page is open.</p>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">{roleLabel === "Organization Admin" ? "Private in-app conversations with your reporting line." : "Private conversations with your reporting line."}</p>
           </div>
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-300"><Bell size={14} /> {unreadTotal} unread</span>
-            <button type="button" onClick={() => void loadInbox()} disabled={loading} className="inline-flex size-10 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300 hover:text-white disabled:opacity-50" aria-label="Refresh messages"><RefreshCw size={15} className={loading ? "animate-spin" : ""} /></button>
+            {roleLabel === "Organization Admin" && <button type="button" onClick={() => void loadInbox()} disabled={loading} className="inline-flex size-10 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300 hover:text-white disabled:opacity-50" aria-label="Refresh messages"><RefreshCw size={15} className={loading ? "animate-spin" : ""} /></button>}
             {canStartNew && <button type="button" onClick={() => { setComposeOpen(true); setSelectedId(""); setError(""); setNotice(""); }} className="inline-flex items-center gap-2 rounded-xl bg-sky-400 px-3.5 py-2.5 text-sm font-semibold text-slate-950 hover:bg-sky-300"><Plus size={16} /> New message</button>}
           </div>
         </div>
+
         {canStartNew && <p className="mt-3 text-xs text-slate-500">New conversations go to {recipientName || "your assigned higher-up"}. Replies stay in the same private thread.</p>}
         {!canStartNew && roleLabel !== "Organization Admin" && <p className="mt-3 text-xs text-amber-200">New messages are temporarily unavailable because no active higher-up account was found. Ask your organization administrator to check the reporting hierarchy.</p>}
         {!canStartNew && roleLabel === "Organization Admin" && <p className="mt-3 text-xs text-slate-500">Reply to messages from your HR Manager here. Organization Admin is the top role in the tenant reporting chain.</p>}
@@ -328,3 +329,4 @@ export default function CommunicationWorkspace({ roleLabel }: { roleLabel: strin
     </div>
   );
 }
+
