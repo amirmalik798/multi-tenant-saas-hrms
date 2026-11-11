@@ -58,7 +58,7 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
 
       // Preserve the mandatory first-time setup flow. License & Payments is
       // always reachable by Organization Admin so an inactive tenant can pay.
-      if ((admin && !completed && pathname === "/org/settings") || (admin && isLicensePaymentPage)) {
+      if ((admin && !completed) || (admin && isLicensePaymentPage)) {
         setState("allowed");
       } else if (payload.license.canAccess === true) {
         setState("allowed");
