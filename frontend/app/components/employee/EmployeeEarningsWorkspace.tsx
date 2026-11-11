@@ -220,14 +220,14 @@ export default function EmployeeEarningsWorkspace({ employeeId, showTitle = true
         </div>}
         {activeView === "earnings" && <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="employee-earnings-month" className="text-sm text-slate-400">Month</label>
-          <input id="employee-earnings-month" type="month" value={month} onChange={(event) => { monthTouchedByUser.current = true; setMonth(event.target.value); }} className="rounded-xl border border-slate-700 bg-[#0b111b] px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400" />
+          <input id="employee-earnings-month" type="month" value={month} onChange={(event) => { monthTouchedByUser.current = true; setMonth(event.target.value); }} className="dm-earnings-month rounded-xl border border-slate-700 bg-[#0b111b] px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400" />
         </div>}
       </div>
 
 
       <div role="tablist" aria-label="My Earnings sections" className="flex flex-wrap gap-2 rounded-2xl border border-white/[0.08] bg-[#141c28] p-2">
-        <button type="button" role="tab" aria-selected={activeView === "earnings"} onClick={() => setActiveView("earnings")} className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${activeView === "earnings" ? "bg-sky-400/15 text-sky-100 ring-1 ring-sky-300/20" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>Earnings overview</button>
-        <button type="button" role="tab" aria-selected={activeView === "payments"} onClick={() => setActiveView("payments")} className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${activeView === "payments" ? "bg-sky-400/15 text-sky-100 ring-1 ring-sky-300/20" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>Payment history</button>
+        <button type="button" role="tab" aria-selected={activeView === "earnings"} onClick={() => setActiveView("earnings")} className={`dm-earnings-tab rounded-xl px-4 py-2.5 text-sm font-semibold transition ${activeView === "earnings" ? "bg-sky-600 text-white ring-1 ring-sky-500 shadow-sm" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>Earnings overview</button>
+        <button type="button" role="tab" aria-selected={activeView === "payments"} onClick={() => setActiveView("payments")} className={`dm-earnings-tab rounded-xl px-4 py-2.5 text-sm font-semibold transition ${activeView === "payments" ? "bg-sky-600 text-white ring-1 ring-sky-500 shadow-sm" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>Payment history</button>
       </div>
 
       {activeView === "earnings" ? <>
