@@ -763,7 +763,6 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300">Daily roll-call</p>
                 <h2 className="mt-1.5 text-lg font-semibold text-white">Who was expected, who arrived, and who is missing?</h2>
-                <p className="mt-1.5 max-w-3xl text-xs leading-5 text-slate-400">The roster uses active employee schedules and recorded clock-in events. A potential absence is flagged after the configured threshold. For past shifts, missing clock-in is shown for review—not treated as a confirmed absence.</p>
                 <p className="mt-2 text-[10px] font-semibold text-slate-500">Scope: <span className="font-medium text-slate-400">{dailyScope}</span> · Organization time zone: <span className="font-medium text-slate-400">{dailyTimeZone || organizationTimeZone}</span></p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
@@ -787,7 +786,7 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
                   />
                 </label>
 
-                <button type="button" onClick={() => void generateDailyPdf()} disabled={reportLoading || !reportDate} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-sky-500 px-3.5 text-xs font-semibold text-white transition hover:bg-sky-400 disabled:cursor-wait disabled:opacity-50">
+                <button type="button" onClick={() => void generateDailyPdf()} disabled={reportLoading || !reportDate} className="dm-download-pdf inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-sky-600 px-3.5 text-xs font-bold text-white transition hover:bg-sky-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:cursor-wait disabled:opacity-70">
                   {reportLoading ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
                   {reportLoading ? "Preparing PDF…" : "Download PDF"}
                 </button>
@@ -826,7 +825,7 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
                     type="button"
                     aria-pressed={rollCallFilter === filter.value}
                     onClick={() => setRollCallFilter(filter.value)}
-                    className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${rollCallFilter === filter.value ? "border-sky-300/40 bg-sky-300/10 text-sky-100" : "border-white/[0.09] bg-white/[0.02] text-slate-400 hover:bg-white/[0.05] hover:text-slate-200"}`}
+                    className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${rollCallFilter === filter.value ? "border-sky-600 bg-sky-600 text-white shadow-sm" : "border-white/[0.09] bg-white/[0.02] text-slate-400 hover:bg-white/[0.05] hover:text-slate-200"}`}
                   >
                     {filter.label}
                   </button>
