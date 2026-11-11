@@ -7751,3 +7751,314 @@ html[data-super-admin-theme="light"] .super-admin-theme-root .sa-invitation-page
     width: 100%;
   }
 }
+
+/* =========================================================================
+   THEME CONSISTENCY PASS — shared controls across all five workspaces
+   Keep selectors workspace-scoped; preserve semantic status-chip palettes.
+   ========================================================================= */
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="dark"],
+  html[data-org-admin-theme="dark"] .org-admin-workspace,
+  html[data-super-admin-theme="dark"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="dark"],
+  .employee-theme-root[data-employee-theme="dark"]
+) :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  color-scheme: dark;
+  color: #e5edf7;
+  background-color: #111a27;
+  border-color: #46566b;
+}
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="dark"],
+  html[data-org-admin-theme="dark"] .org-admin-workspace,
+  html[data-super-admin-theme="dark"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="dark"],
+  .employee-theme-root[data-employee-theme="dark"]
+) :is(input, textarea)::placeholder {
+  color: #9aa9bc;
+  opacity: 1;
+}
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="dark"],
+  html[data-org-admin-theme="dark"] .org-admin-workspace,
+  html[data-super-admin-theme="dark"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="dark"],
+  .employee-theme-root[data-employee-theme="dark"]
+) [class~="text-slate-500"],
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="dark"],
+  html[data-org-admin-theme="dark"] .org-admin-workspace,
+  html[data-super-admin-theme="dark"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="dark"],
+  .employee-theme-root[data-employee-theme="dark"]
+) [class~="text-slate-600"] {
+  color: #91a2b7;
+}
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="dark"],
+  html[data-org-admin-theme="dark"] .org-admin-workspace,
+  html[data-super-admin-theme="dark"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="dark"],
+  .employee-theme-root[data-employee-theme="dark"]
+) [class~="text-slate-400"] {
+  color: #aebccc;
+}
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="dark"],
+  html[data-org-admin-theme="dark"] .org-admin-workspace,
+  html[data-super-admin-theme="dark"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="dark"],
+  .employee-theme-root[data-employee-theme="dark"]
+) :is(button, a[role="button"]):not([class*="bg-"]) {
+  border-color: #46566b;
+}
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  color-scheme: light !important;
+  color: #17243a !important;
+  -webkit-text-fill-color: #17243a;
+  background-color: #ffffff !important;
+  border-color: #bdcad9 !important;
+  box-shadow: inset 0 1px 1px rgb(15 23 42 / 3%);
+}
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(input, textarea)::placeholder {
+  color: #66778d !important;
+  -webkit-text-fill-color: #66778d;
+  opacity: 1 !important;
+}
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) [class~="text-slate-400"] {
+  color: #52647a;
+}
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is([class~="text-slate-500"], [class~="text-slate-600"]) {
+  color: #64748b;
+}
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(input, select, textarea):disabled {
+  color: #66778d !important;
+  -webkit-text-fill-color: #66778d;
+  background-color: #edf1f6 !important;
+  border-color: #d5dee8 !important;
+  opacity: 1 !important;
+  cursor: not-allowed;
+}
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"]):not([class*="bg-"]) {
+  color: #26364b;
+}
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"]):not([class*="bg-"]):not(:disabled):hover {
+  border-color: #9aacc1;
+}
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"]):disabled {
+  color: #738196 !important;
+  -webkit-text-fill-color: #738196 !important;
+  opacity: .78 !important;
+  cursor: not-allowed;
+}
+
+/* Solid blue actions always have a readable white label in light mode.
+   Soft blue status chips are excluded by matching only solid utility tokens. */
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class~="bg-blue-500"],
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class~="bg-blue-600"],
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class~="bg-sky-500"],
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class~="bg-sky-600"],
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class~="bg-indigo-500"],
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class~="bg-indigo-600"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #155f9e !important;
+  border-color: #155f9e !important;
+}
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class*="bg-blue-500"] *,
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class*="bg-blue-600"] *,
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class*="bg-sky-500"] *,
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) :is(button, a[role="button"])[class*="bg-indigo-500"] * {
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+/* Calendar event cards: labels follow the card foreground, never stale
+   dark-theme text utilities. Status dots retain their background colors. */
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) .attendance-calendar button[title],
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) .attendance-calendar button[title] :is(div, span, p, strong) {
+  color: #26364b !important;
+  -webkit-text-fill-color: #26364b !important;
+}
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) .attendance-calendar button[title] {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Keep the custom country picker value visible beside its flag in both themes. */
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="light"],
+  html[data-org-admin-theme="light"] .org-admin-workspace,
+  html[data-super-admin-theme="light"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="light"],
+  .employee-theme-root[data-employee-theme="light"]
+) input[data-country-select-input="true"] {
+  min-width: 0;
+  padding-left: 3rem !important;
+  font-size: .875rem !important;
+  font-weight: 500;
+  line-height: 1.25rem;
+  color: #17243a !important;
+  -webkit-text-fill-color: #17243a !important;
+  caret-color: #17243a !important;
+  background: #ffffff !important;
+  border-color: #bdcad9 !important;
+}
+
+:where(
+  .hr-manager-theme-root[data-hr-manager-theme="dark"],
+  html[data-org-admin-theme="dark"] .org-admin-workspace,
+  html[data-super-admin-theme="dark"] .super-admin-theme-root,
+  .department-manager-theme-root[data-department-manager-theme="dark"],
+  .employee-theme-root[data-employee-theme="dark"]
+) input[data-country-select-input="true"] {
+  min-width: 0;
+  padding-left: 3rem !important;
+  font-size: .875rem !important;
+  font-weight: 500;
+  line-height: 1.25rem;
+  color: #e5edf7 !important;
+  -webkit-text-fill-color: #e5edf7 !important;
+}
+
