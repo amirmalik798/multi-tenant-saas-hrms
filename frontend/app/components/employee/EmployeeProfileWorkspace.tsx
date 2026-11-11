@@ -1022,7 +1022,7 @@ export default function EmployeeProfileWorkspace({
 
                 <button
                   type="button"
-                  className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-sky-300/40 bg-sky-300 px-2.5 py-1.5 text-[11px] font-bold text-slate-950 transition hover:bg-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121b29] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="dm-profile-photo-button inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-sky-600 bg-sky-600 px-2.5 py-1.5 text-[11px] font-bold text-white transition hover:bg-sky-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121b29] disabled:cursor-not-allowed disabled:opacity-70"
                   onClick={() => photoInputRef.current?.click()}
                   disabled={uploadingPhoto}
                 >
