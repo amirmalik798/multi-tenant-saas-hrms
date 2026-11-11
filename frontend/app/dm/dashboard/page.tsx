@@ -19,7 +19,6 @@ import {
   Clock3,
   FileClock,
   RefreshCw,
-  ShieldCheck,
   Timer,
   Users,
   Workflow,

@@ -1199,7 +1199,7 @@ export default function EmployeeDashboardPage() {
               <p className="mt-2.5 max-w-xl text-sm leading-relaxed text-slate-300/80">
                 {!clockStatusVerified
                   ? "Your current attendance state has not been confirmed. The system will recheck your attendance automatically; try again shortly."
-                   : "Clock in when your shift starts and clock out when you finish."}
+                  : "Clock in when your shift starts and clock out when you finish."}
               </p>
 
               {latestEvent && (
