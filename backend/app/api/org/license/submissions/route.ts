@@ -158,7 +158,7 @@ export async function POST(request: Request) {
       [admin.organizationId],
     );
 
-    if (pendingResult.rowCount > 0) {
+    if (pendingResult.rows.length > 0) {
       await client.query("ROLLBACK");
       transactionStarted = false;
       return jsonError(
