@@ -239,7 +239,7 @@ export function OrganizationAdminSidebar({
     return () => window.removeEventListener("hrms:organization-logo-updated", refresh);
   }, []);
   return (
-    <aside className="organization-admin-sidebar fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-[#29384b] bg-[#0f1724] text-white lg:flex">
+    <aside aria-label="Organization Admin navigation" className="organization-admin-sidebar fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-[#29384b] bg-[#0f1724] text-white lg:flex">
       <Link
         href="/org/dashboard"
         className="flex h-[86px] shrink-0 items-center gap-3 border-b border-[#29384b] px-6 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#75c7ff]"
