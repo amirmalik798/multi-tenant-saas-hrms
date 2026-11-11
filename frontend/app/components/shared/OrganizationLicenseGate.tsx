@@ -30,8 +30,7 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
     pathname === "/org/license" || pathname.startsWith("/org/license/");
 
   const checkLicense = useCallback(async () => {
-    const isInitialCheck = state === "checking";
-    if (!isInitialCheck) setCheckingAgain(true);
+    setCheckingAgain(true);
 
     try {
       const response = await fetch("/api/backend/license-access", {
@@ -71,7 +70,7 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
     } finally {
       setCheckingAgain(false);
     }
-  }, [isLicensePaymentPage, pathname, state]);
+  }, [isLicensePaymentPage, pathname]);
 
   useEffect(() => {
     void checkLicense();
