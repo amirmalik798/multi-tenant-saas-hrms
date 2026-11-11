@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { AlertTriangle, CreditCard, LogOut, RefreshCw, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CreditCard, LogOut, RefreshCw, ShieldAlert, LockKeyhole, CheckCircle2 } from "lucide-react";
 
 type LicensePayload = {
   status?: string;
@@ -24,12 +24,15 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
   const [licenseStatus, setLicenseStatus] = useState("NOT_ACTIVATED");
   const [isOrganizationAdmin, setIsOrganizationAdmin] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [checkingAgain, setCheckingAgain] = useState(false);
 
   const isLicensePaymentPage =
     pathname === "/org/license" || pathname.startsWith("/org/license/");
 
   const checkLicense = useCallback(async () => {
-    setState("checking");
+    const isInitialCheck = state === "checking";
+    if (!isInitialCheck) setCheckingAgain(true);
+
     try {
       const response = await fetch("/api/backend/license-access", {
         method: "GET",
@@ -37,6 +40,7 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
         cache: "no-store",
         headers: { Accept: "application/json" },
       });
+
       if (response.status === 401) {
         // Let the existing role-specific session guard handle authentication.
         setState("allowed");
@@ -54,8 +58,7 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
       setIsOrganizationAdmin(admin);
       setLicenseStatus(payload.license.status ?? "NOT_ACTIVATED");
 
-      // Preserve the mandatory first-time setup flow. License & Payments is
-      // always reachable by Organization Admin so an inactive tenant can pay.
+      // Preserve mandatory first-time setup and License & Payments access.
       if ((admin && !completed) || (admin && isLicensePaymentPage)) {
         setState("allowed");
       } else if (payload.license.canAccess === true) {
@@ -65,8 +68,10 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
       }
     } catch {
       setState("error");
+    } finally {
+      setCheckingAgain(false);
     }
-  }, [isLicensePaymentPage, pathname]);
+  }, [isLicensePaymentPage, pathname, state]);
 
   useEffect(() => {
     void checkLicense();
@@ -74,8 +79,6 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
 
   useEffect(() => {
     if (state === "checking") return;
-    // Keep restricted sessions in place and automatically restore access as
-    // soon as Super Admin activates or renews the tenant license.
     const timer = window.setInterval(() => void checkLicense(), 30_000);
     const onFocus = () => void checkLicense();
     window.addEventListener("focus", onFocus);
@@ -119,84 +122,120 @@ export default function OrganizationLicenseGate({ children }: { children: ReactN
 
   const expired = licenseStatus === "EXPIRED";
   const title = state === "error"
-    ? "Unable to verify organization license"
+    ? "We couldn’t verify your license"
     : expired
-      ? "Organization license expired"
-      : "Organization license not activated";
+      ? "Your organization license has expired"
+      : "Your organization isn’t licensed yet";
   const description = state === "error"
-    ? "We can’t confirm that this organization has an active license. Workspace access remains locked until the license status can be verified."
+    ? "We couldn’t confirm an active license for this organization. Workspace access is paused until the license status can be verified."
     : expired
-      ? "This organization’s license has expired. Workspace access is unavailable until the license is renewed and activated."
-      : "This organization does not have an active license yet. Workspace access is unavailable until the license is activated.";
+      ? "The subscription for this organization has expired. Renew the license to restore access to the HRMS workspace."
+      : "This organization’s license has not been activated. Complete the licensing process to unlock the HRMS workspace.";
 
   return (
-    <div className="relative min-h-screen">
-      <div aria-hidden="true" inert className="pointer-events-none select-none blur-[3px] opacity-55">
+    <div className="organization-license-gate relative min-h-screen">
+      <div
+        aria-hidden="true"
+        inert
+        data-license-locked="true"
+        className="pointer-events-none select-none blur-[3px] opacity-45"
+        onClickCapture={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        onAuxClickCapture={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        onKeyDownCapture={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+      >
         {children}
       </div>
 
-      <div
-        className="fixed inset-0 z-[200] flex items-center justify-center overflow-y-auto bg-slate-950/65 px-4 py-8 backdrop-blur-md"
-        role="presentation"
-      >
+      <div className="organization-license-backdrop fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto px-4 py-7">
         <section
+          data-license-dialog="true"
           role="alertdialog"
           aria-modal="true"
           aria-labelledby="organization-license-title"
           aria-describedby="organization-license-description"
-          className="w-full max-w-lg rounded-3xl border border-amber-400/25 bg-[#111a28] p-7 text-slate-100 shadow-[0_30px_100px_rgba(0,0,0,0.65)] sm:p-9"
+          className="organization-license-dialog relative w-full max-w-[540px] overflow-hidden rounded-[28px] border p-7 shadow-2xl sm:p-9"
         >
-          <div className="flex size-14 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-400/10 text-amber-300">
-            {state === "error" ? <AlertTriangle size={27} /> : <ShieldAlert size={27} />}
+          <div className="organization-license-accent absolute inset-x-0 top-0 h-1" />
+
+          <div className="flex items-start justify-between gap-4">
+            <div className="organization-license-icon flex size-14 shrink-0 items-center justify-center rounded-2xl">
+              {state === "error" ? <AlertTriangle size={27} /> : <ShieldAlert size={27} />}
+            </div>
+            <div className="organization-license-status inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em]">
+              <span className="size-1.5 rounded-full bg-current" />
+              Access restricted
+            </div>
           </div>
-          <p className="mt-6 text-[11px] font-bold uppercase tracking-[0.2em] text-amber-300">
-            Organization access restricted
+
+          <p className="organization-license-eyebrow mt-7 text-[11px] font-bold uppercase tracking-[0.2em]">
+            Organization licensing
           </p>
-          <h1 id="organization-license-title" className="mt-2 text-2xl font-bold tracking-tight text-white">
+          <h1 id="organization-license-title" className="organization-license-title mt-2 text-[26px] font-bold leading-tight tracking-tight sm:text-[30px]">
             {title}
           </h1>
-          <p id="organization-license-description" className="mt-3 text-sm leading-7 text-slate-300">
+          <p id="organization-license-description" className="organization-license-description mt-3 text-sm leading-7">
             {description}
           </p>
-          <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-            <p className="text-sm font-semibold text-slate-100">What happens next?</p>
-            <p className="mt-1.5 text-sm leading-6 text-slate-400">
-              {isOrganizationAdmin
-                ? "Open License & Payments to review the subscription and submit or resubmit payment proof. Access will return after the platform approves the payment."
-                : "Please contact your Organization Admin. They can review the license and complete the renewal process with the platform administrator."}
-            </p>
+
+          <div className="organization-license-next mt-7 flex gap-3 rounded-2xl border p-4">
+            <div className="organization-license-next-icon mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl">
+              {isOrganizationAdmin ? <CreditCard size={18} /> : <LockKeyhole size={18} />}
+            </div>
+            <div className="min-w-0">
+              <p className="organization-license-next-title text-sm font-bold">
+                {isOrganizationAdmin ? "Restore your workspace" : "Contact your administrator"}
+              </p>
+              <p className="organization-license-next-copy mt-1.5 text-sm leading-6">
+                {isOrganizationAdmin
+                  ? "Review the license details and submit or resubmit payment proof. Your workspace will unlock automatically once the platform approves the license."
+                  : "Your Organization Admin can review the organization’s license and complete the activation or renewal process."}
+              </p>
+            </div>
           </div>
+
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             {isOrganizationAdmin && (
               <Link
                 href="/org/license"
-                className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-sky-400 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-sky-300"
+                className="organization-license-primary inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition"
               >
                 <CreditCard size={17} />
-                Open License &amp; Payments
+                License &amp; Payments
               </Link>
             )}
             <button
               type="button"
               onClick={() => void checkLicense()}
-              className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-100 transition hover:bg-white/[0.08]"
+              disabled={checkingAgain}
+              className="organization-license-secondary inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border px-5 py-3 text-sm font-semibold transition disabled:cursor-wait disabled:opacity-65"
             >
-              <RefreshCw size={16} />
-              {state === "error" ? "Retry verification" : "Check license again"}
+              <RefreshCw size={16} className={checkingAgain ? "animate-spin" : ""} />
+              {checkingAgain ? "Checking…" : "Check license"}
             </button>
             <button
               type="button"
               onClick={() => void handleLogout()}
               disabled={loggingOut}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] px-5 py-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-400/10 disabled:opacity-60"
+              className="organization-license-logout inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border px-5 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
             >
               <LogOut size={16} />
               {loggingOut ? "Signing out…" : "Sign out"}
             </button>
           </div>
-          <p className="mt-5 text-center text-[11px] leading-5 text-slate-500">
-            This notice cannot be dismissed. Workspace controls remain disabled until an active license is confirmed.
-          </p>
+
+          <div className="organization-license-footnote mt-6 flex items-center justify-center gap-2 text-center text-[11px] leading-5">
+            <CheckCircle2 size={13} />
+            Workspace controls remain disabled until an active license is confirmed.
+          </div>
         </section>
       </div>
     </div>
