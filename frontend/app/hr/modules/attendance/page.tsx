@@ -39,7 +39,7 @@ function HRManagerAttendancePageContent() {
       user={auth.user}
       activePage="modules"
       title="Attendance & Time"
-      description="Organization attendance, schedules, corrections and overtime."
+      description="Attendance, schedules and overtime."
       onLogout={() => void auth.logout()}
       loggingOut={auth.loggingOut}
       logoutError={auth.error}

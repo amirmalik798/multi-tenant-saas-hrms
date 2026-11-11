@@ -1965,7 +1965,7 @@ function HRManagerEmployeesPageContent() {
       user={user}
       activePage="employees"
       title="Employees"
-      description="Manage employee profiles, roles, and workforce status."
+      description="Employees, roles and status."
       onLogout={() => void auth.logout()}
       loggingOut={auth.loggingOut}
       logoutError={auth.error}

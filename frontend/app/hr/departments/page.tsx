@@ -914,7 +914,7 @@ export default function HRManagerDepartmentsPage() {
       user={user}
       activePage="departments"
       title="Departments"
-      description="Manage departments and their workforce assignments."
+      description="Departments and team assignments."
       onLogout={() => void auth.logout()}
       loggingOut={auth.loggingOut}
       logoutError={auth.error}
