@@ -19,7 +19,7 @@ function jsonResponse(
 }
 
 // GET: List Organization Admin accounts for the Platform Super Admin.
-export async function GET() {
+export async function GET(request: Request) {
   // Preserve dynamic request handling for cookie/session authentication.
   await connection();
 
@@ -35,6 +35,9 @@ export async function GET() {
         401,
       );
     }
+
+    const url = new URL(request.url);
+    const includeArchived = url.searchParams.get("includeArchived") === "true";
 
     const result = await pool.query(
       `SELECT
@@ -86,7 +89,7 @@ export async function GET() {
          LIMIT 1
        ) AS latest_invitation ON TRUE
        WHERE u.account_scope = 'ORGANIZATION'
-         AND o.status <> 'ARCHIVED'
+         AND ($1::boolean OR o.status <> 'ARCHIVED')
        ORDER BY
          CASE u.status
            WHEN 'ACTIVE' THEN 0
@@ -96,6 +99,7 @@ export async function GET() {
          END,
          u.created_at DESC,
          u.id ASC`,
+      [includeArchived],
     );
 
     return jsonResponse({
