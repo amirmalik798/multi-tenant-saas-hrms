@@ -86,6 +86,7 @@ export async function GET() {
          LIMIT 1
        ) AS latest_invitation ON TRUE
        WHERE u.account_scope = 'ORGANIZATION'
+         AND o.status <> 'ARCHIVED'
        ORDER BY
          CASE u.status
            WHEN 'ACTIVE' THEN 0

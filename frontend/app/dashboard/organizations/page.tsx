@@ -74,7 +74,7 @@ type OrganizationUsersSummary = {
   returned: number;
 };
 
-type StatusFilter = "ALL" | "ACTIVE" | "PENDING_SETUP" | "SUSPENDED" | "ARCHIVED";
+type StatusFilter = "NON_ARCHIVED" | "ACTIVE" | "PENDING_SETUP" | "SUSPENDED" | "ARCHIVED";
 type OrganizationPanelMode = "view" | "edit";
 type OrganizationPanelDiscardIntent = "close" | "returnToView";
 type OrganizationViewTab = "overview" | "users" | "activity";
@@ -303,7 +303,7 @@ export default function OrganizationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("NON_ARCHIVED");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [createOrganizationOpen, setCreateOrganizationOpen] = useState(false);
   const [organizationsReloadKey, setOrganizationsReloadKey] = useState(0);
@@ -2061,7 +2061,7 @@ export default function OrganizationsPage() {
                     aria-label="Filter organizations by status"
                     className="h-11 w-full appearance-none rounded-lg border border-white/10 bg-[#111a28] py-2.5 pl-10 pr-10 text-sm text-slate-100 outline-none transition focus:border-[#75c7ff] focus:ring-2 focus:ring-[#75c7ff]/20"
                   >
-                    <option className="bg-[#111a28] text-slate-100" value="ALL">All statuses</option>
+                    <option className="bg-[#111a28] text-slate-100" value="NON_ARCHIVED">All operational organizations</option>
                     <option className="bg-[#111a28] text-slate-100" value="ACTIVE">Active</option>
                     <option className="bg-[#111a28] text-slate-100" value="PENDING_SETUP">Pending Setup</option>
                     <option className="bg-[#111a28] text-slate-100" value="SUSPENDED">Suspended</option>
@@ -2077,10 +2077,10 @@ export default function OrganizationsPage() {
                   onClick={() => {
                     setSearchQuery("");
                     setIsSearchDebouncing(searchQuery.length > 0);
-                    setStatusFilter("ALL");
+                    setStatusFilter("NON_ARCHIVED");
                     setOrganizationsPage(1);
                   }}
-                  disabled={!searchQuery && statusFilter === "ALL"}
+                  disabled={!searchQuery && statusFilter === "NON_ARCHIVED"}
                   className="h-11 rounded-lg border border-white/[0.09] bg-white/[0.025] px-4 text-sm font-medium text-[#d3deeb] transition hover:border-[#75c7ff]/25 hover:bg-[#1d2a3b] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Clear filters
@@ -2100,7 +2100,7 @@ export default function OrganizationsPage() {
               >
                 {error}
               </div>
-            ) : organizationsTotal === 0 && !searchQuery.trim() && statusFilter === "ALL" ? (
+            ) : organizationsTotal === 0 && !searchQuery.trim() && statusFilter === "NON_ARCHIVED" ? (
               <div className="px-6 py-16 text-center">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl border border-[#75c7ff]/15 bg-gradient-to-br from-[#1b344d] to-[#142033] text-[#9ed5ff]">
                   <Icon name="building" size={26} />
@@ -2135,7 +2135,7 @@ export default function OrganizationsPage() {
                   type="button"
                   onClick={() => {
                     setSearchQuery("");
-                    setStatusFilter("ALL");
+                    setStatusFilter("NON_ARCHIVED");
                     setOrganizationsPage(1);
                   }}
                   className="mt-4 text-sm font-semibold text-[#8bcaff] hover:text-[#c2e7ff]"

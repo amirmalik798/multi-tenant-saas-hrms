@@ -98,6 +98,9 @@ export async function GET() {
         ) AS department_manager_users
       FROM users AS u
       LEFT JOIN roles AS r ON r.id = u.role_id
+      LEFT JOIN organizations AS org ON org.id = u.organization_id
+      WHERE u.account_scope = 'PLATFORM'
+         OR (u.account_scope = 'ORGANIZATION' AND org.status <> 'ARCHIVED')
     `);
 
     const userCounts = userResult.rows[0] ?? {};
@@ -107,15 +110,17 @@ export async function GET() {
         COUNT(*) FILTER (WHERE employment_status = 'ACTIVE') AS active_employees,
         COUNT(*) FILTER (WHERE employment_status = 'INACTIVE') AS inactive_employees,
         COUNT(*) FILTER (WHERE employment_status = 'FORMER') AS former_employees
-      FROM public.employees
+      FROM public.employees AS e
+      JOIN public.organizations AS org ON org.id = e.organization_id
+      WHERE org.status <> 'ARCHIVED'
     `);
     const employeeCounts = employeeResult.rows[0] ?? {};
     const totalEmployees = Number(employeeCounts.total_employees ?? 0);
 
     const invitationResult = await pool.query(`
       SELECT
-        (SELECT COUNT(*) FROM public.organization_invitations WHERE status = 'PENDING' AND expires_at > NOW()) AS pending_organization_invitations,
-        (SELECT COUNT(*) FROM public.employee_invitations WHERE status = 'PENDING' AND expires_at > NOW()) AS pending_employee_invitations
+        (SELECT COUNT(*) FROM public.organization_invitations AS oi JOIN public.organizations AS org ON org.id = oi.organization_id WHERE oi.status = 'PENDING' AND oi.expires_at > NOW() AND org.status <> 'ARCHIVED') AS pending_organization_invitations,
+        (SELECT COUNT(*) FROM public.employee_invitations AS ei JOIN public.organizations AS org ON org.id = ei.organization_id WHERE ei.status = 'PENDING' AND ei.expires_at > NOW() AND org.status <> 'ARCHIVED') AS pending_employee_invitations
     `);
     const invitationCounts = invitationResult.rows[0] ?? {};
     const pendingOrganizationInvitations = Number(invitationCounts.pending_organization_invitations ?? 0);
@@ -123,7 +128,7 @@ export async function GET() {
     const pendingInvitations = pendingOrganizationInvitations + pendingEmployeeInvitations;
 
     const stats = {
-      totalOrganizations: Object.values(organizationCounts).reduce((total, count) => total + count, 0),
+      totalOrganizations: Object.entries(organizationCounts).reduce((total, [status, count]) => total + (status === 'ARCHIVED' ? 0 : count), 0),
       activeOrganizations: organizationCounts.ACTIVE ?? 0,
       pendingSetupOrganizations: organizationCounts.PENDING_SETUP ?? 0,
       suspendedOrganizations: organizationCounts.SUSPENDED ?? 0,

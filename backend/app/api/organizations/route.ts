@@ -29,9 +29,9 @@ export async function GET(request: Request) {
     const pageSize = Number.isFinite(rawPageSize) ? Math.min(100, Math.max(1, rawPageSize)) : 100;
     const offset = (page - 1) * pageSize;
     const search = (url.searchParams.get("search") || "").trim().slice(0, 200);
-    const requestedStatus = (url.searchParams.get("status") || "ALL").trim().toUpperCase();
-    const allowedStatuses = new Set(["ALL", "ACTIVE", "PENDING_SETUP", "SUSPENDED", "ARCHIVED"]);
-    const status = allowedStatuses.has(requestedStatus) ? requestedStatus : "ALL";
+    const requestedStatus = (url.searchParams.get("status") || "NON_ARCHIVED").trim().toUpperCase();
+    const allowedStatuses = new Set(["ALL", "NON_ARCHIVED", "ACTIVE", "PENDING_SETUP", "SUSPENDED", "ARCHIVED"]);
+    const status = allowedStatuses.has(requestedStatus) ? requestedStatus : "NON_ARCHIVED";
     const searchPattern = `%${search}%`;
 
     const result = await pool.query(`
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
         (SELECT COUNT(*)::integer FROM users AS u
           WHERE u.organization_id = o.id AND u.account_scope = 'ORGANIZATION') AS user_count
       FROM organizations AS o
-      WHERE ($2::text = 'ALL' OR o.status = $2::text)
+      WHERE ($2::text = 'ALL' OR ($2::text = 'NON_ARCHIVED' AND o.status <> 'ARCHIVED') OR o.status = $2::text)
         AND ($1::text = '' OR
           o.name ILIKE $3 OR o.slug ILIKE $3 OR
           COALESCE(o.contact_email, '') ILIKE $3 OR
@@ -76,7 +76,7 @@ export async function GET(request: Request) {
     `, [search, status, searchPattern, pageSize, offset]);
 
     const totalResult = await pool.query(`
-      SELECT COUNT(*)::integer AS total,
+      SELECT COUNT(*) FILTER (WHERE status <> 'ARCHIVED')::integer AS total,
         COUNT(*) FILTER (WHERE status = 'ACTIVE')::integer AS active,
         COUNT(*) FILTER (WHERE status = 'PENDING_SETUP')::integer AS pending,
         COUNT(*) FILTER (WHERE status = 'SUSPENDED')::integer AS suspended,
@@ -85,7 +85,7 @@ export async function GET(request: Request) {
     `);
     const matchingResult = await pool.query(`
       SELECT COUNT(*)::integer AS total FROM organizations o
-      WHERE ($2::text = 'ALL' OR o.status = $2::text)
+      WHERE ($2::text = 'ALL' OR ($2::text = 'NON_ARCHIVED' AND o.status <> 'ARCHIVED') OR o.status = $2::text)
         AND ($1::text = '' OR o.name ILIKE $3 OR o.slug ILIKE $3
           OR COALESCE(o.contact_email, '') ILIKE $3
           OR COALESCE(o.contact_phone, '') ILIKE $3

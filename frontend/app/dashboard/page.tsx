@@ -403,7 +403,7 @@ export default function DashboardPage() {
           page: String(recentOrganizationsPage),
           pageSize: "10",
           search: debouncedSearchQuery,
-          status: "ALL",
+          status: "NON_ARCHIVED",
         });
         const response = await fetch(`/api/backend/organizations?${query.toString()}`, {
           cache: "no-store",
