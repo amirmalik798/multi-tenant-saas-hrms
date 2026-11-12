@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     const pageSize = Number.isFinite(rawPageSize) ? Math.min(100, Math.max(1, rawPageSize)) : 100;
     const offset = (page - 1) * pageSize;
     const search = (url.searchParams.get("search") || "").trim().slice(0, 200);
-    const requestedStatus = (url.searchParams.get("status") || "ALL").trim().toUpperCase();
+    const requestedStatus = (url.searchParams.get("status") || "NON_ARCHIVED").trim().toUpperCase();
     const allowedStatuses = new Set(["ALL", "NON_ARCHIVED", "ACTIVE", "PENDING_SETUP", "SUSPENDED", "ARCHIVED"]);
     const status = allowedStatuses.has(requestedStatus) ? requestedStatus : "NON_ARCHIVED";
     const searchPattern = `%${search}%`;
