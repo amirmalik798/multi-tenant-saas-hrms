@@ -2051,7 +2051,7 @@ export default function OrganizationsPage() {
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#29384b] bg-[#101a28]/90 p-4 sm:px-5">
               <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-                <div className="relative w-full sm:w-[220px]">
+                <div className="relative w-full sm:w-[300px]">
                   <span className="pointer-events-none absolute left-3.5 top-3 text-slate-300">
                     <Icon name="filter" size={18} />
                   </span>

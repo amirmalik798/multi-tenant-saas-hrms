@@ -421,7 +421,7 @@ export default function OrganizationAdminsPage() {
       setError("");
 
       try {
-        const response = await fetch("/api/backend/organization-admins", {
+        const response = await fetch(`/api/backend/organization-admins${statusFilter === "ARCHIVED" ? "?includeArchived=true" : ""}`, {
           cache: "no-store",
           signal: controller.signal,
         });
@@ -467,7 +467,7 @@ export default function OrganizationAdminsPage() {
       isActive = false;
       controller.abort();
     };
-  }, [user, router, refreshKey]);
+  }, [user, router, refreshKey, statusFilter]);
 
   useEffect(() => {
     if (!user) return;
