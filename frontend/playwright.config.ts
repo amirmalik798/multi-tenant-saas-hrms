@@ -1,9 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 
-const configDirectory = path.dirname(fileURLToPath(import.meta.url));
+const configDirectory = process.cwd();
 const envFile = path.resolve(configDirectory, ".env.playwright");
 
 // Load credentials before Playwright evaluates the test files.
