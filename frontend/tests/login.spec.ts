@@ -90,7 +90,7 @@ test.describe("Login page — real backend and PostgreSQL", () => {
     await page.getByLabel("Password", { exact: true }).fill("irrelevant");
     await page.getByLabel("Password", { exact: true }).press("Enter");
 
-    await expect(page.getByText("Enter a valid email address.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Enter a valid email address, such as name@company.com.", { exact: true })).toBeVisible();
     await expect(page).toHaveURL(/\/$/);
   });
 
@@ -162,8 +162,8 @@ test.describe("Login page — real backend and PostgreSQL", () => {
       expect(body.user?.role).toBe(credentials.role);
       expect(body.destination).toBe(credentials.destination);
 
-      await expect(page).toHaveURL(
-        new RegExp(`${credentials.destination.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}(?:[/?#]|$)`),
+      await page.waitForURL(
+        (url) => url.pathname === credentials.destination,
         { timeout: 15_000 },
       );
     });
