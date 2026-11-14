@@ -150,7 +150,8 @@ async function submitLogin(page: Page, email: string, password: string) {
   await loginEmail(page).fill(email);
   await loginPassword(page).fill(password);
   await expect(loginEmail(page)).toHaveValue(email);
-  await expect(loginPassword(page)).toHaveValue(password);
+  // Avoid echoing a real .env.playwright password in assertion output.
+  expect((await loginPassword(page).inputValue()) === password).toBe(true);
   expect(await loginEmail(page).evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
   const submit = page.getByRole("button", { name: "Sign in securely", exact: true });
   await expect(submit).toBeEnabled();
