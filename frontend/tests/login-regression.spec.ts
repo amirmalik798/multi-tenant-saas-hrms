@@ -296,6 +296,35 @@ test.describe("Login and password recovery — complete regression suite", () =>
     await expect(page.getByRole("alert")).toContainText(/invalid or expired/i);
   });
 
+  test("LOGIN-019: unauthenticated role session endpoints reject requests", async ({ page }) => {
+    const endpoints = ["/api/backend/auth/me", "/api/backend/org/auth/me", "/api/backend/employee-auth/me"];
+    for (const endpoint of endpoints) {
+      const response = await page.request.get(endpoint);
+      expect([401, 403], `Unauthenticated request to ${endpoint}`).toContain(response.status());
+    }
+  });
+
+  test("LOGIN-020: Ctrl+Enter uses the login form normal validation flow", async ({ page }) => {
+    const requests = observeRequests(page, API.login);
+    await loginEmail(page).fill("not-a-valid-email");
+    await loginPassword(page).fill("temporary-value");
+    await page.keyboard.press("Control+Enter");
+    await expect(page.getByText("Enter a valid email address, such as name@company.com.", { exact: true })).toBeVisible();
+    expect(requests).toHaveLength(0);
+  });
+
+  test("LOGIN-021: recovery submits a normalized email to the actual backend", async ({ page }) => {
+    await page.getByRole("button", { name: "Forgot password?", exact: true }).click();
+    await recoveryEmail(page).fill("  PW-REGRESSION-MISSING-2026@EXAMPLE.INVALID  ");
+    const requestPromise = page.waitForRequest((request) => new URL(request.url()).pathname === API.resetRequest && request.method() === "POST");
+    const responsePromise = page.waitForResponse((response) => new URL(response.url()).pathname === API.resetRequest && response.request().method() === "POST");
+    await page.getByRole("button", { name: "Send reset instructions", exact: true }).click();
+    const [request, response] = await Promise.all([requestPromise, responsePromise]);
+    expect(request.postDataJSON()).toEqual({ email: "pw-regression-missing-2026@example.invalid" });
+    expect(response.status()).toBe(200);
+    await expect(page.getByRole("status")).toContainText(/if an account with that email address exists/i);
+  });
+
   for (const credentials of roleCredentials) {
     test(`LOGIN-ROLE-${credentials.role}: real credential is checked by backend database and workspace session`, async ({ page }) => {
       const email = process.env[credentials.emailEnv]?.trim();
