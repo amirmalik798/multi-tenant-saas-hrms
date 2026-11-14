@@ -1,107 +1,133 @@
-# Real-backend login tests
+# Real-backend login regression suite
 
-These Playwright tests use the real Next.js frontend, the real backend login API, and the PostgreSQL database configured by your backend. Authentication requests are not mocked or intercepted.
+This is the single login regression suite for the HRMS frontend. It runs against the real Next.js frontend, the real backend API routes, and the PostgreSQL database configured by the backend. There are no Playwright route mocks, intercepted API responses, or database stubs.
 
-## Safety
+## 1. Install Playwright and dotenv
 
-- Use dedicated test accounts where possible.
-- The suite does not create, suspend, delete, or change passwords for accounts.
-- A successful employee login updates that employee user's `last_login_at` field, as the application normally does.
-- The invalid-password test consumes one login rate-limit attempt. Use a dedicated test account and do not repeat it excessively.
-- Password-reset submission/completion and account-status mutation tests are intentionally not included in this first real-database suite because they write reset-token/account state or send email. They should be added only with a controlled test workflow.
-- Keep `.env.playwright` local and never commit credentials.
-
-## Install
-
-From `frontend`:
+Run in PowerShell:
 
 ```powershell
-npm install -D @playwright/test
+cd <project>\frontend
+npm install -D @playwright/test dotenv
 npx playwright install chromium
 ```
 
-## Start the application
+## 2. Configure frontend test credentials
 
-The frontend is configured to proxy `/api/backend/*` to the backend at `http://localhost:3000/api/*`. This remains a server-to-server local connection; your browser can still open the frontend through ngrok.
+Create `frontend/.env.playwright` (keep it local; never commit it):
 
-For requests opened through ngrok, the backend's exact-origin protection must explicitly allow that public browser origin. Set `NGROK_ORIGIN` in the backend PowerShell window before starting the backend. Use the current HTTPS origin shown by ngrok (no path or trailing route):
+```dotenv
+# Frontend URL used by the browser. Keep localhost for local browser testing.
+PLAYWRIGHT_BASE_URL=http://localhost:3001
+PLAYWRIGHT_HEADLESS=false
+
+# Configure only roles that exist in your PostgreSQL database.
+PW_SUPER_ADMIN_EMAIL=super.admin@example.com
+PW_SUPER_ADMIN_PASSWORD=replace-with-real-password
+
+PW_ORG_ADMIN_EMAIL=org.admin@example.com
+PW_ORG_ADMIN_PASSWORD=replace-with-real-password
+
+PW_HR_MANAGER_EMAIL=hr.manager@example.com
+PW_HR_MANAGER_PASSWORD=replace-with-real-password
+
+PW_DEPARTMENT_MANAGER_EMAIL=department.manager@example.com
+PW_DEPARTMENT_MANAGER_PASSWORD=replace-with-real-password
+
+PW_EMPLOYEE_EMAIL=employee@example.com
+PW_EMPLOYEE_PASSWORD=replace-with-real-password
+
+# Dedicated existing account + intentionally incorrect password.
+# Do not use an important administrator account for this negative test.
+PW_INVALID_LOGIN_EMAIL=dedicated.login.test@example.com
+PW_INVALID_LOGIN_PASSWORD=intentionally-wrong-password
+```
+
+Remove or leave blank any role credentials you do not want to run. Those role tests will be reported as skipped. The suite does not provision accounts: each configured account must already exist, be active, have the expected role/scope, and satisfy the application's organization/employment eligibility rules.
+
+Playwright's config loads this file automatically. Process environment variables override values in the file.
+
+## 3. Start PostgreSQL and backend
+
+Start PostgreSQL 18 using your normal local service. Confirm it is the same database configured by the backend's `DATABASE_URL`.
+
+In PowerShell window 1:
 
 ```powershell
-# Backend window
 cd <project>\backend
-$env:NGROK_ORIGIN = "https://shifty-maroon-pushpin.ngrok-free.dev"
+
+# Use the same backend environment file/settings as normal development.
+# Ensure DATABASE_URL and all three distinct session secrets are configured.
+# SESSION_PASSWORD, ORGANIZATION_SESSION_PASSWORD, EMPLOYEE_SESSION_PASSWORD
+# must each be at least 32 characters and must be different.
+
 npm run dev -- --port 3000
 ```
 
-The backend now includes `NGROK_ORIGIN` in its exact-origin allowlist alongside `APP_ORIGIN` and `FRONTEND_URL`. It does not trust wildcard domains, arbitrary Host headers, or forwarded-host headers. If ngrok gives you a different hostname, update the value and restart the backend.
+Wait for the backend to start successfully. Its login route queries PostgreSQL directly. Workforce-role login also updates `users.last_login_at`, as normal application behavior.
 
-Start the frontend in a separate PowerShell window:
+## 4. Start frontend
+
+In PowerShell window 2:
 
 ```powershell
 cd <project>\frontend
 npm run dev -- --port 3001
 ```
 
-The frontend Next.js development configuration also permits the currently configured ngrok hostname. If that hostname changes, update `allowedDevOrigins` in `frontend/next.config.ts` to match the new ngrok hostname and restart the frontend.
+The existing rewrite in `frontend/next.config.ts` sends browser requests to `/api/backend/*` through the local backend at `http://localhost:3000/api/*`. Do not change the rewrite to point at ngrok.
 
-To make Playwright exercise the public ngrok URL rather than localhost, set this in the PowerShell window where you run the tests:
+For local testing, use `PLAYWRIGHT_BASE_URL=http://localhost:3001`.
 
-```powershell
-$env:PLAYWRIGHT_BASE_URL = "https://shifty-maroon-pushpin.ngrok-free.dev"
-```
+### Optional ngrok browser access
 
-The local backend rewrite remains pointed at port 3000; do not change it to the public ngrok URL.
-
-## Load test credentials
-
-In the PowerShell window used to run Playwright, load your local `.env.playwright` file. Do not commit this file or put credentials in source files.
+When your browser must go through ngrok, set the current HTTPS origin in the backend environment before starting the backend:
 
 ```powershell
-Get-Content .env.playwright | ForEach-Object {
-    if ($_ -match '^\s*([^#][^=]*)=(.*)$') {
-        [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process')
-    }
-}
+$env:NGROK_ORIGIN = "https://your-current-host.ngrok-free.dev"
 ```
 
-Role tests without both environment variables are reported as skipped. Use accounts whose organization and employment status permit login.
+Set `PLAYWRIGHT_BASE_URL` in `frontend/.env.playwright` to that same origin and make sure the current hostname is allowed by `frontend/next.config.ts`. Restart the backend/frontend after changing these settings. The backend's exact-origin checks must allow the browser origin.
 
-For the invalid-password test, configure a dedicated account email and an intentionally incorrect password:
+## 5. Run the complete suite
+
+From `frontend`:
 
 ```powershell
-$env:PW_INVALID_LOGIN_EMAIL = "dedicated-login-test@example.com"
-$env:PW_INVALID_LOGIN_PASSWORD = "intentionally-wrong-password"
+npx playwright test --project=chromium --workers=1
 ```
 
-Do not use an important administrator account for the invalid-password test.
-
-## Run
+The config deliberately selects only `tests/login-regression.spec.ts`. You can also run it explicitly:
 
 ```powershell
-npx playwright test tests/login.spec.ts --project=chromium --workers=1
+npx playwright test tests/login-regression.spec.ts --project=chromium --workers=1
 ```
 
-Run with a visible browser (default):
-
-```powershell
-$env:PLAYWRIGHT_HEADLESS = "false"
-npx playwright test tests/login.spec.ts --project=chromium --workers=1
-```
-
-Open the HTML report:
+Show the HTML report:
 
 ```powershell
 npx playwright show-report
 ```
 
-## What this suite covers
+## What the single suite covers
 
-- Login page rendering and required controls
-- Client-side invalid/empty email handling
-- Password visibility toggle
-- Forgot-password view navigation (without submitting a reset request)
-- Real login for each configured role
-- Real backend response, returned role, destination, and resulting redirect
-- Rejection of an incorrect password using a dedicated test account
+- Login page render, accessible controls, and native required/email validation.
+- Invalid email and empty credentials blocked before the login API is called.
+- Password visibility and keyboard interaction.
+- Forgot-password navigation, email normalization, and returning to sign-in.
+- Recovery form native validation.
+- Real password-reset request response for a deliberately nonexistent `.invalid` address (generic response; safe for user accounts, but still reaches the backend).
+- Reset-token URL cleanup, independent visibility controls, and client-side password validation.
+- A syntactically valid but unknown reset token sent to the real backend and rejected.
+- Successful authentication for each configured role, validating response role/destination, the actual role-specific session verification API, workspace redirect, and HTTP-only session cookie.
+- Incorrect password rejection using a dedicated existing test account.
 
-These are real integration/browser tests, but they do not yet cover every backend security and account-lifecycle case. In particular, password reset, account suspension, organization suspension, rate limiting, and cross-role session invalidation need carefully controlled test data and should be added in a later phase.
+## Important safety and interpretation notes
+
+- A successful login test is a real database integration test, not a mock. For workforce users the normal `last_login_at` field is updated.
+- The unknown-address password-reset request calls the real endpoint but should not create a token for a nonexistent account. Do not replace it with a real user's email unless you intentionally want to create/reset token state and potentially send email.
+- The invalid-password test consumes one rate-limit attempt for the dedicated test email. Avoid running it repeatedly.
+- The unknown-token completion test calls the real route, exercises token validation/rate limiting, and should not mutate a real account.
+- Missing credentials are skipped, not counted as passing role-login tests. Review the Playwright summary and make sure every expected role test actually ran.
+- Tests that inspect the UI/perform client-side validation do not need backend requests. Tests explicitly marked as real backend integration wait for the actual API response.
+- The test runner cannot connect to the user's machine/database from this GitHub source-editing environment. Run the commands above locally to verify your backend and PostgreSQL.
