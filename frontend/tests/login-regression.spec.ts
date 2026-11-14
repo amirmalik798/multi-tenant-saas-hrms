@@ -82,6 +82,20 @@ async function openLogin(page: Page) {
   await expect(loginPassword(page)).toBeVisible();
 }
 
+async function openRecovery(page: Page) {
+  await page.getByRole("button", { name: "Forgot password?", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Forgot your password?", exact: true })).toBeVisible();
+  await expect(recoveryEmail(page)).toBeVisible();
+}
+
+function appAlert(page: Page, text: string | RegExp) {
+  return page.locator('[role="alert"]').filter({ hasText: text });
+}
+
+function appStatus(page: Page, text: string | RegExp) {
+  return page.locator('[role="status"]').filter({ hasText: text });
+}
+
 function observeRequests(page: Page, path: string) {
   const requests: string[] = [];
   page.on("request", (request) => {
@@ -157,29 +171,35 @@ test.describe("Login and password recovery — complete regression suite", () =>
 
   test("LOGIN-005: password visibility toggle preserves its value", async ({ page }) => {
     const value = "Regression-Password-123!";
-    await loginPassword(page).fill(value);
-    await page.getByRole("button", { name: "Show password", exact: true }).click();
-    await expect(loginPassword(page)).toHaveAttribute("type", "text");
-    await expect(loginPassword(page)).toHaveValue(value);
-    await expect(page.getByRole("button", { name: "Hide password", exact: true })).toHaveAttribute("aria-pressed", "true");
-    await page.getByRole("button", { name: "Hide password", exact: true }).click();
-    await expect(loginPassword(page)).toHaveAttribute("type", "password");
-    await expect(loginPassword(page)).toHaveValue(value);
+    const password = loginPassword(page);
+    await password.fill(value);
+    const showToggle = page.getByRole("button", { name: "Show password", exact: true });
+    await expect(showToggle).toHaveAttribute("aria-pressed", "false");
+    await showToggle.click();
+    await expect(password).toHaveAttribute("type", "text");
+    await expect(password).toHaveValue(value);
+    const hideToggle = page.getByRole("button", { name: "Hide password", exact: true });
+    await expect(hideToggle).toHaveAttribute("aria-pressed", "true");
+    await hideToggle.click();
+    await expect(password).toHaveAttribute("type", "password");
+    await expect(password).toHaveValue(value);
   });
 
-  test("LOGIN-006: password field remains usable with keyboard modifiers", async ({ page }) => {
-    await loginPassword(page).focus();
-    await loginPassword(page).press("Shift+A");
-    await expect(loginPassword(page)).toHaveValue("A");
+  test("LOGIN-006: password field accepts keyboard text and editing", async ({ page }) => {
+    const password = loginPassword(page);
+    await password.focus();
+    await password.pressSequentially("Keyboard-Entry-123!");
+    await expect(password).toHaveValue("Keyboard-Entry-123!");
+    await password.press("Control+A");
+    await password.press("Backspace");
+    await expect(password).toHaveValue("");
   });
 
   test("LOGIN-007: forgot-password navigation opens recovery form without submitting login", async ({ page }) => {
     const requests = observeRequests(page, API.login);
     await loginEmail(page).fill("person@example.com");
     await loginPassword(page).fill("not-submitted");
-    await page.getByRole("button", { name: "Forgot password?", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Forgot your password?", exact: true })).toBeVisible();
-    await expect(recoveryEmail(page)).toBeVisible();
+    await openRecovery(page);
     await expect(page.getByRole("button", { name: "Send reset instructions", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Back to sign in", exact: true })).toBeVisible();
     expect(requests).toHaveLength(0);
@@ -187,14 +207,14 @@ test.describe("Login and password recovery — complete regression suite", () =>
 
   test("LOGIN-008: recovery email is populated in normalized lowercase form", async ({ page }) => {
     await loginEmail(page).fill(" User.Name@Example.com ");
-    await page.getByRole("button", { name: "Forgot password?", exact: true }).click();
+    await openRecovery(page);
     await expect(recoveryEmail(page)).toHaveValue("user.name@example.com");
   });
 
   test("LOGIN-009: return to sign-in retains email and clears password", async ({ page }) => {
     await loginEmail(page).fill("person@example.com");
     await loginPassword(page).fill("temporary-secret");
-    await page.getByRole("button", { name: "Forgot password?", exact: true }).click();
+    await openRecovery(page);
     await page.getByRole("button", { name: "Back to sign in", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Welcome back", exact: true })).toBeVisible();
     await expect(loginEmail(page)).toHaveValue("person@example.com");
@@ -204,7 +224,7 @@ test.describe("Login and password recovery — complete regression suite", () =>
 
   test("LOGIN-010: empty recovery email is blocked before backend request", async ({ page }) => {
     const requests = observeRequests(page, API.resetRequest);
-    await page.getByRole("button", { name: "Forgot password?", exact: true }).click();
+    await openRecovery(page);
     await page.getByRole("button", { name: "Send reset instructions", exact: true }).click();
     await expect(recoveryEmail(page)).toBeFocused();
     expect(requests).toHaveLength(0);
@@ -212,7 +232,7 @@ test.describe("Login and password recovery — complete regression suite", () =>
 
   test("LOGIN-011: malformed recovery email is blocked before backend request", async ({ page }) => {
     const requests = observeRequests(page, API.resetRequest);
-    await page.getByRole("button", { name: "Forgot password?", exact: true }).click();
+    await openRecovery(page);
     await recoveryEmail(page).fill("bad-address");
     await page.getByRole("button", { name: "Send reset instructions", exact: true }).click();
     await expect(recoveryEmail(page)).toBeFocused();
@@ -220,7 +240,7 @@ test.describe("Login and password recovery — complete regression suite", () =>
   });
 
   test("LOGIN-012: unknown recovery email receives the backend's generic response", async ({ page }) => {
-    await page.getByRole("button", { name: "Forgot password?", exact: true }).click();
+    await openRecovery(page);
     await recoveryEmail(page).fill("pw-regression-no-account-2026@example.invalid");
     const response = await waitForRealPost(page, API.resetRequest, () =>
       page.getByRole("button", { name: "Send reset instructions", exact: true }).click(),
@@ -228,7 +248,7 @@ test.describe("Login and password recovery — complete regression suite", () =>
     expect(response.status()).toBe(200);
     const body = await response.json();
     expect(body.status).toBe("ok");
-    await expect(page.getByRole("status")).toContainText(/if an account with that email address exists/i);
+    await expect(appStatus(page, /if an account with that email address exists/i)).toBeVisible();
   });
 
   test("LOGIN-013: reset token opens reset form and is removed from visible URL", async ({ page }) => {
@@ -260,7 +280,7 @@ test.describe("Login and password recovery — complete regression suite", () =>
     await newPassword(page).fill("First-Password-12345!");
     await confirmNewPassword(page).fill("Different-Password-12345!");
     await page.getByRole("button", { name: "Reset password", exact: true }).click();
-    await expect(page.getByRole("alert")).toContainText("The passwords do not match.");
+    await expect(appAlert(page, "The passwords do not match.")).toBeVisible();
     expect(requests).toHaveLength(0);
   });
 
@@ -270,7 +290,7 @@ test.describe("Login and password recovery — complete regression suite", () =>
     await newPassword(page).fill("Short1!");
     await confirmNewPassword(page).fill("Short1!");
     await page.getByRole("button", { name: "Reset password", exact: true }).click();
-    await expect(page.getByRole("alert")).toContainText("at least 15 characters");
+    await expect(appAlert(page, "at least 15 characters")).toBeVisible();
     expect(requests).toHaveLength(0);
   });
 
@@ -281,7 +301,7 @@ test.describe("Login and password recovery — complete regression suite", () =>
     await newPassword(page).fill(whitespace);
     await confirmNewPassword(page).fill(whitespace);
     await page.getByRole("button", { name: "Reset password", exact: true }).click();
-    await expect(page.getByRole("alert")).toContainText("cannot consist only of whitespace");
+    await expect(appAlert(page, "cannot consist only of whitespace")).toBeVisible();
     expect(requests).toHaveLength(0);
   });
 
@@ -293,7 +313,7 @@ test.describe("Login and password recovery — complete regression suite", () =>
       page.getByRole("button", { name: "Reset password", exact: true }).click(),
     );
     expect(response.status()).toBe(400);
-    await expect(page.getByRole("alert")).toContainText(/invalid or expired/i);
+    await expect(appAlert(page, /invalid or expired/i)).toBeVisible();
   });
 
   test("LOGIN-019: unauthenticated role session endpoints reject requests", async ({ page }) => {
@@ -314,7 +334,7 @@ test.describe("Login and password recovery — complete regression suite", () =>
   });
 
   test("LOGIN-021: recovery submits a normalized email to the actual backend", async ({ page }) => {
-    await page.getByRole("button", { name: "Forgot password?", exact: true }).click();
+    await openRecovery(page);
     await recoveryEmail(page).fill("  PW-REGRESSION-MISSING-2026@EXAMPLE.INVALID  ");
     const requestPromise = page.waitForRequest((request) => new URL(request.url()).pathname === API.resetRequest && request.method() === "POST");
     const responsePromise = page.waitForResponse((response) => new URL(response.url()).pathname === API.resetRequest && response.request().method() === "POST");
@@ -322,7 +342,7 @@ test.describe("Login and password recovery — complete regression suite", () =>
     const [request, response] = await Promise.all([requestPromise, responsePromise]);
     expect(request.postDataJSON()).toEqual({ email: "pw-regression-missing-2026@example.invalid" });
     expect(response.status()).toBe(200);
-    await expect(page.getByRole("status")).toContainText(/if an account with that email address exists/i);
+    await expect(appStatus(page, /if an account with that email address exists/i)).toBeVisible();
   });
 
   for (const credentials of roleCredentials) {
@@ -330,6 +350,15 @@ test.describe("Login and password recovery — complete regression suite", () =>
       const email = process.env[credentials.emailEnv]?.trim();
       const password = process.env[credentials.passwordEnv];
       test.skip(!email || !password, `Set ${credentials.emailEnv} and ${credentials.passwordEnv} to enable this real database-backed login test.`);
+
+      // Register before submitting: the page immediately calls its role-specific
+      // session endpoint after the login endpoint succeeds.
+      const sessionResponsePromise = page.waitForResponse(
+        (candidate) =>
+          new URL(candidate.url()).pathname === credentials.sessionCheck &&
+          candidate.request().method() === "GET",
+        { timeout: 20_000 },
+      );
 
       const response = await submitLogin(page, email!, password!);
       const responseText = await response.text();
@@ -344,12 +373,7 @@ test.describe("Login and password recovery — complete regression suite", () =>
       expect(body.destination).toBe(credentials.destination);
 
       // The page independently verifies the role-specific session with the real API.
-      const sessionResponse = await page.waitForResponse(
-        (candidate) =>
-          new URL(candidate.url()).pathname === credentials.sessionCheck &&
-          candidate.request().method() === "GET",
-        { timeout: 15_000 },
-      );
+      const sessionResponse = await sessionResponsePromise;
       expect(sessionResponse.status()).toBe(200);
       const sessionBody = await sessionResponse.json();
       expect(sessionBody.authenticated).toBe(true);
@@ -377,7 +401,7 @@ test.describe("Login and password recovery — complete regression suite", () =>
     expect(response.status()).toBe(401);
     const body = await response.json();
     expect(body.message).toBe("Invalid email or password");
-    await expect(page.getByRole("alert")).toContainText("Invalid email or password");
+    await expect(appAlert(page, "Invalid email or password")).toBeVisible();
     await expect(page).toHaveURL(/\/$/);
   });
 });
