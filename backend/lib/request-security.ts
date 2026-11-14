@@ -44,16 +44,18 @@ function isAllowedConfiguredOrigin(value: string): string | null {
 }
 
 /**
- * Build an exact-origin allowlist from explicit configuration. APP_ORIGIN
- * remains the primary local/deployment origin; FRONTEND_URL is also trusted
- * because it is the public browser origin used for links. Additional exact
- * origins may be supplied as a comma-separated APP_ALLOWED_ORIGINS value.
+ * Build an exact-origin allowlist from explicit configuration.
+ * APP_ORIGIN and FRONTEND_URL remain the primary application origins.
+ * NGROK_ORIGIN adds the current public ngrok origin for development/testing.
+ * APP_ALLOWED_ORIGINS accepts additional comma-separated exact origins.
+ *
  * No wildcard, request Host, or forwarded-host value is trusted here.
  */
 function getAllowedConfiguredOrigins(): Set<string> | null {
   const configuredValues = [
     process.env.APP_ORIGIN?.trim(),
     process.env.FRONTEND_URL?.trim(),
+    process.env.NGROK_ORIGIN?.trim(),
     ...(process.env.APP_ALLOWED_ORIGINS ?? "").split(",").map((value) => value.trim()),
   ].filter((value): value is string => Boolean(value));
 
@@ -143,7 +145,7 @@ export function validateSameOriginRequest(
 
   if (!allowedOrigins) {
     console.error(
-      "Request origin protection is not configured: at least one of APP_ORIGIN, FRONTEND_URL, or APP_ALLOWED_ORIGINS must contain valid exact origins; every configured value must be an exact origin.",
+      "Request origin protection is not configured: at least one of APP_ORIGIN, FRONTEND_URL, NGROK_ORIGIN, or APP_ALLOWED_ORIGINS must contain valid exact origins; every configured value must be an exact origin.",
     );
 
     return NextResponse.json(
