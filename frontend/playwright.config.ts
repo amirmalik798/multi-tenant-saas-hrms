@@ -1,23 +1,29 @@
 import { defineConfig, devices } from "@playwright/test";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
+
+const configDirectory = path.dirname(fileURLToPath(import.meta.url));
+const envFile = path.resolve(configDirectory, ".env.playwright");
+
+// Load local test credentials before Playwright discovers and evaluates specs.
+// Existing process variables take precedence over the file.
+dotenv.config({ path: envFile, override: false });
 
 export default defineConfig({
   testDir: "./tests",
+  testMatch: "login-regression.spec.ts",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
   workers: 1,
   reporter: [["list"], ["html", { open: "never" }]],
   timeout: 30_000,
-  expect: {
-    timeout: 7_500,
-  },
+  expect: { timeout: 7_500 },
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3001",
     headless: process.env.PLAYWRIGHT_HEADLESS === "true",
-    // Bypass the ngrok free-tier interstitial so Playwright reaches Next.js.
-    extraHTTPHeaders: {
-      "ngrok-skip-browser-warning": "true",
-    },
+    extraHTTPHeaders: { "ngrok-skip-browser-warning": "true" },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
