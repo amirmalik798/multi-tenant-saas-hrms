@@ -49,8 +49,10 @@ const roleCredentials: RoleCredentials[] = [
 async function openLogin(page: Page) {
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Welcome back" }),
+    page.getByRole("heading", { name: "Welcome back", exact: true }),
   ).toBeVisible();
+  await expect(page.getByLabel("Email address")).toBeVisible();
+  await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
 }
 
 async function submitLogin(
@@ -58,18 +60,35 @@ async function submitLogin(
   email: string,
   password: string,
 ) {
-  await page.getByLabel("Email address").fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(password);
+  const emailInput = page.getByLabel("Email address");
+  const passwordInput = page.getByLabel("Password", { exact: true });
 
-  const responsePromise = page.waitForResponse((response) => {
-    return (
+  await emailInput.fill(email);
+  await passwordInput.fill(password);
+
+  // Fail early with useful context if browser-side validation prevents submit.
+  await expect(emailInput).toHaveValue(email);
+  await expect(passwordInput).toHaveValue(password);
+  await expect(emailInput).toHaveJSProperty("validity.valid", true);
+
+  const responsePromise = page.waitForResponse(
+    (response) =>
       response.url().includes("/api/backend/unified-auth/login") &&
-      response.request().method() === "POST"
-    );
-  });
+      response.request().method() === "POST",
+    { timeout: 20_000 },
+  );
 
-  await page.getByRole("button", { name: "Sign in securely" }).click();
-  return responsePromise;
+  const submitButton = page.getByRole("button", {
+    name: "Sign in securely",
+  });
+  await expect(submitButton).toBeEnabled();
+
+  const [response] = await Promise.all([
+    responsePromise,
+    submitButton.click(),
+  ]);
+
+  return response;
 }
 
 test.describe("Login page — real backend and PostgreSQL", () => {
@@ -78,8 +97,6 @@ test.describe("Login page — real backend and PostgreSQL", () => {
   }) => {
     await openLogin(page);
 
-    await expect(page.getByLabel("Email address")).toBeVisible();
-    await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Sign in securely" }),
     ).toBeVisible();
@@ -92,12 +109,29 @@ test.describe("Login page — real backend and PostgreSQL", () => {
     page,
   }) => {
     await openLogin(page);
+
+    let loginRequests = 0;
+    page.on("request", (request) => {
+      if (
+        request.url().includes("/api/backend/unified-auth/login") &&
+        request.method() === "POST"
+      ) {
+        loginRequests += 1;
+      }
+    });
+
     await page.getByLabel("Email address").fill("not-an-email");
     await page.getByLabel("Password", { exact: true }).fill("irrelevant");
     await page.getByLabel("Password", { exact: true }).press("Enter");
 
-    await expect(page.getByText("Enter a valid email address, such as name@company.com.", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(
+        "Enter a valid email address, such as name@company.com.",
+        { exact: true },
+      ),
+    ).toBeVisible();
     await expect(page).toHaveURL(/\/$/);
+    expect(loginRequests).toBe(0);
   });
 
   test("LOGIN-003: password visibility control reveals and conceals the password", async ({
@@ -105,25 +139,43 @@ test.describe("Login page — real backend and PostgreSQL", () => {
   }) => {
     await openLogin(page);
     const password = page.getByLabel("Password", { exact: true });
+    const testPassword = "Temporary-password-value";
 
-    await password.fill("Temporary-password-value");
+    await password.fill(testPassword);
     await expect(password).toHaveAttribute("type", "password");
 
     await page.getByRole("button", { name: "Show password" }).click();
     await expect(password).toHaveAttribute("type", "text");
+    await expect(password).toHaveValue(testPassword);
+    await expect(
+      page.getByRole("button", { name: "Hide password" }),
+    ).toHaveAttribute("aria-pressed", "true");
 
     await page.getByRole("button", { name: "Hide password" }).click();
     await expect(password).toHaveAttribute("type", "password");
+    await expect(password).toHaveValue(testPassword);
   });
 
   test("LOGIN-004: empty credentials are rejected by client-side validation", async ({
     page,
   }) => {
     await openLogin(page);
+
+    let loginRequests = 0;
+    page.on("request", (request) => {
+      if (
+        request.url().includes("/api/backend/unified-auth/login") &&
+        request.method() === "POST"
+      ) {
+        loginRequests += 1;
+      }
+    });
+
     await page.getByRole("button", { name: "Sign in securely" }).click();
 
     await expect(page.getByLabel("Email address")).toBeFocused();
     await expect(page).toHaveURL(/\/$/);
+    expect(loginRequests).toBe(0);
   });
 
   test("LOGIN-005: forgot-password view opens and returns to sign-in", async ({
@@ -132,15 +184,17 @@ test.describe("Login page — real backend and PostgreSQL", () => {
     await openLogin(page);
     await page.getByRole("button", { name: /forgot password/i }).click();
 
+    // The application heading is "Forgot your password?", not "Forgot password".
     await expect(
-      page.getByRole("heading", { name: /forgot password/i }),
+      page.getByRole("heading", { name: /forgot your password/i }),
     ).toBeVisible();
-    await expect(page.getByLabel(/email address/i)).toBeVisible();
+    await expect(page.getByLabel("Email address")).toBeVisible();
 
     await page.getByRole("button", { name: /back to sign in/i }).click();
     await expect(
-      page.getByRole("heading", { name: "Welcome back" }),
+      page.getByRole("heading", { name: "Welcome back", exact: true }),
     ).toBeVisible();
+    await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
   });
 
   for (const credentials of roleCredentials) {
@@ -158,12 +212,19 @@ test.describe("Login page — real backend and PostgreSQL", () => {
       await openLogin(page);
 
       const response = await submitLogin(page, email!, password!);
+      const responseText = await response.text();
+
       expect(
         response.status(),
-        `Backend login failed for ${credentials.role}: ${await response.text()}`,
+        `Backend login failed for ${credentials.role}: ${responseText}`,
       ).toBe(200);
 
-      const body = await response.json();
+      const body = JSON.parse(responseText) as {
+        status?: string;
+        destination?: string;
+        user?: { role?: string; organizationId?: string | null };
+      };
+
       expect(body.status).toBe("ok");
       expect(body.user?.role).toBe(credentials.role);
       expect(body.destination).toBe(credentials.destination);
@@ -176,7 +237,10 @@ test.describe("Login page — real backend and PostgreSQL", () => {
       const sessionCookie = (await page.context().cookies()).find(
         (cookie) => cookie.name === credentials.sessionCookie,
       );
-      expect(sessionCookie, `Expected real ${credentials.role} session cookie`).toBeTruthy();
+      expect(
+        sessionCookie,
+        `Expected real ${credentials.role} session cookie`,
+      ).toBeTruthy();
       expect(sessionCookie?.httpOnly).toBe(true);
     });
   }
@@ -194,9 +258,9 @@ test.describe("Login page — real backend and PostgreSQL", () => {
 
     await openLogin(page);
     const response = await submitLogin(page, email!, password!);
+    const body = await response.json();
 
     expect(response.status()).toBe(401);
-    const body = await response.json();
     expect(body.message).toBe("Invalid email or password");
 
     await expect(
