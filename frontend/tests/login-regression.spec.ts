@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { expect, test, type Page, type Response } from "@playwright/test";
 
 /**
@@ -79,6 +80,22 @@ async function waitForAuthHydration(page: Page) {
   await expect(page.locator('main[data-auth-hydrated="true"]')).toBeVisible({
     timeout: 15_000,
   });
+}
+
+
+function freshResetToken() {
+  return randomBytes(32).toString("base64url");
+}
+
+async function openResetForm(page: Page, token = freshResetToken()) {
+  await page.goto(`/?token=${token}`);
+  await waitForAuthHydration(page);
+  await expect(
+    page.getByRole("heading", { name: "Choose a new password", exact: true }),
+  ).toBeVisible();
+  await expect(newPassword(page)).toBeVisible();
+  await expect(confirmNewPassword(page)).toBeVisible();
+  return token;
 }
 
 async function openLogin(page: Page) {
@@ -262,7 +279,11 @@ test.describe("Login and password recovery — complete regression suite", () =>
     );
     expect(response.status()).toBe(200);
     const body = await response.json();
-    expect(body.status).toBe("ok");
+    expect(body).toEqual({
+      status: "ok",
+      message: "If an account with that email address exists, password reset instructions will be sent.",
+    });
+    expect(JSON.stringify(body)).not.toContain("pw-regression-no-account-2026@example.invalid");
     await expect(appStatus(page, /if an account with that email address exists/i)).toBeVisible();
   });
 
@@ -331,7 +352,8 @@ test.describe("Login and password recovery — complete regression suite", () =>
   });
 
   test("LOGIN-018: well-formed unknown reset token reaches backend and is rejected", async ({ page }) => {
-    await page.goto("/?token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    const token = freshResetToken();
+    await page.goto(`/?token=${token}`);
 
     await waitForAuthHydration(page);
     await newPassword(page).fill("Valid-Regression-Password-2026!");
@@ -388,6 +410,21 @@ test.describe("Login and password recovery — complete regression suite", () =>
       );
 
       const response = await submitLogin(page, email!, password!);
+      const loginRequest = response.request();
+      const loginPayload = loginRequest.postDataJSON() as {
+        email?: string;
+        password?: string;
+      };
+      expect(loginRequest.headers()["content-type"]).toContain("application/json");
+      expect(loginPayload.email).toBe(email!.trim().toLowerCase());
+      expect(typeof loginPayload.password).toBe("string");
+      expect(loginPayload.password?.length).toBe(password!.length);
+      // Compare secrets as booleans so a failing assertion never prints a password.
+      expect(loginPayload.password === password!).toBe(true);
+      const requestUrl = new URL(loginRequest.url());
+      expect(requestUrl.searchParams.has("email")).toBe(false);
+      expect(requestUrl.searchParams.has("password")).toBe(false);
+
       const responseText = await response.text();
       expect(response.status(), `Real login endpoint response for ${credentials.role}: ${responseText}`).toBe(200);
       const body = JSON.parse(responseText) as {
@@ -413,9 +450,27 @@ test.describe("Login and password recovery — complete regression suite", () =>
       }
 
       await page.waitForURL((url) => url.pathname === credentials.destination, { timeout: 20_000 });
-      const cookie = (await page.context().cookies()).find((item) => item.name === credentials.sessionCookie);
+      const cookies = await page.context().cookies();
+      const roleCookieNames = ["crm_admin_session", "crm_org_session", "crm_employee_session"];
+      const issuedRoleCookies = cookies
+        .filter((item) => roleCookieNames.includes(item.name))
+        .map((item) => item.name);
+      expect(issuedRoleCookies).toEqual([credentials.sessionCookie]);
+
+      const cookie = cookies.find((item) => item.name === credentials.sessionCookie);
       expect(cookie, `Expected the actual ${credentials.role} session cookie`).toBeTruthy();
       expect(cookie?.httpOnly).toBe(true);
+      expect(cookie?.path).toBe("/");
+      expect(cookie?.sameSite).toBe("Lax");
+
+      // Re-check the session through the actual endpoint after the redirect.
+      const persistedSessionResponse = await page.request.get(
+        new URL(credentials.sessionCheck, page.url()).toString(),
+      );
+      expect(persistedSessionResponse.status()).toBe(200);
+      const persistedSession = await persistedSessionResponse.json();
+      expect(persistedSession.authenticated).toBe(true);
+      expect(persistedSession.user?.role).toBe(credentials.role);
     });
   }
 
@@ -437,6 +492,247 @@ test.describe("Login and password recovery — complete regression suite", () =>
       (input: HTMLInputElement) => input.form?.method,
     );
     expect(resetMethod).toBe("post");
+  });
+
+
+  test("LOGIN-023: login fields expose their labels, autocomplete hints, and length limits", async ({ page }) => {
+    await expect(page.getByLabel("Email address", { exact: true })).toHaveAttribute("id", "email");
+    await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute("id", "password");
+    await expect(loginEmail(page)).toHaveAttribute("name", "email");
+    await expect(loginEmail(page)).toHaveAttribute("autocomplete", "username");
+    await expect(loginEmail(page)).toHaveAttribute("maxlength", "254");
+    await expect(loginPassword(page)).toHaveAttribute("name", "password");
+    await expect(loginPassword(page)).toHaveAttribute("autocomplete", "current-password");
+    await expect(loginPassword(page)).toHaveAttribute("maxlength", "1024");
+  });
+
+  test("LOGIN-024: inline email validation is associated with the field and clears after correction", async ({ page }) => {
+    const email = loginEmail(page);
+    const feedback = page.getByText(
+      "Enter a valid email address, such as name@company.com.",
+      { exact: true },
+    );
+
+    await email.fill("invalid-email");
+    await loginPassword(page).focus();
+    await expect(email).toHaveAttribute("aria-invalid", "true");
+    await expect(email).toHaveAttribute("aria-describedby", "email-feedback");
+    await expect(feedback).toBeVisible();
+
+    await email.fill("person@example.com");
+    await expect(email).toHaveAttribute("aria-invalid", "false");
+    await expect(email).not.toHaveAttribute("aria-describedby", "email-feedback");
+    await expect(feedback).toHaveAttribute("aria-hidden", "true");
+  });
+
+  test("LOGIN-025: login password visibility controls do not submit the form", async ({ page }) => {
+    const requests = observeRequests(page, API.login);
+    const password = loginPassword(page);
+    await loginEmail(page).fill("person@example.com");
+    await password.fill("Visibility-Regression-123!");
+
+    const show = page.getByRole("button", { name: "Show password", exact: true });
+    await expect(show).toHaveAttribute("type", "button");
+    await show.click();
+    await expect(password).toHaveAttribute("type", "text");
+    await expect(password).toHaveValue("Visibility-Regression-123!");
+
+    const hide = page.getByRole("button", { name: "Hide password", exact: true });
+    await expect(hide).toHaveAttribute("type", "button");
+    await hide.click();
+    await expect(password).toHaveAttribute("type", "password");
+    expect(requests).toHaveLength(0);
+  });
+
+  test("LOGIN-026: opening recovery clears the password and resets password visibility", async ({ page }) => {
+    await loginEmail(page).fill("person@example.com");
+    await loginPassword(page).fill("Temporary-Visibility-123!");
+    await page.getByRole("button", { name: "Show password", exact: true }).click();
+    await expect(loginPassword(page)).toHaveAttribute("type", "text");
+
+    await openRecovery(page);
+    await expect(loginPassword(page)).toHaveCount(0);
+    await page.getByRole("button", { name: "Back to sign in", exact: true }).click();
+
+    await expect(loginEmail(page)).toHaveValue("person@example.com");
+    await expect(loginPassword(page)).toHaveValue("");
+    await expect(loginPassword(page)).toHaveAttribute("type", "password");
+    await expect(page.getByRole("button", { name: "Show password", exact: true }))
+      .toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("LOGIN-027: recovery email has an associated label and native email constraints", async ({ page }) => {
+    await openRecovery(page);
+    const email = page.getByLabel("Email address", { exact: true });
+    await expect(email).toHaveAttribute("id", "reset-email");
+    await expect(email).toHaveAttribute("type", "email");
+    await expect(email).toHaveAttribute("autocomplete", "email");
+    await expect(email).toHaveAttribute("required", "");
+    await expect(email).toHaveAttribute("maxlength", "254");
+    expect(await email.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
+  });
+
+  test("LOGIN-028: recovery form submits when Enter is pressed and sends normalized JSON", async ({ page }) => {
+    await openRecovery(page);
+    const email = recoveryEmail(page);
+    await email.fill("PW-REGRESSION-ENTER-2026@EXAMPLE.INVALID");
+
+    const requestPromise = page.waitForRequest(
+      (request) =>
+        new URL(request.url()).pathname === API.resetRequest &&
+        request.method() === "POST",
+    );
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === API.resetRequest &&
+        response.request().method() === "POST",
+    );
+
+    await email.press("Enter");
+    const [request, response] = await Promise.all([requestPromise, responsePromise]);
+
+    expect(request.postDataJSON()).toEqual({
+      email: "pw-regression-enter-2026@example.invalid",
+    });
+    expect(new URL(request.url()).search).toBe("");
+    expect(response.status()).toBe(200);
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(body.message).toBe(
+      "If an account with that email address exists, password reset instructions will be sent.",
+    );
+  });
+
+  test("LOGIN-029: reset form controls have the expected accessible labels and browser hints", async ({ page }) => {
+    await openResetForm(page);
+    await expect(page.getByLabel("New password", { exact: true })).toHaveAttribute("id", "new-password");
+    await expect(page.getByLabel("Confirm new password", { exact: true })).toHaveAttribute("id", "confirm-new-password");
+    await expect(newPassword(page)).toHaveAttribute("type", "password");
+    await expect(newPassword(page)).toHaveAttribute("autocomplete", "new-password");
+    await expect(newPassword(page)).toHaveAttribute("required", "");
+    await expect(confirmNewPassword(page)).toHaveAttribute("type", "password");
+    await expect(confirmNewPassword(page)).toHaveAttribute("autocomplete", "new-password");
+    await expect(confirmNewPassword(page)).toHaveAttribute("required", "");
+    await expect(page.getByRole("button", { name: "Show new password", exact: true })).toHaveAttribute("type", "button");
+    await expect(page.getByRole("button", { name: "Show confirmation password", exact: true })).toHaveAttribute("type", "button");
+    await expect(page.getByRole("button", { name: "Reset password", exact: true })).toBeEnabled();
+  });
+
+  test("LOGIN-030: empty reset fields are blocked by native required validation", async ({ page }) => {
+    await openResetForm(page);
+    const requests = observeRequests(page, API.resetComplete);
+    await page.getByRole("button", { name: "Reset password", exact: true }).click();
+    await expect(newPassword(page)).toBeFocused();
+    expect(requests).toHaveLength(0);
+  });
+
+  test("LOGIN-031: reset password exceeding bcrypt's 72-byte UTF-8 limit is blocked before the API call", async ({ page }) => {
+    await openResetForm(page);
+    const requests = observeRequests(page, API.resetComplete);
+    const oversizedPassword = "😀".repeat(25);
+    await newPassword(page).fill(oversizedPassword);
+    await confirmNewPassword(page).fill(oversizedPassword);
+    await page.getByRole("button", { name: "Reset password", exact: true }).click();
+    await expect(appAlert(page, /must not exceed 72 UTF-8 bytes/i)).toBeVisible();
+    expect(requests).toHaveLength(0);
+  });
+
+  test("LOGIN-032: backend rejects a common password even when the reset token is syntactically valid", async ({ page }) => {
+    const token = freshResetToken();
+    await openResetForm(page, token);
+    const commonPassword = "passwordpassword";
+    await newPassword(page).fill(commonPassword);
+    await confirmNewPassword(page).fill(commonPassword);
+
+    const response = await waitForRealPost(page, API.resetComplete, () =>
+      page.getByRole("button", { name: "Reset password", exact: true }).click(),
+    );
+    expect(response.status()).toBe(400);
+    const body = await response.json();
+    expect(body.message).toBe("Choose a less common password that is harder to guess.");
+    await expect(appAlert(page, "Choose a less common password that is harder to guess.")).toBeVisible();
+  });
+
+  test("LOGIN-033: backend rejects a malformed reset token", async ({ page }) => {
+    await openResetForm(page, "malformed-token");
+    const validPassword = "Valid-Regression-Password-2026!";
+    await newPassword(page).fill(validPassword);
+    await confirmNewPassword(page).fill(validPassword);
+
+    const response = await waitForRealPost(page, API.resetComplete, () =>
+      page.getByRole("button", { name: "Reset password", exact: true }).click(),
+    );
+    expect(response.status()).toBe(400);
+    const body = await response.json();
+    expect(body.message).toMatch(/invalid or expired/i);
+    await expect(appAlert(page, /invalid or expired/i)).toBeVisible();
+  });
+
+  test("LOGIN-034: reset validation feedback clears when the user corrects confirmation", async ({ page }) => {
+    await openResetForm(page);
+    await newPassword(page).fill("First-Password-12345!");
+    await confirmNewPassword(page).fill("Different-Password-12345!");
+    await page.getByRole("button", { name: "Reset password", exact: true }).click();
+    await expect(appAlert(page, "The passwords do not match.")).toBeVisible();
+
+    await confirmNewPassword(page).fill("First-Password-12345!");
+    await expect(appAlert(page, "The passwords do not match.")).toHaveCount(0);
+  });
+
+  test("LOGIN-035: request-another-link action returns to recovery and discards reset-form state", async ({ page }) => {
+    await openResetForm(page);
+    await newPassword(page).fill("Temporary-Reset-Password-123!");
+    await confirmNewPassword(page).fill("Temporary-Reset-Password-123!");
+
+    await page.getByRole("button", { name: "Request another reset link", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Forgot your password?", exact: true })).toBeVisible();
+    await expect(recoveryEmail(page)).toBeVisible();
+    await expect(newPassword(page)).toHaveCount(0);
+    await expect(confirmNewPassword(page)).toHaveCount(0);
+    await expect(page).not.toHaveURL(/token=/);
+  });
+
+  test("LOGIN-036: auth and password-reset endpoints reject cross-site and non-JSON mutations", async ({ page }) => {
+    const origin = new URL(page.url()).origin;
+    const endpoints = [
+      { path: API.login, body: { email: "person@example.invalid", password: "irrelevant" } },
+      { path: API.resetRequest, body: { email: "person@example.invalid" } },
+      {
+        path: API.resetComplete,
+        body: {
+          token: freshResetToken(),
+          password: "Valid-Regression-Password-2026!",
+          confirmPassword: "Valid-Regression-Password-2026!",
+        },
+      },
+    ];
+
+    for (const endpoint of endpoints) {
+      const crossSiteResponse = await page.request.post(
+        new URL(endpoint.path, page.url()).toString(),
+        {
+          data: endpoint.body,
+          headers: {
+            origin: "https://attacker.invalid",
+            "sec-fetch-site": "cross-site",
+          },
+        },
+      );
+      expect(crossSiteResponse.status(), `Cross-site mutation rejected for ${endpoint.path}`).toBe(403);
+
+      const nonJsonResponse = await page.request.post(
+        new URL(endpoint.path, page.url()).toString(),
+        {
+          data: "{}",
+          headers: {
+            origin,
+            "sec-fetch-site": "same-origin",
+            "content-type": "text/plain",
+          },
+        },
+      );
+      expect(nonJsonResponse.status(), `Non-JSON mutation rejected for ${endpoint.path}`).toBe(415);
+    }
   });
 
   test("LOGIN-NEGATIVE-001: dedicated invalid password is rejected by real backend", async ({ page }) => {
