@@ -6,8 +6,7 @@ import dotenv from "dotenv";
 const configDirectory = path.dirname(fileURLToPath(import.meta.url));
 const envFile = path.resolve(configDirectory, ".env.playwright");
 
-// Load local test credentials before Playwright discovers and evaluates specs.
-// Existing process variables take precedence over the file.
+// Load credentials before Playwright evaluates the test files.
 dotenv.config({ path: envFile, override: false });
 
 export default defineConfig({
@@ -28,10 +27,5 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
   },
-  projects: [
-    {
-      name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
-    },
-  ],
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });
