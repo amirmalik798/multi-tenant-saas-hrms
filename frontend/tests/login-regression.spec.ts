@@ -1,264 +1,354 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Response } from "@playwright/test";
 
 /**
- * Login regression coverage.
+ * Unified login and password-recovery regression suite.
  *
- * These tests use the configured real frontend URL and its real backend
- * rewrite. No page.route(), API mocks, or database stubs are used.
+ * UI assertions use the actual accessible labels and button names in
+ * frontend/app/page.tsx. No route interception, API mocking, or DB stubs
+ * are used. Tests requiring service calls wait for the real proxied API.
  *
- * Client-side validation tests intentionally assert that invalid input is
- * stopped before a request. Backend integration tests explicitly wait for
- * the real API response so a proxy/tunnel failure cannot look like a pass.
+ * Run from frontend:
+ *   npx playwright test tests/login-regression.spec.ts --project=chromium --workers=1
  */
 
-const LOGIN_API = "/api/backend/unified-auth/login";
-const RESET_REQUEST_API = "/api/backend/password-reset/request";
-const RESET_COMPLETE_API = "/api/backend/password-reset/complete";
+const API = {
+  login: "/api/backend/unified-auth/login",
+  resetRequest: "/api/backend/password-reset/request",
+  resetComplete: "/api/backend/password-reset/complete",
+} as const;
+
+type RoleCredentials = {
+  role: "SUPER_ADMIN" | "ORGANIZATION_ADMIN" | "HR_MANAGER" | "DEPARTMENT_MANAGER" | "EMPLOYEE";
+  emailEnv: string;
+  passwordEnv: string;
+  destination: string;
+  sessionCookie: string;
+  sessionCheck: string;
+};
+
+const roleCredentials: RoleCredentials[] = [
+  {
+    role: "SUPER_ADMIN",
+    emailEnv: "PW_SUPER_ADMIN_EMAIL",
+    passwordEnv: "PW_SUPER_ADMIN_PASSWORD",
+    destination: "/dashboard",
+    sessionCookie: "crm_admin_session",
+    sessionCheck: "/api/backend/auth/me",
+  },
+  {
+    role: "ORGANIZATION_ADMIN",
+    emailEnv: "PW_ORG_ADMIN_EMAIL",
+    passwordEnv: "PW_ORG_ADMIN_PASSWORD",
+    destination: "/org/dashboard",
+    sessionCookie: "crm_org_session",
+    sessionCheck: "/api/backend/org/auth/me",
+  },
+  {
+    role: "HR_MANAGER",
+    emailEnv: "PW_HR_MANAGER_EMAIL",
+    passwordEnv: "PW_HR_MANAGER_PASSWORD",
+    destination: "/employee/welcome",
+    sessionCookie: "crm_employee_session",
+    sessionCheck: "/api/backend/employee-auth/me",
+  },
+  {
+    role: "DEPARTMENT_MANAGER",
+    emailEnv: "PW_DEPARTMENT_MANAGER_EMAIL",
+    passwordEnv: "PW_DEPARTMENT_MANAGER_PASSWORD",
+    destination: "/employee/welcome",
+    sessionCookie: "crm_employee_session",
+    sessionCheck: "/api/backend/employee-auth/me",
+  },
+  {
+    role: "EMPLOYEE",
+    emailEnv: "PW_EMPLOYEE_EMAIL",
+    passwordEnv: "PW_EMPLOYEE_PASSWORD",
+    destination: "/employee/welcome",
+    sessionCookie: "crm_employee_session",
+    sessionCheck: "/api/backend/employee-auth/me",
+  },
+];
+
+const loginEmail = (page: Page) => page.locator("#email");
+const loginPassword = (page: Page) => page.locator("#password");
+const recoveryEmail = (page: Page) => page.locator("#reset-email");
+const newPassword = (page: Page) => page.locator("#new-password");
+const confirmNewPassword = (page: Page) => page.locator("#confirm-new-password");
 
 async function openLogin(page: Page) {
   await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: "Welcome back", exact: true }),
-  ).toBeVisible();
-  await expect(page.getByLabel("Email address", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back", exact: true })).toBeVisible();
+  await expect(loginEmail(page)).toBeVisible();
+  await expect(loginPassword(page)).toBeVisible();
 }
 
-function observePostRequests(page: Page, path: string) {
+function observeRequests(page: Page, path: string) {
   const requests: string[] = [];
   page.on("request", (request) => {
-    if (request.method() === "POST" && new URL(request.url()).pathname.endsWith(path)) {
-      requests.push(request.url());
-    }
+    const url = new URL(request.url());
+    if (request.method() === "POST" && url.pathname === path) requests.push(request.url());
   });
   return requests;
 }
 
-async function expectRealPostResponse(
+async function waitForRealPost(
   page: Page,
   path: string,
   action: () => Promise<unknown>,
-) {
+): Promise<Response> {
   const responsePromise = page.waitForResponse(
     (response) =>
-      new URL(response.url()).pathname.endsWith(path) &&
+      new URL(response.url()).pathname === path &&
       response.request().method() === "POST",
     { timeout: 25_000 },
   );
   await action();
   const response = await responsePromise;
-  expect(response.url()).toContain(path);
+  expect(new URL(response.url()).pathname).toBe(path);
   return response;
 }
 
-test.describe("Login page — complete regression suite (real services)", () => {
-  test.beforeEach(async ({ page }) => {
-    await openLogin(page);
-  });
+async function submitLogin(page: Page, email: string, password: string) {
+  await loginEmail(page).fill(email);
+  await loginPassword(page).fill(password);
+  await expect(loginEmail(page)).toHaveValue(email);
+  await expect(loginPassword(page)).toHaveValue(password);
+  expect(await loginEmail(page).evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
+  const submit = page.getByRole("button", { name: "Sign in securely", exact: true });
+  await expect(submit).toBeEnabled();
+  return waitForRealPost(page, API.login, () => submit.click());
+}
 
-  test("LOGIN-REG-001: login page renders its actual accessible controls", async ({ page }) => {
+test.describe("Login and password recovery — complete regression suite", () => {
+  test.beforeEach(async ({ page }) => openLogin(page));
+
+  test("LOGIN-001: login screen renders the actual accessible controls", async ({ page }) => {
     await expect(page.getByRole("heading", { name: "Welcome back", exact: true })).toBeVisible();
-    await expect(page.getByLabel("Email address", { exact: true })).toHaveAttribute("type", "email");
-    await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute("type", "password");
-    await expect(page.getByRole("button", { name: "Sign in securely" })).toBeEnabled();
-    await expect(page.getByRole("button", { name: /forgot password\?/i })).toBeVisible();
+    await expect(loginEmail(page)).toHaveAttribute("type", "email");
+    await expect(loginEmail(page)).toHaveAttribute("required", "");
+    await expect(loginPassword(page)).toHaveAttribute("type", "password");
+    await expect(loginPassword(page)).toHaveAttribute("required", "");
+    await expect(page.getByRole("button", { name: "Sign in securely", exact: true })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Forgot password?", exact: true })).toBeVisible();
   });
 
-  test("LOGIN-REG-002: email and password fields expose required browser validation", async ({ page }) => {
-    const email = page.getByLabel("Email address", { exact: true });
-    const password = page.getByLabel("Password", { exact: true });
-    await expect(email).toHaveAttribute("required", "");
-    await expect(password).toHaveAttribute("required", "");
-    expect(await email.evaluate((el: HTMLInputElement) => el.checkValidity())).toBe(false);
-    expect(await password.evaluate((el: HTMLInputElement) => el.checkValidity())).toBe(false);
+  test("LOGIN-002: email and password are required by native form validation", async ({ page }) => {
+    expect(await loginEmail(page).evaluate((el: HTMLInputElement) => el.checkValidity())).toBe(false);
+    expect(await loginPassword(page).evaluate((el: HTMLInputElement) => el.checkValidity())).toBe(false);
+    await expect(loginEmail(page)).toHaveAttribute("required", "");
+    await expect(loginPassword(page)).toHaveAttribute("required", "");
   });
 
-  test("LOGIN-REG-003: invalid email is rejected in the browser without a backend request", async ({ page }) => {
-    const requests = observePostRequests(page, LOGIN_API);
-    await page.getByLabel("Email address", { exact: true }).fill("not-an-email");
-    await page.getByLabel("Password", { exact: true }).fill("irrelevant-password");
-    await page.getByLabel("Password", { exact: true }).press("Enter");
+  test("LOGIN-003: malformed email is rejected before any login API request", async ({ page }) => {
+    const requests = observeRequests(page, API.login);
+    await loginEmail(page).fill("not-an-email");
+    await loginPassword(page).fill("irrelevant-password");
+    await loginPassword(page).press("Enter");
     await expect(page.getByText("Enter a valid email address, such as name@company.com.", { exact: true })).toBeVisible();
     expect(requests).toHaveLength(0);
   });
 
-  test("LOGIN-REG-004: empty credentials cannot submit to the backend", async ({ page }) => {
-    const requests = observePostRequests(page, LOGIN_API);
-    await page.getByRole("button", { name: "Sign in securely" }).click();
-    await expect(page.getByLabel("Email address", { exact: true })).toBeFocused();
+  test("LOGIN-004: empty credentials do not submit a login request", async ({ page }) => {
+    const requests = observeRequests(page, API.login);
+    await page.getByRole("button", { name: "Sign in securely", exact: true }).click();
+    await expect(loginEmail(page)).toBeFocused();
     expect(requests).toHaveLength(0);
   });
 
-  test("LOGIN-REG-005: password visibility toggles and preserves the entered value", async ({ page }) => {
-    const password = page.getByLabel("Password", { exact: true });
+  test("LOGIN-005: password visibility toggle preserves its value", async ({ page }) => {
     const value = "Regression-Password-123!";
-    await password.fill(value);
-    await page.getByRole("button", { name: "Show password" }).click();
-    await expect(password).toHaveAttribute("type", "text");
-    await expect(password).toHaveValue(value);
-    await expect(page.getByRole("button", { name: "Hide password" })).toHaveAttribute("aria-pressed", "true");
-    await page.getByRole("button", { name: "Hide password" }).click();
-    await expect(password).toHaveAttribute("type", "password");
-    await expect(password).toHaveValue(value);
+    await loginPassword(page).fill(value);
+    await page.getByRole("button", { name: "Show password", exact: true }).click();
+    await expect(loginPassword(page)).toHaveAttribute("type", "text");
+    await expect(loginPassword(page)).toHaveValue(value);
+    await expect(page.getByRole("button", { name: "Hide password", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "Hide password", exact: true }).click();
+    await expect(loginPassword(page)).toHaveAttribute("type", "password");
+    await expect(loginPassword(page)).toHaveValue(value);
   });
 
-  test("LOGIN-REG-006: caps-lock indicator responds to keyboard modifier", async ({ page }) => {
-    const password = page.getByLabel("Password", { exact: true });
-    await password.focus();
-    await password.press("Shift+A");
-    // The browser/OS exposes Caps Lock state differently from Shift; this
-    // test verifies the field remains usable and does not assert OS state.
-    await expect(password).toHaveValue("A");
+  test("LOGIN-006: password field remains usable with keyboard modifiers", async ({ page }) => {
+    await loginPassword(page).focus();
+    await loginPassword(page).press("Shift+A");
+    await expect(loginPassword(page)).toHaveValue("A");
   });
 
-  test("LOGIN-REG-007: forgot-password opens the exact recovery view", async ({ page }) => {
-    await page.getByRole("button", { name: /forgot password\?/i }).click();
+  test("LOGIN-007: forgot-password navigation opens recovery form without submitting login", async ({ page }) => {
+    const requests = observeRequests(page, API.login);
+    await loginEmail(page).fill("person@example.com");
+    await loginPassword(page).fill("not-submitted");
+    await page.getByRole("button", { name: "Forgot password?", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Forgot your password?", exact: true })).toBeVisible();
-    await expect(page.getByLabel("Email address", { exact: true })).toBeVisible();
+    await expect(recoveryEmail(page)).toBeVisible();
     await expect(page.getByRole("button", { name: "Send reset instructions", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Back to sign in", exact: true })).toBeVisible();
+    expect(requests).toHaveLength(0);
   });
 
-  test("LOGIN-REG-008: recovery email is normalized from the login email", async ({ page }) => {
-    await page.getByLabel("Email address", { exact: true }).fill(" User.Name@Example.com ");
-    await page.getByRole("button", { name: /forgot password\?/i }).click();
-    await expect(page.getByRole("heading", { name: "Forgot your password?", exact: true })).toBeVisible();
-    await expect(page.getByLabel("Email address", { exact: true })).toHaveValue("user.name@example.com");
+  test("LOGIN-008: recovery email is populated in normalized lowercase form", async ({ page }) => {
+    await loginEmail(page).fill(" User.Name@Example.com ");
+    await page.getByRole("button", { name: "Forgot password?", exact: true }).click();
+    await expect(recoveryEmail(page)).toHaveValue("user.name@example.com");
   });
 
-  test("LOGIN-REG-009: returning from recovery retains email and clears password", async ({ page }) => {
-    await page.getByLabel("Email address", { exact: true }).fill("person@example.com");
-    await page.getByLabel("Password", { exact: true }).fill("temporary-secret");
-    await page.getByRole("button", { name: /forgot password\?/i }).click();
+  test("LOGIN-009: return to sign-in retains email and clears password", async ({ page }) => {
+    await loginEmail(page).fill("person@example.com");
+    await loginPassword(page).fill("temporary-secret");
+    await page.getByRole("button", { name: "Forgot password?", exact: true }).click();
     await page.getByRole("button", { name: "Back to sign in", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Welcome back", exact: true })).toBeVisible();
-    await expect(page.getByLabel("Email address", { exact: true })).toHaveValue("person@example.com");
-    await expect(page.getByLabel("Password", { exact: true })).toHaveValue("");
-    await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute("type", "password");
+    await expect(loginEmail(page)).toHaveValue("person@example.com");
+    await expect(loginPassword(page)).toHaveValue("");
+    await expect(loginPassword(page)).toHaveAttribute("type", "password");
   });
 
-  test("LOGIN-REG-010: empty recovery email is blocked by native validation", async ({ page }) => {
-    const requests = observePostRequests(page, RESET_REQUEST_API);
-    await page.getByRole("button", { name: /forgot password\?/i }).click();
-    const email = page.getByLabel("Email address", { exact: true });
+  test("LOGIN-010: empty recovery email is blocked before backend request", async ({ page }) => {
+    const requests = observeRequests(page, API.resetRequest);
+    await page.getByRole("button", { name: "Forgot password?", exact: true }).click();
     await page.getByRole("button", { name: "Send reset instructions", exact: true }).click();
-    await expect(email).toBeFocused();
+    await expect(recoveryEmail(page)).toBeFocused();
     expect(requests).toHaveLength(0);
   });
 
-  test("LOGIN-REG-011: invalid recovery email is blocked before contacting backend", async ({ page }) => {
-    const requests = observePostRequests(page, RESET_REQUEST_API);
-    await page.getByRole("button", { name: /forgot password\?/i }).click();
-    await page.getByLabel("Email address", { exact: true }).fill("bad-address");
+  test("LOGIN-011: malformed recovery email is blocked before backend request", async ({ page }) => {
+    const requests = observeRequests(page, API.resetRequest);
+    await page.getByRole("button", { name: "Forgot password?", exact: true }).click();
+    await recoveryEmail(page).fill("bad-address");
     await page.getByRole("button", { name: "Send reset instructions", exact: true }).click();
-    await expect(page.getByLabel("Email address", { exact: true })).toBeFocused();
+    await expect(recoveryEmail(page)).toBeFocused();
     expect(requests).toHaveLength(0);
   });
 
-  test("LOGIN-REG-012: unknown recovery email reaches the real backend and returns the generic response", async ({ page }) => {
-    await page.getByRole("button", { name: /forgot password\?/i }).click();
-    await page.getByLabel("Email address", { exact: true }).fill("pw-regression-no-account-2026@example.invalid");
-    const response = await expectRealPostResponse(page, RESET_REQUEST_API, () =>
+  test("LOGIN-012: unknown recovery email receives the backend's generic response", async ({ page }) => {
+    await page.getByRole("button", { name: "Forgot password?", exact: true }).click();
+    await recoveryEmail(page).fill("pw-regression-no-account-2026@example.invalid");
+    const response = await waitForRealPost(page, API.resetRequest, () =>
       page.getByRole("button", { name: "Send reset instructions", exact: true }).click(),
     );
-    expect(response.status(), "Password-reset request must be handled by the real backend").toBe(200);
+    expect(response.status()).toBe(200);
     const body = await response.json();
     expect(body.status).toBe("ok");
-    await expect(page.getByText(/if an account with that email address exists/i)).toBeVisible();
+    await expect(page.getByRole("status")).toContainText(/if an account with that email address exists/i);
   });
 
-  test("LOGIN-REG-013: reset token opens reset form and is removed from the visible URL", async ({ page }) => {
+  test("LOGIN-013: reset token opens reset form and is removed from visible URL", async ({ page }) => {
     await page.goto("/?token=playwright-regression-token&source=test");
     await expect(page.getByRole("heading", { name: "Choose a new password", exact: true })).toBeVisible();
-    await expect(page.getByLabel("New password", { exact: true })).toBeVisible();
-    await expect(page.getByLabel("Confirm new password", { exact: true })).toBeVisible();
+    await expect(newPassword(page)).toBeVisible();
+    await expect(confirmNewPassword(page)).toBeVisible();
     await expect(page).toHaveURL(/\/\?source=test$/);
     await expect(page).not.toHaveURL(/token=/);
   });
 
-  test("LOGIN-REG-014: reset password visibility controls work independently", async ({ page }) => {
+  test("LOGIN-014: reset password visibility controls operate independently", async ({ page }) => {
     await page.goto("/?token=playwright-regression-token");
-    const newPassword = page.getByLabel("New password", { exact: true });
-    const confirmation = page.getByLabel("Confirm new password", { exact: true });
-    await newPassword.fill("First-Password-12345!");
-    await confirmation.fill("First-Password-12345!");
-    await page.getByRole("button", { name: "Show new password" }).click();
-    await expect(newPassword).toHaveAttribute("type", "text");
-    await expect(confirmation).toHaveAttribute("type", "password");
-    await page.getByRole("button", { name: "Show confirmation password" }).click();
-    await expect(confirmation).toHaveAttribute("type", "text");
-    await page.getByRole("button", { name: "Hide new password" }).click();
-    await expect(newPassword).toHaveAttribute("type", "password");
-    await expect(confirmation).toHaveAttribute("type", "text");
+    await newPassword(page).fill("First-Password-12345!");
+    await confirmNewPassword(page).fill("First-Password-12345!");
+    await page.getByRole("button", { name: "Show new password", exact: true }).click();
+    await expect(newPassword(page)).toHaveAttribute("type", "text");
+    await expect(confirmNewPassword(page)).toHaveAttribute("type", "password");
+    await page.getByRole("button", { name: "Show confirmation password", exact: true }).click();
+    await expect(confirmNewPassword(page)).toHaveAttribute("type", "text");
+    await page.getByRole("button", { name: "Hide new password", exact: true }).click();
+    await expect(newPassword(page)).toHaveAttribute("type", "password");
+    await expect(confirmNewPassword(page)).toHaveAttribute("type", "text");
   });
 
-  test("LOGIN-REG-015: mismatched reset passwords are rejected before backend request", async ({ page }) => {
-    const requests = observePostRequests(page, RESET_COMPLETE_API);
+  test("LOGIN-015: mismatched reset passwords are rejected client-side", async ({ page }) => {
+    const requests = observeRequests(page, API.resetComplete);
     await page.goto("/?token=playwright-regression-token");
-    await page.getByLabel("New password", { exact: true }).fill("First-Password-12345!");
-    await page.getByLabel("Confirm new password", { exact: true }).fill("Different-Password-12345!");
+    await newPassword(page).fill("First-Password-12345!");
+    await confirmNewPassword(page).fill("Different-Password-12345!");
     await page.getByRole("button", { name: "Reset password", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("The passwords do not match.");
     expect(requests).toHaveLength(0);
   });
 
-  test("LOGIN-REG-016: too-short reset password is rejected before backend request", async ({ page }) => {
-    const requests = observePostRequests(page, RESET_COMPLETE_API);
+  test("LOGIN-016: too-short reset password is rejected client-side", async ({ page }) => {
+    const requests = observeRequests(page, API.resetComplete);
     await page.goto("/?token=playwright-regression-token");
-    await page.getByLabel("New password", { exact: true }).fill("Short1!");
-    await page.getByLabel("Confirm new password", { exact: true }).fill("Short1!");
+    await newPassword(page).fill("Short1!");
+    await confirmNewPassword(page).fill("Short1!");
     await page.getByRole("button", { name: "Reset password", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("at least 15 characters");
     expect(requests).toHaveLength(0);
   });
 
-  test("LOGIN-REG-017: whitespace-only reset password is rejected before backend request", async ({ page }) => {
-    const requests = observePostRequests(page, RESET_COMPLETE_API);
+  test("LOGIN-017: whitespace-only reset password is rejected client-side", async ({ page }) => {
+    const requests = observeRequests(page, API.resetComplete);
     await page.goto("/?token=playwright-regression-token");
-    const whitespacePassword = "               ";
-    await page.getByLabel("New password", { exact: true }).fill(whitespacePassword);
-    await page.getByLabel("Confirm new password", { exact: true }).fill(whitespacePassword);
+    const whitespace = "               ";
+    await newPassword(page).fill(whitespace);
+    await confirmNewPassword(page).fill(whitespace);
     await page.getByRole("button", { name: "Reset password", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("cannot consist only of whitespace");
     expect(requests).toHaveLength(0);
   });
 
-  test("LOGIN-REG-018: syntactically valid but unknown reset token reaches the real backend", async ({ page }) => {
+  test("LOGIN-018: well-formed unknown reset token reaches backend and is rejected", async ({ page }) => {
     await page.goto("/?token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-    await expect(page.getByRole("heading", { name: "Choose a new password", exact: true })).toBeVisible();
-    await page.getByLabel("New password", { exact: true }).fill("Valid-Regression-Password-2026!");
-    await page.getByLabel("Confirm new password", { exact: true }).fill("Valid-Regression-Password-2026!");
-    const response = await expectRealPostResponse(page, RESET_COMPLETE_API, () =>
+    await newPassword(page).fill("Valid-Regression-Password-2026!");
+    await confirmNewPassword(page).fill("Valid-Regression-Password-2026!");
+    const response = await waitForRealPost(page, API.resetComplete, () =>
       page.getByRole("button", { name: "Reset password", exact: true }).click(),
     );
-    expect(response.status(), "Reset completion must be processed by the real backend/database").toBe(400);
+    expect(response.status()).toBe(400);
     await expect(page.getByRole("alert")).toContainText(/invalid or expired/i);
   });
 
-  test("LOGIN-REG-019: forgot-password navigation never submits the login form", async ({ page }) => {
-    const requests = observePostRequests(page, LOGIN_API);
-    await page.getByLabel("Email address", { exact: true }).fill("person@example.com");
-    await page.getByLabel("Password", { exact: true }).fill("not-submitted");
-    await page.getByRole("button", { name: /forgot password\?/i }).click();
-    await expect(page.getByRole("heading", { name: "Forgot your password?", exact: true })).toBeVisible();
-    expect(requests).toHaveLength(0);
-  });
+  for (const credentials of roleCredentials) {
+    test(`LOGIN-ROLE-${credentials.role}: real credential is checked by backend database and workspace session`, async ({ page }) => {
+      const email = process.env[credentials.emailEnv]?.trim();
+      const password = process.env[credentials.passwordEnv];
+      test.skip(!email || !password, `Set ${credentials.emailEnv} and ${credentials.passwordEnv} to enable this real database-backed login test.`);
 
-  test("LOGIN-REG-020: invalid login credentials reach the real backend", async ({ page }) => {
+      const response = await submitLogin(page, email!, password!);
+      const responseText = await response.text();
+      expect(response.status(), `Real login endpoint response for ${credentials.role}: ${responseText}`).toBe(200);
+      const body = JSON.parse(responseText) as {
+        status?: string;
+        destination?: string;
+        user?: { role?: string; organizationId?: string | null; employeeId?: string | null };
+      };
+      expect(body.status).toBe("ok");
+      expect(body.user?.role).toBe(credentials.role);
+      expect(body.destination).toBe(credentials.destination);
+
+      // The page independently verifies the role-specific session with the real API.
+      const sessionResponse = await page.waitForResponse(
+        (candidate) =>
+          new URL(candidate.url()).pathname === credentials.sessionCheck &&
+          candidate.request().method() === "GET",
+        { timeout: 15_000 },
+      );
+      expect(sessionResponse.status()).toBe(200);
+      const sessionBody = await sessionResponse.json();
+      expect(sessionBody.authenticated).toBe(true);
+      expect(sessionBody.user?.role).toBe(credentials.role);
+      if (credentials.role !== "SUPER_ADMIN") {
+        expect(sessionBody.user?.organizationId).toBe(body.user?.organizationId);
+      }
+      if (["HR_MANAGER", "DEPARTMENT_MANAGER", "EMPLOYEE"].includes(credentials.role)) {
+        expect(sessionBody.user?.employeeId).toBe(body.user?.employeeId);
+      }
+
+      await page.waitForURL((url) => url.pathname === credentials.destination, { timeout: 20_000 });
+      const cookie = (await page.context().cookies()).find((item) => item.name === credentials.sessionCookie);
+      expect(cookie, `Expected the actual ${credentials.role} session cookie`).toBeTruthy();
+      expect(cookie?.httpOnly).toBe(true);
+    });
+  }
+
+  test("LOGIN-NEGATIVE-001: dedicated invalid password is rejected by real backend", async ({ page }) => {
     const email = process.env.PW_INVALID_LOGIN_EMAIL?.trim();
     const password = process.env.PW_INVALID_LOGIN_PASSWORD;
-    test.skip(
-      !email || !password,
-      "Set PW_INVALID_LOGIN_EMAIL and PW_INVALID_LOGIN_PASSWORD to a dedicated test account and intentionally incorrect password.",
-    );
-    await page.getByLabel("Email address", { exact: true }).fill(email!);
-    await page.getByLabel("Password", { exact: true }).fill(password!);
-    const response = await expectRealPostResponse(page, LOGIN_API, () =>
-      page.getByRole("button", { name: "Sign in securely", exact: true }).click(),
-    );
+    test.skip(!email || !password, "Configure a dedicated PW_INVALID_LOGIN_EMAIL and intentionally incorrect PW_INVALID_LOGIN_PASSWORD.");
+
+    const response = await submitLogin(page, email!, password!);
     expect(response.status()).toBe(401);
     const body = await response.json();
     expect(body.message).toBe("Invalid email or password");
     await expect(page.getByRole("alert")).toContainText("Invalid email or password");
+    await expect(page).toHaveURL(/\/$/);
   });
 });
