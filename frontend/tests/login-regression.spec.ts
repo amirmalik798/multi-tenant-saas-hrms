@@ -129,7 +129,7 @@ test.describe("Login page — UI regression suite", () => {
     ).toBeVisible();
     await expect(page.getByLabel("New password")).toBeVisible();
     await expect(page.getByLabel("Confirm new password")).toBeVisible();
-    await expect(page).toHaveURL(/\/?source=test$/);
+    await expect(page).toHaveURL(/\/\?source=test$/);
     await expect(page).not.toHaveURL(/token=/);
   });
 
