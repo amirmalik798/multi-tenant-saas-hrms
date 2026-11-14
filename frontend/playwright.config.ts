@@ -14,6 +14,10 @@ export default defineConfig({
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3001",
     headless: process.env.PLAYWRIGHT_HEADLESS === "true",
+    // Bypass the ngrok free-tier interstitial so Playwright reaches Next.js.
+    extraHTTPHeaders: {
+      "ngrok-skip-browser-warning": "true",
+    },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
