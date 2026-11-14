@@ -736,6 +736,485 @@ test.describe("Login and password recovery — complete regression suite", () =>
     }
   });
 
+
+
+  // Additional UI, accessibility, navigation, and responsive regression cases.
+  // Every selector below is based on the current JSX in frontend/app/page.tsx.
+
+  test("LOGIN-037: email field receives focus after the login page hydrates", async ({ page }) => {
+    await expect(page.locator('main[data-auth-hydrated="true"]')).toBeVisible();
+    await expect(loginEmail(page)).toBeFocused();
+  });
+
+  test("LOGIN-038: the main authentication landmark exposes its hydration state", async ({ page }) => {
+    await expect(page.locator("main")).toHaveAttribute("data-auth-hydrated", "true");
+  });
+
+  test("LOGIN-039: sign-in view renders one form only", async ({ page }) => {
+    await expect(page.locator("form")).toHaveCount(1);
+    await expect(loginEmail(page)).toBeVisible();
+    await expect(loginPassword(page)).toBeVisible();
+  });
+
+  test("LOGIN-040: email label resolves to the unique login email input", async ({ page }) => {
+    const labelledEmail = page.getByLabel("Email address", { exact: true });
+    await expect(labelledEmail).toHaveCount(1);
+    await expect(labelledEmail).toHaveAttribute("id", "email");
+  });
+
+  test("LOGIN-041: password label resolves to the unique login password input", async ({ page }) => {
+    const labelledPassword = page.getByLabel("Password", { exact: true });
+    await expect(labelledPassword).toHaveCount(1);
+    await expect(labelledPassword).toHaveAttribute("id", "password");
+  });
+
+  test("LOGIN-042: login email exposes its placeholder and input-assistance settings", async ({ page }) => {
+    await expect(loginEmail(page)).toHaveAttribute("placeholder", "you@company.com");
+    await expect(loginEmail(page)).toHaveAttribute("autocapitalize", "none");
+    await expect(loginEmail(page)).toHaveAttribute("spellcheck", "false");
+  });
+
+  test("LOGIN-043: login password exposes its placeholder and current-password autofill hint", async ({ page }) => {
+    await expect(loginPassword(page)).toHaveAttribute("placeholder", "Enter your password");
+    await expect(loginPassword(page)).toHaveAttribute("autocomplete", "current-password");
+    await expect(loginPassword(page)).toHaveAttribute("maxlength", "1024");
+  });
+
+  test("LOGIN-044: sign-in control is an enabled submit button and is initially idle", async ({ page }) => {
+    const submit = page.getByRole("button", { name: "Sign in securely", exact: true });
+    await expect(submit).toHaveAttribute("type", "submit");
+    await expect(submit).toHaveAttribute("aria-busy", "false");
+    await expect(submit).toBeEnabled();
+  });
+
+  test("LOGIN-045: forgot-password navigation is a non-submitting button", async ({ page }) => {
+    await expect(page.getByRole("button", { name: "Forgot password?", exact: true }))
+      .toHaveAttribute("type", "button");
+  });
+
+  test("LOGIN-046: the secure same-origin credential explanation is visible", async ({ page }) => {
+    await expect(page.getByText(
+      "Your credentials are sent over the secure same-origin session.",
+      { exact: false },
+    )).toBeVisible();
+  });
+
+  test("LOGIN-047: the sign-in footer explains that workspace access depends on the account", async ({ page }) => {
+    await expect(page.getByText(
+      "Super Admin, Organization Admin, and employee access are determined by your account.",
+      { exact: false },
+    )).toBeVisible();
+  });
+
+  test("LOGIN-048: empty login fields fail their native required constraints", async ({ page }) => {
+    expect(await loginEmail(page).evaluate((el: HTMLInputElement) => el.validity.valueMissing)).toBe(true);
+    expect(await loginPassword(page).evaluate((el: HTMLInputElement) => el.validity.valueMissing)).toBe(true);
+  });
+
+  test("LOGIN-049: login email and password are attached to the same POST form", async ({ page }) => {
+    const sameForm = await loginEmail(page).evaluate((email: HTMLInputElement) => {
+      const password = document.querySelector<HTMLInputElement>("#password");
+      return Boolean(email.form && password?.form === email.form && email.form.method === "post");
+    });
+    expect(sameForm).toBe(true);
+  });
+
+  test("LOGIN-050: inline email feedback exists but is hidden before validation", async ({ page }) => {
+    const feedback = page.getByText(
+      "Enter a valid email address, such as name@company.com.",
+      { exact: true },
+    );
+    await expect(feedback).toHaveAttribute("id", "email-feedback");
+    await expect(feedback).toHaveAttribute("aria-hidden", "true");
+    await expect(loginEmail(page)).not.toHaveAttribute("aria-describedby", "email-feedback");
+  });
+
+  test("LOGIN-051: an email without a domain suffix shows accessible inline feedback", async ({ page }) => {
+    await loginEmail(page).fill("person@company");
+    await loginPassword(page).focus();
+    await expect(loginEmail(page)).toHaveAttribute("aria-invalid", "true");
+    await expect(loginEmail(page)).toHaveAttribute("aria-describedby", "email-feedback");
+    await expect(page.getByText(
+      "Enter a valid email address, such as name@company.com.",
+      { exact: true },
+    )).toBeVisible();
+  });
+
+  test("LOGIN-052: an email without a local part shows accessible inline feedback", async ({ page }) => {
+    await loginEmail(page).fill("@example.com");
+    await loginPassword(page).focus();
+    await expect(loginEmail(page)).toHaveAttribute("aria-invalid", "true");
+    await expect(loginEmail(page)).toHaveAttribute("aria-describedby", "email-feedback");
+  });
+
+  test("LOGIN-053: an email containing internal whitespace shows accessible inline feedback", async ({ page }) => {
+    await loginEmail(page).fill("person name@example.com");
+    await loginPassword(page).focus();
+    await expect(loginEmail(page)).toHaveAttribute("aria-invalid", "true");
+    await expect(loginEmail(page)).toHaveAttribute("aria-describedby", "email-feedback");
+  });
+
+  test("LOGIN-054: plus-addressed email with a multi-part domain passes local email validation", async ({ page }) => {
+    const email = loginEmail(page);
+    await email.fill("first.last+hr@example.co.rw");
+    await loginPassword(page).focus();
+    expect(await email.evaluate((el: HTMLInputElement) => el.checkValidity())).toBe(true);
+    await expect(email).toHaveAttribute("aria-invalid", "false");
+    await expect(email).not.toHaveAttribute("aria-describedby", "email-feedback");
+  });
+
+  test("LOGIN-055: correcting an invalid email removes its inline error association", async ({ page }) => {
+    const email = loginEmail(page);
+    await email.fill("person@");
+    await loginPassword(page).focus();
+    await expect(email).toHaveAttribute("aria-invalid", "true");
+    await email.fill("corrected@example.com");
+    await expect(email).toHaveAttribute("aria-invalid", "false");
+    await expect(email).not.toHaveAttribute("aria-describedby", "email-feedback");
+  });
+
+  test("LOGIN-056: email capitalization is preserved while the user edits the field", async ({ page }) => {
+    await loginEmail(page).fill("UPPER.CASE@EXAMPLE.COM");
+    await expect(loginEmail(page)).toHaveValue("UPPER.CASE@EXAMPLE.COM");
+  });
+
+  test("LOGIN-057: password visibility toggle responds to the Enter key", async ({ page }) => {
+    const password = loginPassword(page);
+    await password.fill("Keyboard-Toggle-Password-123!");
+    const show = page.getByRole("button", { name: "Show password", exact: true });
+    await show.press("Enter");
+    await expect(password).toHaveAttribute("type", "text");
+    await expect(page.getByRole("button", { name: "Hide password", exact: true }))
+      .toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("LOGIN-058: password visibility toggle responds to the Space key", async ({ page }) => {
+    const password = loginPassword(page);
+    await password.fill("Keyboard-Toggle-Password-123!");
+    const show = page.getByRole("button", { name: "Show password", exact: true });
+    await show.press("Space");
+    await expect(password).toHaveAttribute("type", "text");
+    await expect(page.getByRole("button", { name: "Hide password", exact: true }))
+      .toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("LOGIN-059: Caps Lock warning starts hidden while password guidance remains available", async ({ page }) => {
+    await expect(page.getByText("Caps Lock is on", { exact: false }))
+      .toHaveAttribute("aria-hidden", "true");
+    await expect(page.getByText(
+      "Use the password associated with your HRMS account.",
+      { exact: false },
+    )).toBeVisible();
+  });
+
+  test("LOGIN-060: recovery section is programmatically labelled by its heading", async ({ page }) => {
+    await openRecovery(page);
+    const section = page.locator('section[aria-labelledby="forgot-password-title"]');
+    await expect(section).toBeVisible();
+    await expect(section.getByRole("heading", { name: "Forgot your password?", exact: true }))
+      .toHaveAttribute("id", "forgot-password-title");
+  });
+
+  test("LOGIN-061: recovery instructions explain the generic account-recovery process", async ({ page }) => {
+    await openRecovery(page);
+    await expect(page.getByText(/Enter your work email\./)).toBeVisible();
+    await expect(page.getByText(/If an account exists/)).toBeVisible();
+  });
+
+  test("LOGIN-062: recovery email shows the expected work-email placeholder", async ({ page }) => {
+    await openRecovery(page);
+    await expect(recoveryEmail(page)).toHaveAttribute("placeholder", "you@company.com");
+  });
+
+  test("LOGIN-063: recovery email exposes its field name and browser input hints", async ({ page }) => {
+    await openRecovery(page);
+    await expect(recoveryEmail(page)).toHaveAttribute("name", "resetEmail");
+    await expect(recoveryEmail(page)).toHaveAttribute("autocomplete", "email");
+    await expect(recoveryEmail(page)).toHaveAttribute("autocapitalize", "none");
+    await expect(recoveryEmail(page)).toHaveAttribute("spellcheck", "false");
+  });
+
+  test("LOGIN-064: Send reset instructions is a submit control", async ({ page }) => {
+    await openRecovery(page);
+    await expect(page.getByRole("button", { name: "Send reset instructions", exact: true }))
+      .toHaveAttribute("type", "submit");
+  });
+
+  test("LOGIN-065: recovery submit control starts enabled and not busy", async ({ page }) => {
+    await openRecovery(page);
+    const submit = page.getByRole("button", { name: "Send reset instructions", exact: true });
+    await expect(submit).toBeEnabled();
+    await expect(submit).toHaveAttribute("aria-busy", "false");
+  });
+
+  test("LOGIN-066: Back to sign in is a non-submitting recovery control", async ({ page }) => {
+    await openRecovery(page);
+    await expect(page.getByRole("button", { name: "Back to sign in", exact: true }))
+      .toHaveAttribute("type", "button");
+  });
+
+  test("LOGIN-067: recovery mode announces its initial Account recovery status", async ({ page }) => {
+    await openRecovery(page);
+    const section = page.locator('section[aria-labelledby="forgot-password-title"]');
+    await expect(section.getByRole("status")).toContainText("Account recovery");
+  });
+
+  test("LOGIN-068: recovery mode does not render login or reset-password fields", async ({ page }) => {
+    await openRecovery(page);
+    await expect(recoveryEmail(page)).toBeVisible();
+    await expect(loginEmail(page)).toHaveCount(0);
+    await expect(loginPassword(page)).toHaveCount(0);
+    await expect(newPassword(page)).toHaveCount(0);
+    await expect(confirmNewPassword(page)).toHaveCount(0);
+  });
+
+  test("LOGIN-069: recovery mode renders exactly one form", async ({ page }) => {
+    await openRecovery(page);
+    await expect(page.locator("form")).toHaveCount(1);
+  });
+
+  test("LOGIN-070: returning from recovery restores login and clears its password", async ({ page }) => {
+    await loginEmail(page).fill("person@example.com");
+    await loginPassword(page).fill("Temporary-Password-123!");
+    await openRecovery(page);
+    await page.getByRole("button", { name: "Back to sign in", exact: true }).click();
+    await expect(loginEmail(page)).toHaveValue("person@example.com");
+    await expect(loginPassword(page)).toHaveValue("");
+    await expect(loginPassword(page)).toHaveAttribute("type", "password");
+  });
+
+  test("LOGIN-071: recovery entry prepopulates a trimmed lowercase login email", async ({ page }) => {
+    await loginEmail(page).fill(" User.Name@Example.com ");
+    await openRecovery(page);
+    await expect(recoveryEmail(page)).toHaveValue("user.name@example.com");
+  });
+
+  test("LOGIN-072: opening recovery removes login-only inline email feedback", async ({ page }) => {
+    await loginEmail(page).fill("not-an-email");
+    await loginPassword(page).focus();
+    await expect(page.getByText(
+      "Enter a valid email address, such as name@company.com.",
+      { exact: true },
+    )).toBeVisible();
+    await openRecovery(page);
+    await expect(page.getByText(
+      "Enter a valid email address, such as name@company.com.",
+      { exact: true },
+    )).toHaveCount(0);
+    await expect(recoveryEmail(page)).toHaveValue("not-an-email");
+  });
+
+  test("LOGIN-073: reset section is programmatically labelled by its heading", async ({ page }) => {
+    await openResetForm(page);
+    const section = page.locator('section[aria-labelledby="reset-password-title"]');
+    await expect(section).toBeVisible();
+    await expect(section.getByRole("heading", { name: "Choose a new password", exact: true }))
+      .toHaveAttribute("id", "reset-password-title");
+  });
+
+  test("LOGIN-074: reset instructions state the single-use and 30-minute link limits", async ({ page }) => {
+    await openResetForm(page);
+    await expect(page.getByText(/This link can be used only once/)).toBeVisible();
+    await expect(page.getByText(/expires after 30 minutes/)).toBeVisible();
+  });
+
+  test("LOGIN-075: new-password field exposes the expected placeholder", async ({ page }) => {
+    await openResetForm(page);
+    await expect(newPassword(page)).toHaveAttribute("placeholder", "Enter a new password");
+  });
+
+  test("LOGIN-076: confirmation field exposes the expected placeholder", async ({ page }) => {
+    await openResetForm(page);
+    await expect(confirmNewPassword(page)).toHaveAttribute("placeholder", "Re-enter your new password");
+  });
+
+  test("LOGIN-077: reset inputs expose the expected form field names", async ({ page }) => {
+    await openResetForm(page);
+    await expect(newPassword(page)).toHaveAttribute("name", "newPassword");
+    await expect(confirmNewPassword(page)).toHaveAttribute("name", "confirmNewPassword");
+  });
+
+  test("LOGIN-078: both reset fields request new-password autofill", async ({ page }) => {
+    await openResetForm(page);
+    await expect(newPassword(page)).toHaveAttribute("autocomplete", "new-password");
+    await expect(confirmNewPassword(page)).toHaveAttribute("autocomplete", "new-password");
+  });
+
+  test("LOGIN-079: reset fields are required, initially empty, and masked", async ({ page }) => {
+    await openResetForm(page);
+    await expect(newPassword(page)).toHaveAttribute("required", "");
+    await expect(confirmNewPassword(page)).toHaveAttribute("required", "");
+    await expect(newPassword(page)).toHaveValue("");
+    await expect(confirmNewPassword(page)).toHaveValue("");
+    await expect(newPassword(page)).toHaveAttribute("type", "password");
+    await expect(confirmNewPassword(page)).toHaveAttribute("type", "password");
+  });
+
+  test("LOGIN-080: reset form uses POST rather than a query-string submission", async ({ page }) => {
+    await openResetForm(page);
+    const method = await newPassword(page).evaluate(
+      (input: HTMLInputElement) => input.form?.method,
+    );
+    expect(method).toBe("post");
+  });
+
+  test("LOGIN-081: reset submit control starts enabled and not busy", async ({ page }) => {
+    await openResetForm(page);
+    const submit = page.getByRole("button", { name: "Reset password", exact: true });
+    await expect(submit).toHaveAttribute("type", "submit");
+    await expect(submit).toHaveAttribute("aria-busy", "false");
+    await expect(submit).toBeEnabled();
+  });
+
+  test("LOGIN-082: Request another reset link is a non-submitting button", async ({ page }) => {
+    await openResetForm(page);
+    await expect(page.getByRole("button", { name: "Request another reset link", exact: true }))
+      .toHaveAttribute("type", "button");
+  });
+
+  test("LOGIN-083: reset Back to sign in is a non-submitting button", async ({ page }) => {
+    await openResetForm(page);
+    await expect(page.getByRole("button", { name: "Back to sign in", exact: true }))
+      .toHaveAttribute("type", "button");
+  });
+
+  test("LOGIN-084: reset password policy guidance mentions the character and byte limits", async ({ page }) => {
+    await openResetForm(page);
+    await expect(page.getByText(/Use at least 15 characters/)).toBeVisible();
+    await expect(page.getByText(/bcrypt’s 72-byte UTF-8 limit/)).toBeVisible();
+    await expect(page.getByText(/Avoid common passwords/)).toBeVisible();
+  });
+
+  test("LOGIN-085: removing a reset token preserves unrelated query parameters and the URL fragment", async ({ page }) => {
+    const token = freshResetToken();
+    await page.goto("/?keep=1&token=" + token + "#reset");
+    await waitForAuthHydration(page);
+    await expect(page.getByRole("heading", { name: "Choose a new password", exact: true })).toBeVisible();
+    const currentUrl = new URL(page.url());
+    expect(currentUrl.searchParams.get("keep")).toBe("1");
+    expect(currentUrl.searchParams.has("token")).toBe(false);
+    expect(currentUrl.hash).toBe("#reset");
+  });
+
+  test("LOGIN-086: one-time reset token is not rendered in the page body", async ({ page }) => {
+    const token = freshResetToken();
+    await openResetForm(page, token);
+    const bodyText = await page.locator("body").innerText();
+    expect(bodyText).not.toContain(token);
+    expect(new URL(page.url()).searchParams.has("token")).toBe(false);
+  });
+
+  test("LOGIN-087: reset view does not render login or recovery email fields", async ({ page }) => {
+    await openResetForm(page);
+    await expect(newPassword(page)).toBeVisible();
+    await expect(confirmNewPassword(page)).toBeVisible();
+    await expect(loginEmail(page)).toHaveCount(0);
+    await expect(loginPassword(page)).toHaveCount(0);
+    await expect(recoveryEmail(page)).toHaveCount(0);
+  });
+
+  test("LOGIN-088: reset visibility controls start masked and expose false pressed states", async ({ page }) => {
+    await openResetForm(page);
+    await expect(newPassword(page)).toHaveAttribute("type", "password");
+    await expect(confirmNewPassword(page)).toHaveAttribute("type", "password");
+    await expect(page.getByRole("button", { name: "Show new password", exact: true }))
+      .toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByRole("button", { name: "Show confirmation password", exact: true }))
+      .toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("LOGIN-089: new-password visibility responds to the Enter key", async ({ page }) => {
+    await openResetForm(page);
+    const show = page.getByRole("button", { name: "Show new password", exact: true });
+    await show.press("Enter");
+    await expect(newPassword(page)).toHaveAttribute("type", "text");
+    await expect(page.getByRole("button", { name: "Hide new password", exact: true }))
+      .toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("LOGIN-090: confirmation-password visibility responds to the Space key", async ({ page }) => {
+    await openResetForm(page);
+    const show = page.getByRole("button", { name: "Show confirmation password", exact: true });
+    await show.press("Space");
+    await expect(confirmNewPassword(page)).toHaveAttribute("type", "text");
+    await expect(page.getByRole("button", { name: "Hide confirmation password", exact: true }))
+      .toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("LOGIN-091: reset field values survive showing and hiding both passwords", async ({ page }) => {
+    await openResetForm(page);
+    await newPassword(page).fill("First-Unique-Reset-Password-2026!");
+    await confirmNewPassword(page).fill("Second-Unique-Reset-Password-2026!");
+
+    await page.getByRole("button", { name: "Show new password", exact: true }).click();
+    await page.getByRole("button", { name: "Show confirmation password", exact: true }).click();
+    await page.getByRole("button", { name: "Hide new password", exact: true }).click();
+    await page.getByRole("button", { name: "Hide confirmation password", exact: true }).click();
+
+    await expect(newPassword(page)).toHaveValue("First-Unique-Reset-Password-2026!");
+    await expect(confirmNewPassword(page)).toHaveValue("Second-Unique-Reset-Password-2026!");
+    await expect(newPassword(page)).toHaveAttribute("type", "password");
+    await expect(confirmNewPassword(page)).toHaveAttribute("type", "password");
+  });
+
+  test("LOGIN-092: reset visibility toggles remain independent for their respective fields", async ({ page }) => {
+    await openResetForm(page);
+    await newPassword(page).fill("New-Password-Value-2026!");
+    await confirmNewPassword(page).fill("Confirm-Password-Value-2026!");
+
+    await page.getByRole("button", { name: "Show new password", exact: true }).click();
+    await expect(newPassword(page)).toHaveAttribute("type", "text");
+    await expect(confirmNewPassword(page)).toHaveAttribute("type", "password");
+
+    await page.getByRole("button", { name: "Show confirmation password", exact: true }).click();
+    await expect(confirmNewPassword(page)).toHaveAttribute("type", "text");
+    await page.getByRole("button", { name: "Hide new password", exact: true }).click();
+    await expect(newPassword(page)).toHaveAttribute("type", "password");
+    await expect(confirmNewPassword(page)).toHaveAttribute("type", "text");
+  });
+
+  test("LOGIN-093: leaving password reset returns to login and clears reset form state", async ({ page }) => {
+    await openResetForm(page);
+    await newPassword(page).fill("Temporary-New-Password-2026!");
+    await confirmNewPassword(page).fill("Temporary-New-Password-2026!");
+    await page.getByRole("button", { name: "Show new password", exact: true }).click();
+
+    await page.getByRole("button", { name: "Back to sign in", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Welcome back", exact: true })).toBeVisible();
+    await expect(loginEmail(page)).toBeVisible();
+    await expect(loginPassword(page)).toHaveValue("");
+    await expect(loginPassword(page)).toHaveAttribute("type", "password");
+    await expect(newPassword(page)).toHaveCount(0);
+    await expect(confirmNewPassword(page)).toHaveCount(0);
+  });
+
+  test("LOGIN-094: login, recovery, and reset controls remain usable at a narrow viewport", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 740 });
+    const noHorizontalOverflow = async () => {
+      const dimensions = await page.evaluate(() => ({
+        documentWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      }));
+      expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
+    };
+
+    await noHorizontalOverflow();
+    await expect(loginEmail(page)).toBeVisible();
+    await expect(loginPassword(page)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign in securely", exact: true })).toBeVisible();
+
+    await openRecovery(page);
+    await noHorizontalOverflow();
+    await expect(recoveryEmail(page)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send reset instructions", exact: true })).toBeVisible();
+
+    await openResetForm(page);
+    await noHorizontalOverflow();
+    await expect(newPassword(page)).toBeVisible();
+    await expect(confirmNewPassword(page)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reset password", exact: true })).toBeVisible();
+  });
+
   test("LOGIN-NEGATIVE-001: dedicated invalid password is rejected by real backend", async ({ page }) => {
     const email = process.env.PW_INVALID_LOGIN_EMAIL?.trim();
     const password = process.env.PW_INVALID_LOGIN_PASSWORD;
