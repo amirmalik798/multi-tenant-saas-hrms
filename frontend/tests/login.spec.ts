@@ -5,6 +5,7 @@ type RoleCredentials = {
   emailEnv: string;
   passwordEnv: string;
   destination: string;
+  sessionCookie: string;
 };
 
 const roleCredentials: RoleCredentials[] = [
@@ -13,30 +14,35 @@ const roleCredentials: RoleCredentials[] = [
     emailEnv: "PW_SUPER_ADMIN_EMAIL",
     passwordEnv: "PW_SUPER_ADMIN_PASSWORD",
     destination: "/dashboard",
+    sessionCookie: "crm_admin_session",
   },
   {
     role: "ORGANIZATION_ADMIN",
     emailEnv: "PW_ORG_ADMIN_EMAIL",
     passwordEnv: "PW_ORG_ADMIN_PASSWORD",
     destination: "/org/dashboard",
+    sessionCookie: "crm_org_session",
   },
   {
     role: "HR_MANAGER",
     emailEnv: "PW_HR_MANAGER_EMAIL",
     passwordEnv: "PW_HR_MANAGER_PASSWORD",
     destination: "/employee/welcome",
+    sessionCookie: "crm_employee_session",
   },
   {
     role: "DEPARTMENT_MANAGER",
     emailEnv: "PW_DEPARTMENT_MANAGER_EMAIL",
     passwordEnv: "PW_DEPARTMENT_MANAGER_PASSWORD",
     destination: "/employee/welcome",
+    sessionCookie: "crm_employee_session",
   },
   {
     role: "EMPLOYEE",
     emailEnv: "PW_EMPLOYEE_EMAIL",
     passwordEnv: "PW_EMPLOYEE_PASSWORD",
     destination: "/employee/welcome",
+    sessionCookie: "crm_employee_session",
   },
 ];
 
@@ -166,6 +172,12 @@ test.describe("Login page — real backend and PostgreSQL", () => {
         (url) => url.pathname === credentials.destination,
         { timeout: 15_000 },
       );
+
+      const sessionCookie = (await page.context().cookies()).find(
+        (cookie) => cookie.name === credentials.sessionCookie,
+      );
+      expect(sessionCookie, `Expected real ${credentials.role} session cookie`).toBeTruthy();
+      expect(sessionCookie?.httpOnly).toBe(true);
     });
   }
 
