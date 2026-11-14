@@ -75,8 +75,15 @@ const recoveryEmail = (page: Page) => page.locator("#reset-email");
 const newPassword = (page: Page) => page.locator("#new-password");
 const confirmNewPassword = (page: Page) => page.locator("#confirm-new-password");
 
+async function waitForAuthHydration(page: Page) {
+  await expect(page.locator('main[data-auth-hydrated="true"]')).toBeVisible({
+    timeout: 15_000,
+  });
+}
+
 async function openLogin(page: Page) {
   await page.goto("/");
+  await waitForAuthHydration(page);
   await expect(page.getByRole("heading", { name: "Welcome back", exact: true })).toBeVisible();
   await expect(loginEmail(page)).toBeVisible();
   await expect(loginPassword(page)).toBeVisible();
@@ -130,7 +137,11 @@ async function submitLogin(page: Page, email: string, password: string) {
   expect(await loginEmail(page).evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
   const submit = page.getByRole("button", { name: "Sign in securely", exact: true });
   await expect(submit).toBeEnabled();
-  return waitForRealPost(page, API.login, () => submit.click());
+  const response = await waitForRealPost(page, API.login, () => submit.click());
+  const currentUrl = new URL(page.url());
+  expect(currentUrl.searchParams.has("email")).toBe(false);
+  expect(currentUrl.searchParams.has("password")).toBe(false);
+  return response;
 }
 
 test.describe("Login and password recovery — complete regression suite", () => {
@@ -144,6 +155,10 @@ test.describe("Login and password recovery — complete regression suite", () =>
     await expect(loginPassword(page)).toHaveAttribute("required", "");
     await expect(page.getByRole("button", { name: "Sign in securely", exact: true })).toBeEnabled();
     await expect(page.getByRole("button", { name: "Forgot password?", exact: true })).toBeVisible();
+    const loginFormMethod = await loginEmail(page).evaluate(
+      (input: HTMLInputElement) => input.form?.method,
+    );
+    expect(loginFormMethod).toBe("post");
   });
 
   test("LOGIN-002: email and password are required by native form validation", async ({ page }) => {
@@ -253,6 +268,8 @@ test.describe("Login and password recovery — complete regression suite", () =>
 
   test("LOGIN-013: reset token opens reset form and is removed from visible URL", async ({ page }) => {
     await page.goto("/?token=playwright-regression-token&source=test");
+
+    await waitForAuthHydration(page);
     await expect(page.getByRole("heading", { name: "Choose a new password", exact: true })).toBeVisible();
     await expect(newPassword(page)).toBeVisible();
     await expect(confirmNewPassword(page)).toBeVisible();
@@ -262,6 +279,8 @@ test.describe("Login and password recovery — complete regression suite", () =>
 
   test("LOGIN-014: reset password visibility controls operate independently", async ({ page }) => {
     await page.goto("/?token=playwright-regression-token");
+
+    await waitForAuthHydration(page);
     await newPassword(page).fill("First-Password-12345!");
     await confirmNewPassword(page).fill("First-Password-12345!");
     await page.getByRole("button", { name: "Show new password", exact: true }).click();
@@ -277,6 +296,8 @@ test.describe("Login and password recovery — complete regression suite", () =>
   test("LOGIN-015: mismatched reset passwords are rejected client-side", async ({ page }) => {
     const requests = observeRequests(page, API.resetComplete);
     await page.goto("/?token=playwright-regression-token");
+
+    await waitForAuthHydration(page);
     await newPassword(page).fill("First-Password-12345!");
     await confirmNewPassword(page).fill("Different-Password-12345!");
     await page.getByRole("button", { name: "Reset password", exact: true }).click();
@@ -287,6 +308,8 @@ test.describe("Login and password recovery — complete regression suite", () =>
   test("LOGIN-016: too-short reset password is rejected client-side", async ({ page }) => {
     const requests = observeRequests(page, API.resetComplete);
     await page.goto("/?token=playwright-regression-token");
+
+    await waitForAuthHydration(page);
     await newPassword(page).fill("Short1!");
     await confirmNewPassword(page).fill("Short1!");
     await page.getByRole("button", { name: "Reset password", exact: true }).click();
@@ -297,6 +320,8 @@ test.describe("Login and password recovery — complete regression suite", () =>
   test("LOGIN-017: whitespace-only reset password is rejected client-side", async ({ page }) => {
     const requests = observeRequests(page, API.resetComplete);
     await page.goto("/?token=playwright-regression-token");
+
+    await waitForAuthHydration(page);
     const whitespace = "               ";
     await newPassword(page).fill(whitespace);
     await confirmNewPassword(page).fill(whitespace);
@@ -307,6 +332,8 @@ test.describe("Login and password recovery — complete regression suite", () =>
 
   test("LOGIN-018: well-formed unknown reset token reaches backend and is rejected", async ({ page }) => {
     await page.goto("/?token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+
+    await waitForAuthHydration(page);
     await newPassword(page).fill("Valid-Regression-Password-2026!");
     await confirmNewPassword(page).fill("Valid-Regression-Password-2026!");
     const response = await waitForRealPost(page, API.resetComplete, () =>
@@ -391,6 +418,26 @@ test.describe("Login and password recovery — complete regression suite", () =>
       expect(cookie?.httpOnly).toBe(true);
     });
   }
+
+  test("LOGIN-022: login and password-recovery forms use POST", async ({ page }) => {
+    const loginMethod = await loginEmail(page).evaluate(
+      (input: HTMLInputElement) => input.form?.method,
+    );
+    expect(loginMethod).toBe("post");
+
+    await openRecovery(page);
+    const recoveryMethod = await recoveryEmail(page).evaluate(
+      (input: HTMLInputElement) => input.form?.method,
+    );
+    expect(recoveryMethod).toBe("post");
+
+    await page.goto("/?token=playwright-regression-token");
+    await waitForAuthHydration(page);
+    const resetMethod = await newPassword(page).evaluate(
+      (input: HTMLInputElement) => input.form?.method,
+    );
+    expect(resetMethod).toBe("post");
+  });
 
   test("LOGIN-NEGATIVE-001: dedicated invalid password is rejected by real backend", async ({ page }) => {
     const email = process.env.PW_INVALID_LOGIN_EMAIL?.trim();

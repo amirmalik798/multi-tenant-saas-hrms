@@ -369,6 +369,7 @@ export default function HomePage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [loginNotice, setLoginNotice] = useState("");
+  const [authHydrated, setAuthHydrated] = useState(false);
 
   const normalizedEmail = email.trim();
   const emailLooksValid =
@@ -390,10 +391,12 @@ export default function HomePage() {
       currentUrl.searchParams.delete("token");
       const cleanUrl = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
       window.history.replaceState(null, "", cleanUrl);
+      setAuthHydrated(true);
       return;
     }
 
     emailInputRef.current?.focus({ preventScroll: true });
+    setAuthHydrated(true);
   }, []);
 
   useEffect(() => {
@@ -785,7 +788,7 @@ export default function HomePage() {
         : "border-blue-400/15 bg-blue-500/[0.07] text-blue-200";
 
   return (
-    <main className="login-main relative flex min-h-screen w-full max-w-[100vw] items-center justify-center overflow-x-hidden overflow-y-auto bg-[#0b0f17] px-4 py-6 text-[#f8fafc] sm:h-screen sm:min-h-0 sm:overflow-hidden sm:px-8 lg:px-12">
+    <main data-auth-hydrated={authHydrated ? "true" : "false"} className="login-main relative flex min-h-screen w-full max-w-[100vw] items-center justify-center overflow-x-hidden overflow-y-auto bg-[#0b0f17] px-4 py-6 text-[#f8fafc] sm:h-screen sm:min-h-0 sm:overflow-hidden sm:px-8 lg:px-12">
       <div
         aria-hidden="true"
         className={`pointer-events-none absolute left-1/2 top-4 size-64 -translate-x-1/2 rounded-full blur-3xl transition-colors duration-500 sm:left-0 sm:top-0 sm:size-96 sm:translate-x-0 ${ambientLeft}`}
@@ -912,6 +915,7 @@ export default function HomePage() {
 
                   <form
                     ref={formRef}
+                    method="post"
                     onSubmit={handleSubmit}
                     className="flex flex-col gap-3"
                     noValidate={false}
@@ -1266,6 +1270,7 @@ export default function HomePage() {
                       </div>
 
                       <form
+                        method="post"
                         onSubmit={handleResetRequest}
                         className="flex flex-col gap-4"
                       >
@@ -1353,6 +1358,7 @@ export default function HomePage() {
                       </div>
 
                       <form
+                        method="post"
                         onSubmit={handleResetComplete}
                         className="flex flex-col gap-4"
                       >
@@ -1373,7 +1379,6 @@ export default function HomePage() {
                               type={showNewPassword ? "text" : "password"}
                               autoComplete="new-password"
                               required
-                              minLength={15}
                               value={newPassword}
                               onChange={(event) => {
                                 setNewPassword(event.target.value);
@@ -1412,7 +1417,6 @@ export default function HomePage() {
                               type={showConfirmNewPassword ? "text" : "password"}
                               autoComplete="new-password"
                               required
-                              minLength={15}
                               value={confirmNewPassword}
                               onChange={(event) => {
                                 setConfirmNewPassword(event.target.value);
