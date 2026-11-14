@@ -69,7 +69,7 @@ async function submitLogin(
   // Fail early with useful context if browser-side validation prevents submit.
   await expect(emailInput).toHaveValue(email);
   await expect(passwordInput).toHaveValue(password);
-  await expect(emailInput).toHaveJSProperty("validity.valid", true);
+  expect(await emailInput.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
 
   const responsePromise = page.waitForResponse(
     (response) =>
