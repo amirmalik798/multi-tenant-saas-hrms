@@ -20,9 +20,7 @@ export default defineConfig({
   expect: { timeout: 7_500 },
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3001",
-    // Run without opening a visible Chromium window by default.
-    // Set PLAYWRIGHT_HEADLESS=false in .env.playwright to watch a test run.
-    headless: process.env.PLAYWRIGHT_HEADLESS !== "false",
+    headless: process.env.PLAYWRIGHT_HEADLESS === "true",
     extraHTTPHeaders: { "ngrok-skip-browser-warning": "true" },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
