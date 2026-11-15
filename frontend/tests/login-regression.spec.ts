@@ -251,7 +251,7 @@ async function createOrganizationWithAdmin(
     data: {
       name,
       slug,
-      contactEmail: "pw-login-contact-" + nameSuffix.toLowerCase() + "-" + LOGIN_RUN_ID + "@yopmail.com",
+      contactEmail: "pw-login-contact-" + nameSuffix.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + LOGIN_RUN_ID + "@yopmail.com",
       contactPhone: "+250 788 123 450",
       country: "Rwanda",
       address: "Playwright Login Regression Avenue, Kigali, Rwanda",
