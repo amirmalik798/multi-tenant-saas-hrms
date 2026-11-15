@@ -242,16 +242,28 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
   test.beforeAll(async ({ superAdminApi }) => {
     test.setTimeout(180_000);
 
-    const configuredTestDatabase = process.env.PW_TEST_DATABASE_NAME?.trim();
+    const configuredDatabaseName =
+      process.env.PW_DATABASE_NAME?.trim() ||
+      process.env.PW_TEST_DATABASE_NAME?.trim();
     expect(
-      configuredTestDatabase,
-      "Set PW_TEST_DATABASE_NAME in frontend/.env.playwright to the dedicated test database configured by backend DB_NAME.",
+      configuredDatabaseName,
+      "Set PW_DATABASE_NAME=crm_db.sql (or the legacy PW_TEST_DATABASE_NAME=crm_db.sql) in frontend/.env.playwright. It must exactly match backend DB_NAME.",
     ).toBeTruthy();
+
+    const normalizedDatabaseName = configuredDatabaseName!.toLowerCase();
+    const isExplicitlyApprovedCrmDatabase = normalizedDatabaseName === "crm_db.sql";
+    const isDedicatedTestDatabase =
+      /(^|[-_.])(test|testing|playwright)([-_.]|$)/i.test(normalizedDatabaseName);
+    expect(
+      isDedicatedTestDatabase || isExplicitlyApprovedCrmDatabase,
+      "The Super Admin suite is restricted to a dedicated test database or the explicitly approved crm_db.sql database.",
+    ).toBe(true);
+
     const databaseCheck = await regressionDb.query<{ database_name: string }>(
       "SELECT current_database() AS database_name",
     );
-    expect(databaseCheck.rows[0]?.database_name).toBe(configuredTestDatabase);
-    expect(configuredTestDatabase!.toLowerCase()).not.toMatch(/(^|[-_])prod(uction)?($|[-_])/);
+    expect(databaseCheck.rows[0]?.database_name).toBe(configuredDatabaseName);
+
     const createResponse = await superAdminApi.post("/api/backend/organizations", {
       data: {
         name: seedOrganizationName,
@@ -582,8 +594,14 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
   });
 
   test("SA-008: dashboard View All link opens the complete organization directory", async ({ page }) => {
-    await page.getByRole("link", { name: "View All", exact: true }).click();
-    await expect(page).toHaveURL(/\/dashboard\/organizations/);
+    const organizationsCard = page.locator("article").filter({
+      has: page.getByRole("heading", { name: "Organizations", exact: true }),
+    });
+    await expect(organizationsCard).toHaveCount(1);
+    const viewAllLink = organizationsCard.getByRole("link", { name: /^View All\b/ });
+    await expect(viewAllLink).toHaveAttribute("href", "/dashboard/organizations");
+    await viewAllLink.click();
+    await expect(page).toHaveURL(/\/dashboard\/organizations(?:[/?#]|$)/);
     await expect(page.getByRole("heading", { name: "Organizations", exact: true })).toBeVisible();
   });
 
@@ -829,21 +847,38 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
     expect(adminEmail.endsWith("@yopmail.com")).toBe(true);
     await expect(page.locator("button.sa-create-org-submit")).toBeEnabled();
 
-    const organizationResponsePromise = page.waitForResponse((response) =>
-      new URL(response.url()).pathname === "/api/backend/organizations" &&
-      response.request().method() === "POST",
-    );
-    const invitationResponsePromise = page.waitForResponse((response) =>
-      /\/api\/backend\/organizations\/[0-9a-f-]+\/invitations$/i.test(new URL(response.url()).pathname) &&
-      response.request().method() === "POST",
-    );
+    const organizationRequestPromise = page.waitForRequest((request) => {
+      const pathname = new URL(request.url()).pathname.replace(/\/+$/, "");
+      return pathname === "/api/backend/organizations" && request.method() === "POST";
+    });
+    const invitationRequestPromise = page.waitForRequest((request) => {
+      const pathname = new URL(request.url()).pathname.replace(/\/+$/, "");
+      return pathname.startsWith("/api/backend/organizations/") &&
+        pathname.endsWith("/invitations") &&
+        request.method() === "POST";
+    });
+    const organizationResponsePromise = page.waitForResponse((response) => {
+      const pathname = new URL(response.url()).pathname.replace(/\/+$/, "");
+      return pathname === "/api/backend/organizations" && response.request().method() === "POST";
+    }, { timeout: 90_000 });
+    const invitationResponsePromise = page.waitForResponse((response) => {
+      const pathname = new URL(response.url()).pathname.replace(/\/+$/, "");
+      return pathname.startsWith("/api/backend/organizations/") &&
+        pathname.endsWith("/invitations") &&
+        response.request().method() === "POST";
+    }, { timeout: 90_000 });
 
     await page.locator("button.sa-create-org-submit").click();
 
-    const [organizationResponse, invitationResponse] = await Promise.all([
-      organizationResponsePromise,
-      invitationResponsePromise,
-    ]);
+    const [organizationRequest, invitationRequest, organizationResponse, invitationResponse] =
+      await Promise.all([
+        organizationRequestPromise,
+        invitationRequestPromise,
+        organizationResponsePromise,
+        invitationResponsePromise,
+      ]);
+    expect(organizationRequest.postDataJSON()).toMatchObject({ contactEmail });
+    expect(invitationRequest.postDataJSON()).toMatchObject({ email: adminEmail });
     expect(organizationResponse.status()).toBe(201);
     const organizationBody = await organizationResponse.json();
     expect(organizationBody.organization.status).toBe("PENDING_SETUP");
@@ -881,27 +916,40 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
 
   test("SA-033: organization Users tab exposes read-only account metrics and search", async ({ page }) => {
     const dialog = await openSeedOrganization(page, "view");
+    const usersTab = dialog.getByRole("tab", { name: "Users", exact: true });
+    await expect(usersTab).toBeVisible();
+
+    const usersEndpoint = `/api/backend/organizations/${seedOrganizationId}/users`;
     const initialUsersResponsePromise = page.waitForResponse((response) => {
       const url = new URL(response.url());
-      return url.pathname.endsWith("/users") && url.searchParams.get("q") === "";
-    });
-    await dialog.locator('[data-organization-tab="users"]').click();
+      return url.pathname === usersEndpoint &&
+        response.request().method() === "GET" &&
+        (url.searchParams.get("q") ?? "").trim() === "";
+    }, { timeout: 30_000 });
+    await usersTab.click();
+    await expect(usersTab).toHaveAttribute("aria-selected", "true");
+    const usersPanel = dialog.locator("#organization-panel-users");
+    await expect(usersPanel).toBeVisible();
+
     const initialUsersResponse = await initialUsersResponsePromise;
     expect(initialUsersResponse.status()).toBe(200);
-    await expect(dialog.getByRole("heading", { name: "Organization Users", exact: true })).toBeVisible();
+    await expect(usersPanel.getByRole("heading", { name: "Organization Users", exact: true })).toBeVisible();
 
-    const search = dialog.getByPlaceholder("Search name, email, role or employee code");
+    const search = usersPanel.getByPlaceholder("Search name, email, role or employee code");
     await expect(search).toBeVisible();
     const query = "pw-org-user-search-" + RUN_ID;
     const searchResponsePromise = page.waitForResponse((response) => {
       const url = new URL(response.url());
-      return url.pathname.endsWith("/users") && url.searchParams.get("q") === query;
-    });
+      return url.pathname === usersEndpoint &&
+        response.request().method() === "GET" &&
+        url.searchParams.get("q") === query;
+    }, { timeout: 30_000 });
     await search.fill(query);
     const searchResponse = await searchResponsePromise;
     expect(searchResponse.status()).toBe(200);
     const searchBody = await searchResponse.json();
     expect(searchBody.matchingTotal).toBe(0);
+    expect(searchBody.users).toEqual([]);
   });
 
   test("SA-034: organization Invitation Logs tab opens its history panel", async ({ page }) => {
@@ -1043,7 +1091,8 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
     await openPage(page, "/dashboard/organization-admins", "Organization Admins");
     await page.locator("#admin-table-search").fill("no-admin-" + RUN_ID);
     await page.getByLabel("Filter Organization Admins by access status").selectOption("SUSPENDED");
-    await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+    const filterToolbar = page.locator("#admin-table-search").locator("xpath=../..");
+    await filterToolbar.getByRole("button", { name: "Clear filters", exact: true }).click();
     await expect(page.locator("#admin-table-search")).toHaveValue("");
     await expect(page.getByLabel("Filter Organization Admins by access status")).toHaveValue("ALL");
   });
