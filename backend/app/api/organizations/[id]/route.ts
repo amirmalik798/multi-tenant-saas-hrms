@@ -4,6 +4,10 @@ import { pool } from "../../../../lib/db";
 import { getPlatformSuperAdmin } from "../../../../lib/auth";
 import { getOrganizationLicenseAccess } from "../../../../lib/licensing";
 import {
+  deleteOrganizationTenantData,
+  OrganizationDeletionBlockedError,
+} from "../../../../lib/organization-deletion";
+import {
   parseJsonRequestBody,
   validateSameOriginRequest,
 } from "../../../../lib/request-security";
@@ -481,6 +485,230 @@ export async function PATCH(
         status: "error",
         message: "Failed to update organization",
       },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * DELETE /api/organizations/:id
+ *
+ * Permanently deletes one tenant and its tenant-owned records. This is a
+ * Super Admin-only operation and requires the exact organization slug as a
+ * second confirmation. The purge, organization removal, and platform audit
+ * event share one database transaction.
+ */
+export async function DELETE(
+  request: Request,
+  { params }: RouteContext,
+) {
+  const originError = validateSameOriginRequest(request);
+  if (originError) return originError;
+
+  const parsedBody = await parseJsonRequestBody(request);
+  if (!parsedBody.ok) return parsedBody.response;
+
+  const body = parsedBody.body;
+  if (
+    typeof body !== "object" ||
+    body === null ||
+    Array.isArray(body) ||
+    !("confirmationSlug" in body) ||
+    typeof body.confirmationSlug !== "string"
+  ) {
+    return NextResponse.json(
+      {
+        status: "error",
+        message: "Type the organization's slug to confirm permanent deletion.",
+      },
+      { status: 400 },
+    );
+  }
+
+  const confirmationSlug = body.confirmationSlug.trim();
+  if (!confirmationSlug || confirmationSlug.length > 80) {
+    return NextResponse.json(
+      { status: "error", message: "Invalid deletion confirmation." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const admin = await getPlatformSuperAdmin();
+    if (!admin) {
+      return NextResponse.json(
+        { status: "error", message: "Authentication required" },
+        { status: 401 },
+      );
+    }
+
+    const { id } = await params;
+    if (!uuidPattern.test(id)) {
+      return NextResponse.json(
+        { status: "error", message: "Invalid organization ID" },
+        { status: 400 },
+      );
+    }
+
+    const client = await pool.connect();
+    let transactionOpen = false;
+
+    try {
+      await client.query("BEGIN");
+      transactionOpen = true;
+
+      // Lock the organization row. Tenant inserts protected by foreign keys
+      // need a KEY SHARE lock on this same row and cannot race the purge.
+      const organizationResult = await client.query<{
+        id: string;
+        name: string;
+        slug: string;
+        contact_email: string | null;
+        status: string;
+      }>(
+        "SELECT id, name, slug, contact_email, status " +
+          "FROM public.organizations WHERE id = $1::uuid FOR UPDATE",
+        [id],
+      );
+
+      const organization = organizationResult.rows[0];
+      if (!organization) {
+        await client.query("ROLLBACK");
+        transactionOpen = false;
+        return NextResponse.json(
+          { status: "error", message: "Organization not found" },
+          { status: 404 },
+        );
+      }
+
+      if (confirmationSlug !== organization.slug) {
+        await client.query("ROLLBACK");
+        transactionOpen = false;
+        return NextResponse.json(
+          {
+            status: "error",
+            message: "The confirmation slug does not match this organization.",
+          },
+          { status: 400 },
+        );
+      }
+
+      const deletionReport = await deleteOrganizationTenantData(
+        client,
+        organization.id,
+      );
+
+      const deletedOrganization = await client.query(
+        "DELETE FROM public.organizations " +
+          "WHERE id = $1::uuid RETURNING id",
+        [organization.id],
+      );
+
+      if (deletedOrganization.rowCount !== 1) {
+        throw new Error("The organization could not be removed after its tenant data was purged.");
+      }
+
+      const totalDeletedRecords = deletionReport.deletedRecordCount + 1;
+      const recordsByTable = {
+        ...deletionReport.recordsByTable,
+        organizations: 1,
+      };
+
+      // Preserve the platform-wide audit trail with organization_id = NULL.
+      // This event records the deletion without retaining a live tenant
+      // relationship or deleting the Super Admin's audit history.
+      await client.query(
+        "INSERT INTO public.platform_audit_logs (" +
+          "actor_user_id, actor_email, action_key, target_type, target_id, " +
+          "organization_id, reason, before_state, after_state, metadata" +
+          ") VALUES (" +
+          "$1::uuid, $2, 'organization.delete', 'ORGANIZATION', $3, " +
+          "NULL, 'Permanent organization deletion from Super Admin workspace', " +
+          "$4::jsonb, $5::jsonb, $6::jsonb" +
+          ")",
+        [
+          admin.id,
+          admin.email,
+          organization.id,
+          JSON.stringify({
+            id: organization.id,
+            name: organization.name,
+            slug: organization.slug,
+            contactEmail: organization.contact_email,
+            status: organization.status,
+            exists: true,
+          }),
+          JSON.stringify({ exists: false }),
+          JSON.stringify({
+            deletedRecordCount: totalDeletedRecords,
+            deletedTableCount: deletionReport.deletedTableCount + 1,
+            recordsByTable,
+            source: "super_admin_organization_delete",
+            auditRetention: "platform audit history retained and tenant references anonymized",
+          }),
+        ],
+      );
+
+      await client.query("COMMIT");
+      transactionOpen = false;
+
+      return NextResponse.json(
+        {
+          status: "ok",
+          message: "Organization and its tenant-owned records were permanently deleted.",
+          deletedOrganization: {
+            id: organization.id,
+            name: organization.name,
+            slug: organization.slug,
+          },
+          deletion: {
+            deletedRecordCount: totalDeletedRecords,
+            deletedTableCount: deletionReport.deletedTableCount + 1,
+            recordsByTable,
+            platformAuditLogsRetained: true,
+          },
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    } catch (transactionError) {
+      if (transactionOpen) {
+        try {
+          await client.query("ROLLBACK");
+        } catch (rollbackError) {
+          console.error("Organization deletion rollback failed:", rollbackError);
+        }
+      }
+      throw transactionError;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    if (error instanceof OrganizationDeletionBlockedError) {
+      return NextResponse.json(
+        { status: "error", message: error.message },
+        { status: 409 },
+      );
+    }
+
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      ["23503", "23514", "55000"].includes(String(error.code))
+    ) {
+      console.error("Organization deletion was blocked by a database constraint:", error);
+      return NextResponse.json(
+        {
+          status: "error",
+          message: "Deletion was stopped by a database constraint. No organization data was committed as deleted.",
+        },
+        { status: 409 },
+      );
+    }
+
+    console.error("Organization deletion error:", error);
+    return NextResponse.json(
+      { status: "error", message: "Failed to delete organization. No partial deletion was committed." },
       { status: 500 },
     );
   }
