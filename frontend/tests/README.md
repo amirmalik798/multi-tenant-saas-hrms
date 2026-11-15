@@ -140,7 +140,7 @@ The Super Admin suite lives in `tests/super-admin-workspace-regression.spec.ts` 
 
 ## Required local setup
 
-Use a **dedicated disposable PostgreSQL test database**. The suite creates organizations and administrator accounts, sends invitations, submits payment proofs, approves and rejects payments, creates a support conversation, and deliberately expires one of its own invitations. Do not point it at production or a database containing important customer data.
+The suite can run against your existing PostgreSQL database named **`crm_db.sql`** as explicitly requested. It creates organizations and administrator accounts, sends invitations, submits payment proofs, approves and rejects payments, creates a support conversation, and deliberately expires one of its own invitations. These are newly generated Playwright records; they are not automatically deleted and will affect dashboard totals. The suite does not clean up its generated records, so keep that impact in mind when using a shared development database.
 
 Create or update `frontend/.env.playwright`:
 
@@ -152,20 +152,23 @@ PW_SUPER_ADMIN_EMAIL=your-active-super-admin@example.com
 PW_SUPER_ADMIN_PASSWORD=your-real-super-admin-password
 
 # Must exactly match DB_NAME in the backend environment.
-# This must be a dedicated disposable test database.
-PW_TEST_DATABASE_NAME=hrms_playwright_test
+# Your current database is explicitly supported:
+PW_DATABASE_NAME=crm_db.sql
+
+# Backward-compatible name (use this instead only if already configured):
+# PW_TEST_DATABASE_NAME=crm_db.sql
 ```
 
 Do not add database passwords, session secrets, Mailtrap tokens, or Google Apps Script secrets to this file. The Playwright config loads the backend environment from `backend/.env.local` or `backend/.env` before the test imports the backend PostgreSQL pool. Keep those backend secrets in the backend environment file, which is already git-ignored.
 
-The following backend settings must be configured in the backend environment and must point to the same test database used by the running backend:
+The following backend settings must be configured in the backend environment and must point to the same PostgreSQL database selected by `PW_DATABASE_NAME`:
 
 - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD`.
 - `SESSION_PASSWORD`, `ORGANIZATION_SESSION_PASSWORD`, and `EMPLOYEE_SESSION_PASSWORD`, each at least 32 characters and all different.
 - A working email delivery provider. The suite creates and delivers several Yopmail test invitations and expects the real invitation endpoint to return `201` with `emailSent: true`.
 - The normal frontend/backend origin and request-security settings required by local development.
 
-The suite checks `SELECT current_database()` against `PW_TEST_DATABASE_NAME` before it creates test records. It also rejects database names that look like production names. This is a guard, not a substitute for configuring a dedicated test database correctly.
+Before creating records, the suite checks `SELECT current_database()` against `PW_DATABASE_NAME` (or the legacy `PW_TEST_DATABASE_NAME`). It accepts database names containing `test`, `testing`, or `playwright`, and explicitly allows the exact name `crm_db.sql`. The running backend and the test runner must resolve to the same database name. Do not point the suite at any database you cannot safely add generated test organizations, admin users, invitations, payment submissions, and support conversations to.
 
 ## Start the application
 
@@ -185,9 +188,17 @@ npm run dev -- --port 3001
 
 Wait until both servers are ready. The Playwright config uses the existing frontend rewrite to reach the backend at port 3000.
 
-## Run the suite
+## Verify and run the complete suite
 
-From `frontend`:
+From `frontend`, first list the collected cases:
+
+```powershell
+npx playwright test --config=playwright.super-admin.config.ts --project=chromium --list
+```
+
+The current branch contains **104 numbered Super Admin cases (SA-001 through SA-104)**. The collection list should show all 104 before execution.
+
+Then run the suite:
 
 ```powershell
 npm run test:super-admin
@@ -222,7 +233,7 @@ No `PW_SUPER_ADMIN_PAYMENT_REVIEW_ID`, `PW_SUPER_ADMIN_APPROVE_PAYMENT_ID`, `PW_
 
 ## Interpreting skips and failures
 
-The Super Admin spec contains no intentional `test.skip()` or `test.fixme()` statements. Missing credentials, the wrong database, failed invitation delivery, inaccessible fixtures, or an unexpected record state fail the setup/test rather than silently skipping the workflow. A run with no skipped tests is not automatically a passing run: review failures and verify that the end-to-end transactions completed and persisted correctly.
+The current Super Admin spec contains no `test.skip()`, `test.fixme()`, or focused-test directives, and the config sets `forbidOnly: true`. Missing credentials, a database mismatch, failed invitation delivery, inaccessible fixtures, or an unexpected record state should fail visibly rather than skip the workflow. If your report still says **“100-case regression suite”**, or the collection list is not 104 tests, your local checkout is older than this branch revision. A run with no skipped tests is not automatically a passing run: review failures and verify that the end-to-end transactions completed and persisted correctly.
 
-Fixtures are uniquely named per run. They are created in the dedicated test database and are not automatically deleted, so use that database only for automated testing and reset it when appropriate.
+Fixtures are uniquely named per run and are not automatically deleted. On `crm_db.sql`, they remain alongside your existing development data and will increase organization, user, invitation, payment, and support counts. Delete only the generated Playwright rows when you are ready to clean them up; do not reset the database just to remove test fixtures.
 
