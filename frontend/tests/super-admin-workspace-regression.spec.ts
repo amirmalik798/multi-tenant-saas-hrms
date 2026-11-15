@@ -71,9 +71,19 @@ const seedOrganizationSlug = "pw-sa-regression-" + RUN_ID;
 const seedOrganizationContactEmail = "pw-sa-contact-" + RUN_ID + "@yopmail.com";
 const seedOrganizationAdminEmail = "pw-sa-admin-" + RUN_ID + "@yopmail.com";
 
+// A separate tenant is accepted during setup so Organization Admin tests do
+// not depend on accounts left behind by previous manual or automated runs.
+const activeOrganizationName = "PW SA Active Admin " + RUN_ID;
+const activeOrganizationSlug = "pw-sa-active-admin-" + RUN_ID;
+const activeOrganizationContactEmail = "pw-sa-active-contact-" + RUN_ID + "@yopmail.com";
+const activeOrganizationAdminEmail = "pw-sa-active-admin-" + RUN_ID + "@yopmail.com";
+const activeOrganizationAdminPassword = "PW-SuperAdmin-Test!" + RUN_ID;
+
 let seedOrganizationId = "";
 let seedInvitationId = "";
 let invitationSetupError = "";
+let activeOrganizationId = "";
+let acceptedAdminId = "";
 
 type OrganizationRecord = {
   id: string;
@@ -137,16 +147,12 @@ async function readOrganizationAdmins(page: Page): Promise<AdminRecord[]> {
   return Array.isArray(body.organizationAdmins) ? body.organizationAdmins : [];
 }
 
-async function firstChangeableAdmin(page: Page): Promise<AdminRecord | undefined> {
+async function readFixtureAdmin(page: Page): Promise<AdminRecord> {
+  expect(acceptedAdminId, "The accepted Organization Admin fixture must be initialized in beforeAll.").toBeTruthy();
   const admins = await readOrganizationAdmins(page);
-  return admins.find((admin) =>
-    ["ACTIVE", "SUSPENDED"].includes((admin.account_status || "").toUpperCase()) &&
-    !["ARCHIVED"].includes((admin.organization_status || "").toUpperCase()) &&
-    !(
-      (admin.account_status || "").toUpperCase() === "ACTIVE" &&
-      (admin.organization_status || "").toUpperCase() === "SUSPENDED"
-    ),
-  );
+  const admin = admins.find((item) => item.id === acceptedAdminId);
+  expect(admin, "The suite-created accepted Organization Admin must remain visible in the directory.").toBeTruthy();
+  return admin!;
 }
 
 function adminDisplayName(admin: AdminRecord) {
@@ -242,6 +248,108 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
         "Initial Yopmail Organization Admin invitation was not confirmed as sent: " +
         (invitationBody?.message ?? "HTTP " + invitationResponse.status());
     }
+
+    // Create a distinct organization for the accepted/active administrator
+    // fixture. The original PENDING_SETUP organization above remains intact
+    // for lifecycle and pending-invitation regression coverage.
+    const activeOrganizationResponse = await superAdminApi.post("/api/backend/organizations", {
+      data: {
+        name: activeOrganizationName,
+        slug: activeOrganizationSlug,
+        contactEmail: activeOrganizationContactEmail,
+        contactPhone: "+250 788 123 457",
+        country: "Rwanda",
+        address: "Playwright Active Admin Avenue, Kigali, Rwanda",
+      },
+    });
+    const activeOrganizationBody = await activeOrganizationResponse.json().catch(() => null) as
+      | { organization?: OrganizationRecord; message?: string }
+      | null;
+
+    expect(
+      activeOrganizationResponse.status(),
+      "The suite must create a separate PENDING_SETUP organization for its accepted Organization Admin fixture.",
+    ).toBe(201);
+    activeOrganizationId = activeOrganizationBody?.organization?.id ?? "";
+    expect(activeOrganizationId).toBeTruthy();
+
+    const activeInvitationResponse = await superAdminApi.post(
+      "/api/backend/organizations/" + encodeURIComponent(activeOrganizationId) + "/invitations",
+      {
+        data: {
+          email: activeOrganizationAdminEmail,
+          adminFirstName: "Playwright",
+          adminLastName: "Active Admin",
+          adminPhone: "+250 788 123 457",
+          adminCountry: "Rwanda",
+          adminCity: "Kigali",
+        },
+      },
+    );
+    const activeInvitationBody = await activeInvitationResponse.json().catch(() => null) as
+      | { emailSent?: boolean; invitation?: { id?: string }; invitationUrl?: string; message?: string }
+      | null;
+
+    expect(
+      activeInvitationResponse.status(),
+      "The active-admin fixture invitation must be created and delivered by the configured email provider.",
+    ).toBe(201);
+    expect(activeInvitationBody?.emailSent).toBe(true);
+    expect(activeInvitationBody?.invitation?.id).toBeTruthy();
+    expect(activeInvitationBody?.invitationUrl).toBeTruthy();
+
+    const invitationToken = new URL(activeInvitationBody!.invitationUrl!).searchParams.get("token");
+    expect(invitationToken, "The delivered invitation URL must contain its one-time token.").toBeTruthy();
+
+    const acceptanceResponse = await superAdminApi.post(
+      "/api/backend/invitations/accept",
+      {
+        data: {
+          token: invitationToken,
+          firstName: "Playwright",
+          lastName: "Active Admin",
+          phone: "+250 788 123 457",
+          country: "Rwanda",
+          city: "Kigali",
+          password: activeOrganizationAdminPassword,
+        },
+      },
+    );
+    const acceptanceBody = await acceptanceResponse.json().catch(() => null) as
+      | {
+          status?: string;
+          user?: { id?: string; email?: string; status?: string };
+          organization?: { id?: string; status?: string };
+          message?: string;
+        }
+      | null;
+
+    expect(
+      acceptanceResponse.status(),
+      "The suite must accept the invitation through the real backend acceptance workflow.",
+    ).toBe(201);
+    expect(acceptanceBody?.status).toBe("ok");
+    expect(acceptanceBody?.user?.email).toBe(activeOrganizationAdminEmail);
+    expect(acceptanceBody?.user?.status).toBe("ACTIVE");
+    expect(acceptanceBody?.organization?.id).toBe(activeOrganizationId);
+    expect(acceptanceBody?.organization?.status).toBe("ACTIVE");
+
+    const adminDirectoryResponse = await superAdminApi.get("/api/backend/organization-admins");
+    expect(adminDirectoryResponse.status()).toBe(200);
+    const adminDirectoryBody = await adminDirectoryResponse.json() as {
+      organizationAdmins?: AdminRecord[];
+    };
+    const acceptedAdmin = (adminDirectoryBody.organizationAdmins ?? []).find(
+      (item) => item.id === acceptanceBody?.user?.id,
+    );
+
+    expect(
+      acceptedAdmin,
+      "The accepted Organization Admin must appear in the real Super Admin directory.",
+    ).toBeTruthy();
+    expect(acceptedAdmin?.account_status).toBe("ACTIVE");
+    expect(acceptedAdmin?.organization_status).toBe("ACTIVE");
+    acceptedAdminId = acceptedAdmin!.id;
   });
 
   test.beforeEach(async ({ page }) => {
@@ -746,9 +854,8 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
   });
 
   test("SA-045: Organization Admin directory search returns a matching accepted administrator", async ({ page }) => {
-    const admins = await readOrganizationAdmins(page);
-    test.skip(admins.length === 0, "The directory is empty until at least one Organization Admin invitation has been accepted.");
-    const adminEmail = admins[0].email;
+    const admin = await readFixtureAdmin(page);
+    const adminEmail = admin.email;
     await openPage(page, "/dashboard/organization-admins", "Organization Admins");
     await page.locator("#admin-table-search").fill(adminEmail);
     await expect(page.locator("#admin-table-search")).toHaveValue(adminEmail);
@@ -765,9 +872,7 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
   });
 
   test("SA-047: selecting an existing Organization Admin opens the details side panel", async ({ page }) => {
-    const admins = await readOrganizationAdmins(page);
-    test.skip(admins.length === 0, "No Organization Admin account exists in the current test database.");
-    const admin = admins[0];
+    const admin = await readFixtureAdmin(page);
     const name = adminDisplayName(admin);
     await openPage(page, "/dashboard/organization-admins", "Organization Admins");
     await page.getByRole("button", { name: "View details for " + name, exact: true }).click();
@@ -778,9 +883,7 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
   });
 
   test("SA-048: Organization Admin details expose copy-email and organization navigation actions", async ({ page }) => {
-    const admins = await readOrganizationAdmins(page);
-    test.skip(admins.length === 0, "No Organization Admin account exists in the current test database.");
-    const admin = admins[0];
+    const admin = await readFixtureAdmin(page);
     await openPage(page, "/dashboard/organization-admins", "Organization Admins");
     await page.getByRole("button", { name: "View details for " + adminDisplayName(admin), exact: true }).click();
     const panel = page.getByRole("dialog", { name: "Organization Admin" });
@@ -789,14 +892,14 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
   });
 
   test("SA-049: Organization Admin status dialog requires an audit reason before confirmation", async ({ page }) => {
-    const admin = await firstChangeableAdmin(page);
-    test.skip(!admin, "No active or suspended Organization Admin in a non-archived organization is available.");
-    const name = adminDisplayName(admin!);
-    const action = (admin!.account_status.toUpperCase() === "SUSPENDED" ? "Reactivate " : "Suspend ") + name;
+    const admin = await readFixtureAdmin(page);
+    expect(admin.account_status.toUpperCase()).toBe("ACTIVE");
+    expect(admin.organization_status.toUpperCase()).toBe("ACTIVE");
+    const name = adminDisplayName(admin);
     await openPage(page, "/dashboard/organization-admins", "Organization Admins");
     await page.getByRole("button", { name: "View details for " + name, exact: true }).click();
     const panel = page.getByRole("dialog", { name: "Organization Admin" });
-    const statusButton = admin!.account_status.toUpperCase() === "SUSPENDED"
+    const statusButton = admin.account_status.toUpperCase() === "SUSPENDED"
       ? panel.getByRole("button", { name: "Reactivate Administrator", exact: true })
       : panel.getByRole("button", { name: "Suspend Administrator", exact: true });
     await expect(statusButton).toBeVisible();
@@ -806,17 +909,17 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
     await expect(modal.getByPlaceholder("Explain why this account status is being changed...")).toHaveAttribute("required", "");
     await expect(modal.getByRole("button", { name: /Confirm (Suspension|Reactivation)/ })).toBeDisabled();
     await expect(modal.getByRole("button", { name: "Cancel", exact: true })).toBeVisible();
-    void action;
   });
 
   test("SA-050: Organization Admin status confirmation can be cancelled without changing the account", async ({ page }) => {
-    const admin = await firstChangeableAdmin(page);
-    test.skip(!admin, "No active or suspended Organization Admin in a non-archived organization is available.");
-    const name = adminDisplayName(admin!);
+    const admin = await readFixtureAdmin(page);
+    expect(admin.account_status.toUpperCase()).toBe("ACTIVE");
+    expect(admin.organization_status.toUpperCase()).toBe("ACTIVE");
+    const name = adminDisplayName(admin);
     await openPage(page, "/dashboard/organization-admins", "Organization Admins");
     await page.getByRole("button", { name: "View details for " + name, exact: true }).click();
     const panel = page.getByRole("dialog", { name: "Organization Admin" });
-    const statusButton = admin!.account_status.toUpperCase() === "SUSPENDED"
+    const statusButton = admin.account_status.toUpperCase() === "SUSPENDED"
       ? panel.getByRole("button", { name: "Reactivate Administrator", exact: true })
       : panel.getByRole("button", { name: "Suspend Administrator", exact: true });
     await statusButton.click();
@@ -826,18 +929,15 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
     await expect(page.getByRole("dialog", { name: /Organization Admin\?/ })).toHaveCount(0);
     const refresh = await page.request.get("/api/backend/organization-admins");
     const body = await refresh.json();
-    const current = (body.organizationAdmins as AdminRecord[]).find((item) => item.id === admin!.id);
-    expect(current?.account_status).toBe(admin!.account_status);
+    const current = (body.organizationAdmins as AdminRecord[]).find((item) => item.id === admin.id);
+    expect(current?.account_status).toBe(admin.account_status);
   });
 
   test("SA-051: replacement Organization Admin form accepts a Yopmail address", async ({ page }) => {
-    const admins = await readOrganizationAdmins(page);
-    const admin = admins.find((item) =>
-      item.account_status.toUpperCase() === "ACTIVE" &&
-      item.organization_status.toUpperCase() === "ACTIVE",
-    );
-    test.skip(!admin, "A dedicated active Organization Admin in an active organization is required for replacement invitation coverage.");
-    const name = adminDisplayName(admin!);
+    const admin = await readFixtureAdmin(page);
+    expect(admin.account_status.toUpperCase()).toBe("ACTIVE");
+    expect(admin.organization_status.toUpperCase()).toBe("ACTIVE");
+    const name = adminDisplayName(admin);
     await openPage(page, "/dashboard/organization-admins", "Organization Admins");
     await page.getByRole("button", { name: "View details for " + name, exact: true }).click();
     const panel = page.getByRole("dialog", { name: "Organization Admin" });
@@ -852,11 +952,12 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
   });
 
   test("SA-052: Organization Admin status API rejects an audit reason shorter than three characters", async ({ page }) => {
-    const admin = await firstChangeableAdmin(page);
-    test.skip(!admin, "No active or suspended Organization Admin in a non-archived organization is available.");
-    const nextStatus = admin!.account_status.toUpperCase() === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
+    const admin = await readFixtureAdmin(page);
+    expect(admin.account_status.toUpperCase()).toBe("ACTIVE");
+    expect(admin.organization_status.toUpperCase()).toBe("ACTIVE");
+    const nextStatus = "SUSPENDED";
     const response = await page.request.patch(
-      "/api/backend/organization-admins/" + admin!.id + "/status",
+      "/api/backend/organization-admins/" + admin.id + "/status",
       {
         data: { status: nextStatus, reason: "x" },
         headers: sameOriginHeaders(page),
@@ -867,8 +968,8 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
     expect(body.message).toMatch(/reason/i);
     const after = await page.request.get("/api/backend/organization-admins");
     const afterBody = await after.json();
-    const unchanged = (afterBody.organizationAdmins as AdminRecord[]).find((item) => item.id === admin!.id);
-    expect(unchanged?.account_status).toBe(admin!.account_status);
+    const unchanged = (afterBody.organizationAdmins as AdminRecord[]).find((item) => item.id === admin.id);
+    expect(unchanged?.account_status).toBe(admin.account_status);
   });
 
   // ---------------------------------------------------------------------------
