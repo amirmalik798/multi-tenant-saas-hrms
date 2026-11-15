@@ -1631,6 +1631,13 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
     });
     try {
       expect(await anonymous.cookies()).toHaveLength(0);
+
+      const sessionResponse = await anonymous.request.get("/api/backend/auth/me");
+      expect(
+        sessionResponse.status(),
+        "A fresh context with no cookies must not have a Super Admin session.",
+      ).toBe(401);
+
       const endpoints = [
         "/api/backend/dashboard/stats",
         "/api/backend/organizations",
@@ -1642,7 +1649,11 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
       ];
       for (const endpoint of endpoints) {
         const response = await anonymous.request.get(endpoint);
-        expect(response.status(), "Anonymous request must be rejected: " + endpoint).toBe(401);
+        const responseBody = await response.text();
+        expect(
+          response.status(),
+          "Anonymous request must be rejected: " + endpoint + "; response: " + responseBody.slice(0, 500),
+        ).toBe(401);
       }
     } finally {
       await anonymous.close();
