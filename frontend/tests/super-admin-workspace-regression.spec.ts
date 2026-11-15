@@ -727,10 +727,27 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
 
   test("SA-033: organization Users tab exposes read-only account metrics and search", async ({ page }) => {
     const dialog = await openSeedOrganization(page, "view");
+    const initialUsersResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname.endsWith("/users") && url.searchParams.get("q") === "";
+    });
     await dialog.locator('[data-organization-tab="users"]').click();
+    const initialUsersResponse = await initialUsersResponsePromise;
+    expect(initialUsersResponse.status()).toBe(200);
     await expect(dialog.getByRole("heading", { name: "Organization Users", exact: true })).toBeVisible();
-    await expect(dialog.getByPlaceholder("Search name, email, role or employee code")).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "Clear user search" })).toHaveCount(0);
+
+    const search = dialog.getByPlaceholder("Search name, email, role or employee code");
+    await expect(search).toBeVisible();
+    const query = "pw-org-user-search-" + RUN_ID;
+    const searchResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname.endsWith("/users") && url.searchParams.get("q") === query;
+    });
+    await search.fill(query);
+    const searchResponse = await searchResponsePromise;
+    expect(searchResponse.status()).toBe(200);
+    const searchBody = await searchResponse.json();
+    expect(searchBody.matchingTotal).toBe(0);
   });
 
   test("SA-034: organization Invitation Logs tab opens its history panel", async ({ page }) => {
@@ -881,7 +898,10 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
     const admin = await readFixtureAdmin(page);
     const name = adminDisplayName(admin);
     await openPage(page, "/dashboard/organization-admins", "Organization Admins");
-    await page.getByRole("button", { name: "View details for " + name, exact: true }).click();
+    await page.locator("#admin-table-search").fill(admin.email);
+    const adminRow = page.locator("tbody tr").filter({ hasText: admin.email });
+    await expect(adminRow).toHaveCount(1);
+    await adminRow.getByRole("button", { name: "View details for " + name, exact: true }).click();
     const panel = page.getByRole("dialog", { name: "Organization Admin" });
     await expect(panel).toBeVisible();
     await expect(panel.getByText(admin.email, { exact: true })).toBeVisible();
@@ -891,7 +911,10 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
   test("SA-048: Organization Admin details expose copy-email and organization navigation actions", async ({ page }) => {
     const admin = await readFixtureAdmin(page);
     await openPage(page, "/dashboard/organization-admins", "Organization Admins");
-    await page.getByRole("button", { name: "View details for " + adminDisplayName(admin), exact: true }).click();
+    await page.locator("#admin-table-search").fill(admin.email);
+    const adminRow = page.locator("tbody tr").filter({ hasText: admin.email });
+    await expect(adminRow).toHaveCount(1);
+    await adminRow.getByRole("button", { name: "View details for " + adminDisplayName(admin), exact: true }).click();
     const panel = page.getByRole("dialog", { name: "Organization Admin" });
     await expect(panel.getByRole("button", { name: "Copy email address", exact: true })).toBeVisible();
     await expect(panel.getByRole("link", { name: "View organization details" })).toBeVisible();
@@ -903,7 +926,10 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
     expect(admin.organization_status.toUpperCase()).toBe("ACTIVE");
     const name = adminDisplayName(admin);
     await openPage(page, "/dashboard/organization-admins", "Organization Admins");
-    await page.getByRole("button", { name: "View details for " + name, exact: true }).click();
+    await page.locator("#admin-table-search").fill(admin.email);
+    const adminRow = page.locator("tbody tr").filter({ hasText: admin.email });
+    await expect(adminRow).toHaveCount(1);
+    await adminRow.getByRole("button", { name: "View details for " + name, exact: true }).click();
     const panel = page.getByRole("dialog", { name: "Organization Admin" });
     const statusButton = admin.account_status.toUpperCase() === "SUSPENDED"
       ? panel.getByRole("button", { name: "Reactivate Administrator", exact: true })
@@ -923,7 +949,10 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
     expect(admin.organization_status.toUpperCase()).toBe("ACTIVE");
     const name = adminDisplayName(admin);
     await openPage(page, "/dashboard/organization-admins", "Organization Admins");
-    await page.getByRole("button", { name: "View details for " + name, exact: true }).click();
+    await page.locator("#admin-table-search").fill(admin.email);
+    const adminRow = page.locator("tbody tr").filter({ hasText: admin.email });
+    await expect(adminRow).toHaveCount(1);
+    await adminRow.getByRole("button", { name: "View details for " + name, exact: true }).click();
     const panel = page.getByRole("dialog", { name: "Organization Admin" });
     const statusButton = admin.account_status.toUpperCase() === "SUSPENDED"
       ? panel.getByRole("button", { name: "Reactivate Administrator", exact: true })
@@ -945,7 +974,10 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
     expect(admin.organization_status.toUpperCase()).toBe("ACTIVE");
     const name = adminDisplayName(admin);
     await openPage(page, "/dashboard/organization-admins", "Organization Admins");
-    await page.getByRole("button", { name: "View details for " + name, exact: true }).click();
+    await page.locator("#admin-table-search").fill(admin.email);
+    const adminRow = page.locator("tbody tr").filter({ hasText: admin.email });
+    await expect(adminRow).toHaveCount(1);
+    await adminRow.getByRole("button", { name: "View details for " + name, exact: true }).click();
     const panel = page.getByRole("dialog", { name: "Organization Admin" });
     await panel.getByRole("button", { name: "Invite replacement administrator", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Invite a replacement Organization Admin" });
@@ -1007,10 +1039,17 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
   });
 
   test("SA-056: choosing Pending marks that invitation status filter as selected", async ({ page }) => {
+    const pendingRequestPromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname === "/api/backend/platform-invitations" &&
+        url.searchParams.get("status") === "PENDING";
+    });
     await openPage(page, "/dashboard/invitations", "Invitation Management");
     const filters = page.locator('[aria-label="Filter invitations by status"]');
     const pending = filters.getByRole("button", { name: "Pending", exact: true });
     await pending.click();
+    const pendingResponse = await pendingRequestPromise;
+    expect(pendingResponse.status()).toBe(200);
     await expect(pending).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -1084,8 +1123,10 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
 
   test("SA-062: Payments & Licenses workspace renders review metrics and submissions", async ({ page }) => {
     await openPage(page, "/dashboard/payments", "Payments & Licenses");
+    const metrics = page.getByRole("region", { name: "Payment overview metrics" });
+    await expect(metrics).toBeVisible();
     for (const label of ["All submissions", "Awaiting review", "Approved", "Rejected"]) {
-      await expect(page.getByText(label, { exact: true })).toBeVisible();
+      await expect(metrics.getByText(label, { exact: true })).toBeVisible();
     }
     await expect(page.getByRole("heading", { name: "Payment submissions", exact: true })).toBeVisible();
   });
@@ -1370,7 +1411,9 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
     await page.getByRole("button", { name: "Send reply", exact: true }).click();
     const response = await responsePromise;
     expect(response.status()).toBe(201);
-    await expect(page.getByText(reply, { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "Support conversation messages" }).getByText(reply, { exact: true }),
+    ).toBeVisible();
   });
 
   test("SA-083: Super Admin can close and reopen an explicitly configured test support thread", async ({ page }) => {
@@ -1542,8 +1585,8 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
   test("SA-094: System Health workspace renders readiness status and health checks", async ({ page }) => {
     await openPage(page, "/dashboard/system-health", "System Health");
     await expect(page.getByRole("heading", { name: "Readiness status", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Database", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Email delivery", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "PostgreSQL database", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Email delivery configuration", exact: true })).toBeVisible();
   });
 
   test("SA-095: readiness endpoint reports database and email delivery checks", async ({ page }) => {
@@ -1560,8 +1603,8 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
   test("SA-096: System Health screen displays the backend readiness result", async ({ page }) => {
     await openPage(page, "/dashboard/system-health", "System Health");
     await expect(page.getByText(/ready|degraded|unavailable|checking/i).first()).toBeVisible();
-    await expect(page.getByText("Database", { exact: true })).toBeVisible();
-    await expect(page.getByText("Email delivery", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "PostgreSQL database", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Email delivery configuration", exact: true })).toBeVisible();
   });
 
   test("SA-097: Super Admin session endpoint confirms the platform role", async ({ page }) => {
@@ -1572,25 +1615,30 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
     expect(body.user.role).toBe("SUPER_ADMIN");
   });
 
-  test("SA-098: platform management APIs reject requests without a Super Admin session", async ({ page }) => {
-    const anonymous = await request.newContext({
+  test("SA-098: platform management APIs reject requests without a Super Admin session", async ({ browser }) => {
+    const anonymous = await browser.newContext({
       baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3001",
+      storageState: { cookies: [], origins: [] },
       extraHTTPHeaders: { "ngrok-skip-browser-warning": "true" },
     });
-    const endpoints = [
-      "/api/backend/dashboard/stats",
-      "/api/backend/organizations",
-      "/api/backend/organization-admins",
-      "/api/backend/platform-invitations",
-      "/api/backend/platform-payments",
-      "/api/backend/audit-logs",
-      "/api/backend/platform-support",
-    ];
-    for (const endpoint of endpoints) {
-      const response = await anonymous.get(endpoint);
-      expect(response.status(), "Anonymous request must be rejected: " + endpoint).toBe(401);
+    try {
+      expect(await anonymous.cookies()).toHaveLength(0);
+      const endpoints = [
+        "/api/backend/dashboard/stats",
+        "/api/backend/organizations",
+        "/api/backend/organization-admins",
+        "/api/backend/platform-invitations",
+        "/api/backend/platform-payments",
+        "/api/backend/audit-logs",
+        "/api/backend/platform-support",
+      ];
+      for (const endpoint of endpoints) {
+        const response = await anonymous.request.get(endpoint);
+        expect(response.status(), "Anonymous request must be rejected: " + endpoint).toBe(401);
+      }
+    } finally {
+      await anonymous.close();
     }
-    await anonymous.dispose();
   });
 
   test("SA-099: audit log endpoint is read-only and does not accept mutation requests", async ({ page }) => {
