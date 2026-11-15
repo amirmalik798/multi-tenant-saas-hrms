@@ -120,9 +120,13 @@ export async function deleteOrganizationTenantData(
       "FROM pg_class AS relation_data",
       "JOIN pg_namespace AS namespace_data",
       "  ON namespace_data.oid = relation_data.relnamespace",
-      "WHERE namespace_data.nspname NOT IN ('public', 'pg_catalog', 'information_schema')",
+      "WHERE namespace_data.nspname NOT IN ('pg_catalog', 'information_schema')",
       "  AND namespace_data.nspname NOT LIKE 'pg_toast%'",
-      "  AND relation_data.relkind IN ('r', 'p')",
+      "  AND namespace_data.nspname NOT LIKE 'pg_temp_%'",
+      "  AND (",
+      "    (namespace_data.nspname <> 'public' AND relation_data.relkind IN ('r', 'p'))",
+      "    OR relation_data.relkind IN ('f', 'm')",
+      "  )",
       "  AND EXISTS (",
       "    SELECT 1 FROM pg_attribute AS organization_column",
       "    WHERE organization_column.attrelid = relation_data.oid",
@@ -136,7 +140,7 @@ export async function deleteOrganizationTenantData(
 
   if (nonPublicTenantTablesResult.rows.length > 0) {
     throw new OrganizationDeletionBlockedError(
-      "Tenant-scoped tables exist outside the supported public schema: " +
+      "Tenant-scoped relations use an unsupported schema or storage type: " +
         nonPublicTenantTablesResult.rows.map((row) => row.qualified_name).join(", ") +
         ". Deletion was stopped safely.",
     );
