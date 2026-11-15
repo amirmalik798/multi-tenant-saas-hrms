@@ -20,14 +20,24 @@ const backendRequire = createRequire(path.resolve(process.cwd(), "../backend/pac
 const backendBcrypt = backendRequire("bcryptjs") as {
   hash: (password: string, rounds: number) => Promise<string>;
 };
+type FixtureQueryResult = {
+  rowCount: number | null;
+  rows: Array<Record<string, unknown>>;
+};
+
+type FixtureDatabaseClient = {
+  query: (sql: string, values?: unknown[]) => Promise<FixtureQueryResult>;
+  release: () => void;
+};
+
+type FixtureDatabasePool = {
+  query: (sql: string, values?: unknown[]) => Promise<FixtureQueryResult>;
+  connect: () => Promise<FixtureDatabaseClient>;
+  end: () => Promise<void>;
+};
+
 const backendPg = backendRequire("pg") as {
-  Pool: new (config: Record<string, unknown>) => {
-    query: (sql: string, values?: unknown[]) => Promise<{
-      rowCount: number | null;
-      rows: Array<Record<string, unknown>>;
-    }>;
-    end: () => Promise<void>;
-  };
+  Pool: new (config: Record<string, unknown>) => FixtureDatabasePool;
 };
 
 /**
@@ -555,62 +565,85 @@ async function createWorkforceLoginAccount(
   const employeeId = profileBody.employee?.id as string | undefined;
   if (!employeeId) throw new Error("Workforce profile creation returned no employee ID for " + email);
 
-  // The login suite does not test invitations. Seed the normal active user
-  // account using the same bcrypt work factor and user columns as the backend
-  // invitation-acceptance route. All sign-in/session behavior remains real.
-  const employeeUpdate = await fixtureDatabase.query(
-    `UPDATE public.employees
-     SET employment_status = 'ACTIVE',
-         updated_at = NOW()
-     WHERE id = $1::uuid
-     RETURNING id, organization_id, workforce_role_id`,
-    [employeeId],
-  );
-  const employee = employeeUpdate.rows[0];
-  const organizationId = employee?.organization_id;
-  const roleId = employee?.workforce_role_id;
-  if (
-    employeeUpdate.rowCount !== 1 ||
-    typeof organizationId !== "string" ||
-    typeof roleId !== "string"
-  ) {
-    throw new Error("Could not activate the workforce profile for " + email);
-  }
+  // Mirror the production employee-invitation acceptance sequence. The
+  // active-profile database constraint is deferred until transaction commit
+  // and requires its matching active organization account to exist by then.
+  // Separate Pool.query calls auto-commit individually and violate that rule.
+  const client = await fixtureDatabase.connect();
+  let transactionOpen = false;
 
-  const roleResult = await fixtureDatabase.query(
-    `SELECT name
-     FROM public.roles
-     WHERE id = $1::uuid
-       AND organization_id = $2::uuid
-       AND scope = 'ORGANIZATION'
-     LIMIT 1`,
-    [roleId, organizationId],
-  );
-  if (roleResult.rows[0]?.name !== role) {
-    throw new Error("Workforce profile role did not match " + role + " for " + email);
-  }
+  try {
+    await client.query("BEGIN");
+    transactionOpen = true;
 
-  const passwordHash = await backendBcrypt.hash(password, 12);
-  const userResult = await fixtureDatabase.query(
-    `INSERT INTO public.users (
-       email,
-       password_hash,
-       account_scope,
-       organization_id,
-       employee_id,
-       status,
-       role_id
-     )
-     VALUES ($1, $2, 'ORGANIZATION', $3::uuid, $4::uuid, 'ACTIVE', $5::uuid)
-     RETURNING id`,
-    [email, passwordHash, organizationId, employeeId, roleId],
-  );
-  const userId = userResult.rows[0]?.id;
-  if (typeof userId !== "string") {
-    throw new Error("Workforce login account was not created for " + email);
-  }
+    const employeeUpdate = await client.query(
+      `UPDATE public.employees
+       SET employment_status = 'ACTIVE',
+           updated_at = NOW()
+       WHERE id = $1::uuid
+       RETURNING id, organization_id, workforce_role_id`,
+      [employeeId],
+    );
+    const employee = employeeUpdate.rows[0];
+    const organizationId = employee?.organization_id;
+    const roleId = employee?.workforce_role_id;
+    if (
+      employeeUpdate.rowCount !== 1 ||
+      typeof organizationId !== "string" ||
+      typeof roleId !== "string"
+    ) {
+      throw new Error("Could not activate the workforce profile for " + email);
+    }
 
-  return { email, password, userId, employeeId };
+    const roleResult = await client.query(
+      `SELECT name
+       FROM public.roles
+       WHERE id = $1::uuid
+         AND organization_id = $2::uuid
+         AND scope = 'ORGANIZATION'
+       LIMIT 1`,
+      [roleId, organizationId],
+    );
+    if (roleResult.rows[0]?.name !== role) {
+      throw new Error("Workforce profile role did not match " + role + " for " + email);
+    }
+
+    const passwordHash = await backendBcrypt.hash(password, 12);
+    const userResult = await client.query(
+      `INSERT INTO public.users (
+         email,
+         password_hash,
+         account_scope,
+         organization_id,
+         employee_id,
+         status,
+         role_id
+       )
+       VALUES ($1, $2, 'ORGANIZATION', $3::uuid, $4::uuid, 'ACTIVE', $5::uuid)
+       RETURNING id`,
+      [email, passwordHash, organizationId, employeeId, roleId],
+    );
+    const userId = userResult.rows[0]?.id;
+    if (typeof userId !== "string") {
+      throw new Error("Workforce login account was not created for " + email);
+    }
+
+    await client.query("COMMIT");
+    transactionOpen = false;
+    return { email, password, userId, employeeId };
+  } catch (error) {
+    if (transactionOpen) {
+      try {
+        await client.query("ROLLBACK");
+        transactionOpen = false;
+      } catch (rollbackError) {
+        console.error("Workforce login fixture rollback failed:", rollbackError);
+      }
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function setFixtureUserSuspended(account: LoginFixtureAccount, organizationId: string, roleName: string) {
