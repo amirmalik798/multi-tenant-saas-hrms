@@ -106,7 +106,13 @@ type IconName =
   | "copy"
   | "check"
   | "trash"
-  | "more";
+  | "more"
+  | "eye"
+  | "pencil"
+  | "ban"
+  | "shield-check"
+  | "user-plus"
+  | "refresh";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
@@ -190,6 +196,11 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     copy: <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></>,
     check: <path d="m5 12 4 4L19 6" />,
     trash: <><path d="M3 6h18M8 6V4h8v2m3 0-.8 14H5.8L5 6m4 4v6m6-6v6" /></>,
+    eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></>,
+    pencil: <><path d="m16 5 3 3" /><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17l-1 3Z" /></>,
+    ban: <><circle cx="12" cy="12" r="9" /><path d="m5.6 5.6 12.8 12.8" /></>,
+    "shield-check": <><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z" /><path d="m9 12 2 2 4-4" /></>,
+    "user-plus": <><circle cx="9" cy="8" r="4" /><path d="M2 21v-1a7 7 0 0 1 14 0v1M19 8v6m-3-3h6" /></>,
     more: (
       <>
         <circle cx="12" cy="5" r="1" />
@@ -216,6 +227,9 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     </svg>
   );
 }
+
+const organizationRowActionButtonBaseClass =
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#141f2e] disabled:cursor-not-allowed disabled:opacity-50";
 
 function formatDate(value: string) {
   const date = new Date(value);
@@ -2275,19 +2289,33 @@ export default function OrganizationsPage() {
                                   type="button"
                                   onClick={() => openOrganizationPanel(organization, "view")}
                                   title="View organization details"
-                                  className="sa-organization-view-details inline-flex min-h-8 shrink-0 items-center justify-center gap-1 rounded-lg border border-[#75c7ff]/25 bg-[#75c7ff]/[0.07] px-2.5 py-1.5 text-[11px] font-semibold text-[#9ed5ff] transition-all duration-200 hover:border-[#75c7ff]/50 hover:bg-[#75c7ff]/[0.13] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#75c7ff]"
+                                  aria-label={`View ${organization.name} details`}
+                                  className={`sa-organization-view-details ${organizationRowActionButtonBaseClass} border-[#75c7ff]/25 bg-[#75c7ff]/[0.07] text-[#9ed5ff] hover:border-[#75c7ff]/50 hover:bg-[#75c7ff]/[0.13]`}
                                 >
-                                  View details <Icon name="arrow" size={11} />
+                                  <Icon name="eye" size={16} />
                                 </button>
                                 {organization.status?.toUpperCase() === "ARCHIVED" ? (
-                                  <button type="button" onClick={() => void handleRestoreArchivedOrganization(organization)} disabled={statusUpdatingOrganizationId === organization.id} className="inline-flex min-h-8 shrink-0 items-center justify-center rounded-lg border border-amber-300/20 bg-amber-400/[0.06] px-2.5 py-1.5 text-[11px] font-semibold text-amber-200 hover:bg-amber-400/10 disabled:opacity-50" title="Restore to suspended status">{statusUpdatingOrganizationId === organization.id ? "Restoring…" : "Restore"}</button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleRestoreArchivedOrganization(organization)}
+                                    disabled={statusUpdatingOrganizationId === organization.id}
+                                    title="Restore organization to suspended status"
+                                    aria-label={`Restore ${organization.name} to suspended status`}
+                                    className={`${organizationRowActionButtonBaseClass} border-amber-300/20 bg-amber-400/[0.06] text-amber-200 hover:bg-amber-400/10`}
+                                  >
+                                    <span className={statusUpdatingOrganizationId === organization.id ? "animate-spin" : undefined}>
+                                      <Icon name="refresh" size={15} />
+                                    </span>
+                                  </button>
                                 ) : (
                                   <button
                                     type="button"
                                     onClick={() => openOrganizationPanel(organization, "edit")}
-                                    className="inline-flex min-h-8 shrink-0 items-center justify-center rounded-lg border border-white/[0.09] bg-white/[0.025] px-2.5 py-1.5 text-[11px] font-semibold text-[#d3deeb] transition-colors hover:border-[#75c7ff]/25 hover:bg-[#1d2a3b] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#75c7ff]"
+                                    title="Edit organization"
+                                    aria-label={`Edit ${organization.name}`}
+                                    className={`${organizationRowActionButtonBaseClass} border-white/[0.09] bg-white/[0.025] text-[#d3deeb] hover:border-[#75c7ff]/25 hover:bg-[#1d2a3b] hover:text-white`}
                                   >
-                                    Edit
+                                    <Icon name="pencil" size={15} />
                                   </button>
                                 )}
                                 {organization.status === "ACTIVE" || organization.status === "SUSPENDED" ? (
@@ -2297,43 +2325,43 @@ export default function OrganizationsPage() {
                                     disabled={statusUpdatingOrganizationId === organization.id}
                                     title={organization.status === "ACTIVE" ? "Suspend organization" : "Reactivate organization"}
                                     aria-label={`${organization.status === "ACTIVE" ? "Suspend" : "Reactivate"} ${organization.name}`}
-                                    className={`inline-flex min-h-8 shrink-0 items-center justify-center rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#75c7ff] disabled:cursor-not-allowed disabled:opacity-60 ${
+                                    className={`${organizationRowActionButtonBaseClass} ${
                                       organization.status === "ACTIVE"
                                         ? "border-rose-400/20 bg-rose-500/[0.06] text-rose-300 hover:border-rose-300/35 hover:bg-rose-500/10"
                                         : "border-emerald-400/20 bg-emerald-500/[0.06] text-emerald-300 hover:border-emerald-300/35 hover:bg-emerald-500/10"
                                     }`}
                                   >
-                                    {statusUpdatingOrganizationId === organization.id
-                                      ? "Updating…"
-                                      : organization.status === "ACTIVE" ? "Suspend" : "Reactivate"}
+                                    <Icon name={organization.status === "ACTIVE" ? "ban" : "shield-check"} size={15} />
                                   </button>
                                 ) : (
                                   <span
-                                    className="inline-flex min-h-8 shrink-0 cursor-not-allowed items-center justify-center rounded-lg border border-amber-300/15 bg-amber-400/[0.04] px-2.5 py-1.5 text-[11px] font-semibold text-amber-200/70"
-                                    title="Organization setup must be completed before changing its status."
+                                    role="img"
+                                    aria-label={`${organization.name} requires setup before status changes`}
+                                    className={`${organizationRowActionButtonBaseClass} cursor-not-allowed border-amber-300/15 bg-amber-400/[0.04] text-amber-200/70`}
+                                    title="Complete organization setup before changing its status."
                                   >
-                                    Setup first
+                                    <Icon name="clock" size={15} />
                                   </span>
                                 )}
                                 <Link
                                   href={`/dashboard/organizations/${encodeURIComponent(organization.id)}`}
                                   aria-label={organization.status === "PENDING_SETUP"
-                                    ? `Open invitation setup for ${organization.name}`
+                                    ? `Invite an administrator for ${organization.name}`
                                     : `Open full details for ${organization.name}`}
                                   title={organization.status === "PENDING_SETUP" ? "Invite administrator" : "Open full organization details"}
-                                  className="inline-flex min-h-8 shrink-0 items-center justify-center rounded-lg border border-white/[0.09] bg-white/[0.025] px-2.5 py-1.5 text-[11px] font-semibold text-[#b9c7d8] transition hover:border-[#75c7ff]/25 hover:bg-[#1d2a3b] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#75c7ff]"
+                                  className={`${organizationRowActionButtonBaseClass} border-white/[0.09] bg-white/[0.025] text-[#b9c7d8] hover:border-[#75c7ff]/25 hover:bg-[#1d2a3b] hover:text-white`}
                                 >
-                                  {organization.status === "PENDING_SETUP" ? "Invite Admin" : "Full details"}
+                                  <Icon name={organization.status === "PENDING_SETUP" ? "user-plus" : "external"} size={15} />
                                 </Link>
                                 <button
                                   type="button"
                                   onClick={() => openDeleteOrganizationDialog(organization)}
                                   disabled={Boolean(deletingOrganizationId)}
-                                  title={"Permanently delete " + organization.name}
-                                  aria-label={"Permanently delete " + organization.name}
-                                  className="inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-rose-400/25 bg-rose-500/[0.07] px-2.5 py-1.5 text-[11px] font-semibold text-rose-200 transition hover:border-rose-300/45 hover:bg-rose-500/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                  title={`Permanently delete ${organization.name}`}
+                                  aria-label={`Permanently delete ${organization.name}`}
+                                  className={`${organizationRowActionButtonBaseClass} border-rose-400/25 bg-rose-500/[0.07] text-rose-200 hover:border-rose-300/45 hover:bg-rose-500/[0.14] focus-visible:ring-rose-300`}
                                 >
-                                  <Icon name="trash" size={12} /> Delete
+                                  <Icon name="trash" size={15} />
                                 </button>
                               </span>
                             </span>
