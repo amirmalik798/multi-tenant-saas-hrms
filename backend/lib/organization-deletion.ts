@@ -232,6 +232,15 @@ export async function deleteOrganizationTenantData(
     [organizationId],
   );
 
+  // Document versions can reference an earlier document in the same tenant.
+  // This FK is ON DELETE RESTRICT, so clear the self-reference before the
+  // whole tenant document set is removed.
+  await client.query(
+    "UPDATE public.employee_documents SET supersedes_document_id = NULL " +
+      "WHERE organization_id = $1::uuid AND supersedes_document_id IS NOT NULL",
+    [organizationId],
+  );
+
   await client.query(
     "UPDATE public.employees " +
       "SET department_id = NULL, manager_id = NULL, is_primary_hr_manager = FALSE " +
