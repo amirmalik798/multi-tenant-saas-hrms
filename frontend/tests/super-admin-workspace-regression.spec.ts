@@ -1046,28 +1046,91 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
     await expect(dialog.getByText("License status", { exact: true })).toBeVisible();
   });
 
-  test("SA-070: pending test payment can enter the guarded approval confirmation flow", async ({ page }) => {
+  test("SA-070: Super Admin approves a disposable pending payment and activates its license", async ({ page }) => {
     const paymentId = process.env.PW_SUPER_ADMIN_APPROVE_PAYMENT_ID;
-    test.skip(!paymentId, "Set PW_SUPER_ADMIN_APPROVE_PAYMENT_ID to a disposable PENDING_REVIEW payment submission.");
+    const rejectPaymentId = process.env.PW_SUPER_ADMIN_REJECT_PAYMENT_ID;
+    test.skip(!paymentId, "Set PW_SUPER_ADMIN_APPROVE_PAYMENT_ID to a disposable PENDING_REVIEW submission. Approval is irreversible and consumes this record.");
+    test.skip(paymentId === rejectPaymentId, "Approval and rejection must use two different disposable payment submissions.");
+
+    const lookup = await page.request.get(
+      "/api/backend/platform-payments?page=1&pageSize=100&status=ALL&sort=NEWEST&search=" +
+        encodeURIComponent(paymentId!),
+    );
+    expect(lookup.status()).toBe(200);
+    const lookupBody = await lookup.json() as { payments?: PaymentRecord[] };
+    const payment = (lookupBody.payments ?? []).find((item) => item.id === paymentId);
+    test.skip(!payment, "The configured approval payment ID is not visible to the Super Admin.");
+    test.skip(payment!.status !== "PENDING_REVIEW", "The approval test record must still be PENDING_REVIEW; use a fresh disposable submission.");
+
     const dialog = await openPayment(page, paymentId!);
     await dialog.getByRole("button", { name: "Approve payment", exact: true }).click();
     await expect(dialog.getByText("Confirm payment approval", { exact: true })).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Confirm approval", exact: true })).toBeEnabled();
-    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
-    await expect(dialog.getByText("Confirm payment approval", { exact: true })).toHaveCount(0);
+
+    const reviewResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/backend/platform-payments/" + paymentId + "/review" &&
+      response.request().method() === "PATCH",
+    );
+    await dialog.getByRole("button", { name: "Confirm approval", exact: true }).click();
+    const reviewResponse = await reviewResponsePromise;
+    expect(reviewResponse.status()).toBe(200);
+
+    const result = await reviewResponse.json();
+    expect(result.status).toBe("ok");
+    expect(result.payment).toMatchObject({ id: paymentId, status: "APPROVED" });
+    expect(result.license).toMatchObject({
+      status: "ACTIVE",
+      activationSource: "PAYMENT",
+      lastApprovedPaymentId: paymentId,
+    });
+    expect(result.license.startsAt).toBeTruthy();
+    expect(result.license.expiresAt).toBeTruthy();
+    expect(new Date(result.license.expiresAt).getTime())
+      .toBeGreaterThan(new Date(result.license.startsAt).getTime());
+    await expect(page.getByRole("status").filter({ hasText: "Payment approved." })).toBeVisible();
   });
 
-  test("SA-071: pending test payment rejection requires a correction reason", async ({ page }) => {
+  test("SA-071: Super Admin rejects a separate disposable pending payment with an audited reason", async ({ page }) => {
     const paymentId = process.env.PW_SUPER_ADMIN_REJECT_PAYMENT_ID;
-    test.skip(!paymentId, "Set PW_SUPER_ADMIN_REJECT_PAYMENT_ID to a separate disposable PENDING_REVIEW payment submission.");
+    const approvePaymentId = process.env.PW_SUPER_ADMIN_APPROVE_PAYMENT_ID;
+    test.skip(!paymentId, "Set PW_SUPER_ADMIN_REJECT_PAYMENT_ID to a separate disposable PENDING_REVIEW submission. Rejection is irreversible and consumes this record.");
+    test.skip(paymentId === approvePaymentId, "Approval and rejection must use two different disposable payment submissions.");
+
+    const lookup = await page.request.get(
+      "/api/backend/platform-payments?page=1&pageSize=100&status=ALL&sort=NEWEST&search=" +
+        encodeURIComponent(paymentId!),
+    );
+    expect(lookup.status()).toBe(200);
+    const lookupBody = await lookup.json() as { payments?: PaymentRecord[] };
+    const payment = (lookupBody.payments ?? []).find((item) => item.id === paymentId);
+    test.skip(!payment, "The configured rejection payment ID is not visible to the Super Admin.");
+    test.skip(payment!.status !== "PENDING_REVIEW", "The rejection test record must still be PENDING_REVIEW; use a fresh disposable submission.");
+
     const dialog = await openPayment(page, paymentId!);
     await dialog.getByRole("button", { name: "Reject payment", exact: true }).click();
     await expect(dialog.getByText("Confirm payment rejection", { exact: true })).toBeVisible();
+    const reason = "Playwright Super Admin rejection " + RUN_ID;
     await expect(dialog.locator("#payment-rejection-reason")).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Confirm rejection", exact: true })).toBeDisabled();
-    await dialog.locator("#payment-rejection-reason").fill("Playwright rejection validation reason");
+    await dialog.locator("#payment-rejection-reason").fill(reason);
     await expect(dialog.getByRole("button", { name: "Confirm rejection", exact: true })).toBeEnabled();
-    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+
+    const reviewResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/backend/platform-payments/" + paymentId + "/review" &&
+      response.request().method() === "PATCH",
+    );
+    await dialog.getByRole("button", { name: "Confirm rejection", exact: true }).click();
+    const reviewResponse = await reviewResponsePromise;
+    expect(reviewResponse.status()).toBe(200);
+
+    const result = await reviewResponse.json();
+    expect(result.status).toBe("ok");
+    expect(result.payment).toMatchObject({
+      id: paymentId,
+      status: "REJECTED",
+      rejectionReason: reason,
+    });
+    await expect(page.getByRole("status").filter({ hasText: "Payment rejected." })).toBeVisible();
   });
 
   test("SA-072: payment review API rejects an unsupported review decision", async ({ page }) => {
