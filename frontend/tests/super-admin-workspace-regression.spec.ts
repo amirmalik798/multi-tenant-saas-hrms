@@ -242,27 +242,38 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
   test.beforeAll(async ({ superAdminApi }) => {
     test.setTimeout(180_000);
 
-    const configuredDatabaseName =
+    // PW_DATABASE_NAME may identify the SQL backup file used by the
+    // developer (crm_db.sql), while PostgreSQL connects to the restored
+    // database by its database name (crm_db). Keep both values explicit.
+    const configuredDatabaseTarget =
       process.env.PW_DATABASE_NAME?.trim() ||
       process.env.PW_TEST_DATABASE_NAME?.trim();
     expect(
-      configuredDatabaseName,
-      "Set PW_DATABASE_NAME=crm_db.sql (or the legacy PW_TEST_DATABASE_NAME=crm_db.sql) in frontend/.env.playwright. It must exactly match backend DB_NAME.",
+      configuredDatabaseTarget,
+      "Set PW_DATABASE_NAME=crm_db.sql (or the legacy PW_TEST_DATABASE_NAME=crm_db.sql) in frontend/.env.playwright.",
     ).toBeTruthy();
 
-    const normalizedDatabaseName = configuredDatabaseName!.toLowerCase();
-    const isExplicitlyApprovedCrmDatabase = normalizedDatabaseName === "crm_db.sql";
+    const normalizedDatabaseTarget = configuredDatabaseTarget!.toLowerCase();
+    const isExplicitlyApprovedCrmBackup = normalizedDatabaseTarget === "crm_db.sql";
     const isDedicatedTestDatabase =
-      /(^|[-_.])(test|testing|playwright)([-_.]|$)/i.test(normalizedDatabaseName);
+      /(^|[-_.])(test|testing|playwright)([-_.]|$)/i.test(normalizedDatabaseTarget);
     expect(
-      isDedicatedTestDatabase || isExplicitlyApprovedCrmDatabase,
-      "The Super Admin suite is restricted to a dedicated test database or the explicitly approved crm_db.sql database.",
+      isDedicatedTestDatabase || isExplicitlyApprovedCrmBackup,
+      "The Super Admin suite is restricted to a dedicated test database or the explicitly approved crm_db.sql backup target.",
     ).toBe(true);
 
     const databaseCheck = await regressionDb.query<{ database_name: string }>(
       "SELECT current_database() AS database_name",
     );
-    expect(databaseCheck.rows[0]?.database_name).toBe(configuredDatabaseName);
+    const actualDatabaseName = databaseCheck.rows[0]?.database_name;
+    const expectedDatabaseName = isExplicitlyApprovedCrmBackup
+      ? "crm_db"
+      : configuredDatabaseTarget!.replace(/\\.sql$/i, "");
+
+    expect(
+      actualDatabaseName,
+      "The backend PostgreSQL connection must point to the database represented by PW_DATABASE_NAME/PW_TEST_DATABASE_NAME.",
+    ).toBe(expectedDatabaseName);
 
     const createResponse = await superAdminApi.post("/api/backend/organizations", {
       data: {
