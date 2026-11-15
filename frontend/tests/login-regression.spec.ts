@@ -30,9 +30,11 @@ const backendPg = backendRequire("pg") as {
 /**
  * Unified login and password-recovery regression suite.
  *
- * UI assertions use the actual accessible labels and button names in
- * frontend/app/page.tsx. No route interception, API mocking, or DB stubs
- * are used. Tests requiring service calls wait for the real proxied API.
+ * UI assertions use the actual accessible controls in frontend/app/page.tsx.
+ * Organizations, invitations, administrators, and workforce accounts are
+ * created through the real backend APIs. Direct SQL is limited to fixture
+ * states with no product-side mutation route: workforce SUSPENDED accounts
+ * and an EXPIRED license. No route interception or API mocking is used.
  *
  * Run from frontend:
  *   npx playwright test tests/login-regression.spec.ts --project=chromium --workers=1
@@ -157,7 +159,18 @@ type LoginNegativeFixtures = {
   expiredAdmin: LoginFixtureAccount;
 };
 
-type SetupJson = Record<string, any>;
+type SetupJson = {
+  [key: string]: unknown;
+  organization?: { id?: string; status?: string };
+  user?: { id?: string; email?: string; status?: string; role?: string };
+  invitationUrl?: string;
+  emailSent?: boolean;
+  invitation?: { id?: string };
+  employee?: { id?: string };
+  organizationAdmins?: Array<{ id?: string; email?: string }>;
+  department?: { id?: string };
+  message?: string;
+};
 
 const LOGIN_RUN_ID = randomBytes(5).toString("hex");
 const LOGIN_TEST_PASSWORD = "PW-Login-Fixture!" + LOGIN_RUN_ID + "Aa";
@@ -530,7 +543,7 @@ async function initializeNegativeLoginFixtures() {
   const adminsResponse = await platformFixtureApi.get("/api/backend/organization-admins");
   const adminsBody = await setupJson(adminsResponse, 200, "Read Organization Admin directory");
   const suspendedAdminRecord = (adminsBody.organizationAdmins ?? []).find(
-    (item: SetupJson) => item.email?.toLowerCase() === suspendedAdmin.email.toLowerCase(),
+    (item) => item.email?.toLowerCase() === suspendedAdmin.email.toLowerCase(),
   );
   if (!suspendedAdminRecord?.id) throw new Error("Secondary Organization Admin is missing from the directory.");
   const suspendAdminResponse = await platformFixtureApi.patch(
