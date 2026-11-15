@@ -230,6 +230,8 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
 const organizationRowActionButtonBaseClass =
   "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#141f2e] disabled:cursor-not-allowed disabled:opacity-50";
 
+const ORGANIZATION_DELETED_EVENT = "hrms:organization-deleted";
+
 function formatDate(value: string) {
   const date = new Date(value);
 
@@ -614,6 +616,16 @@ export default function OrganizationsPage() {
     }, 300);
     return () => window.clearTimeout(timeoutId);
   }, [searchQuery]);
+
+  useEffect(() => {
+    const refreshAfterOrganizationDeletion = () => {
+      setOrganizationsReloadKey((current) => current + 1);
+    };
+    window.addEventListener(ORGANIZATION_DELETED_EVENT, refreshAfterOrganizationDeletion);
+    return () => {
+      window.removeEventListener(ORGANIZATION_DELETED_EVENT, refreshAfterOrganizationDeletion);
+    };
+  }, []);
 
   useEffect(() => {
     if (!user || isSearchDebouncing) return;
@@ -1335,18 +1347,33 @@ export default function OrganizationsPage() {
       }
 
       const deletedCount = Number(data.deletion?.deletedRecordCount ?? 0);
+      const deletedStatus = organization.status?.toUpperCase();
+      const nextOrganizationsTotal = Math.max(0, organizationsTotal - 1);
       setSelectedOrganization((current) =>
         current?.id === organization.id ? null : current,
       );
+      setOrganizations((current) => current.filter((item) => item.id !== organization.id));
+      setOrganizationsTotal(nextOrganizationsTotal);
+      setOrganizationsTotalPages(Math.max(1, Math.ceil(nextOrganizationsTotal / 25)));
+      setOrganizationSummary((current) => ({
+        total: Math.max(0, current.total - 1),
+        active: Math.max(0, current.active - (deletedStatus === "ACTIVE" ? 1 : 0)),
+        pending: Math.max(0, current.pending - (deletedStatus === "PENDING_SETUP" ? 1 : 0)),
+        suspended: Math.max(0, current.suspended - (deletedStatus === "SUSPENDED" ? 1 : 0)),
+        archived: Math.max(0, current.archived - (deletedStatus === "ARCHIVED" ? 1 : 0)),
+      }));
+      if (organizations.length === 1 && organizationsPage > 1) {
+        setOrganizationsPage((current) => Math.max(1, current - 1));
+      }
       setDeleteActionOrganization(null);
       setDeleteConfirmationSlug("");
-      setOrganizationsReloadKey((key) => key + 1);
       setTableActionSuccess(
         organization.name +
           " was permanently deleted with " +
           deletedCount.toLocaleString() +
           " related database record(s).",
       );
+      window.dispatchEvent(new Event(ORGANIZATION_DELETED_EVENT));
     } catch (deletionError) {
       setDeleteActionError(
         deletionError instanceof Error

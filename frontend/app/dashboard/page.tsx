@@ -225,6 +225,8 @@ function Icon({
 const organizationRowActionButtonBaseClass =
   "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#141f2e] disabled:cursor-not-allowed disabled:opacity-50";
 
+const ORGANIZATION_DELETED_EVENT = "hrms:organization-deleted";
+
 function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
@@ -501,6 +503,16 @@ export default function DashboardPage() {
     };
   }, [user, router, reloadKey, recentOrganizationsPage, debouncedSearchQuery]);
 
+  useEffect(() => {
+    const refreshAfterOrganizationDeletion = () => {
+      setReloadKey((current) => current + 1);
+    };
+    window.addEventListener(ORGANIZATION_DELETED_EVENT, refreshAfterOrganizationDeletion);
+    return () => {
+      window.removeEventListener(ORGANIZATION_DELETED_EVENT, refreshAfterOrganizationDeletion);
+    };
+  }, []);
+
   async function handleLogout() {
     setLoggingOut(true);
     setLogoutError("");
@@ -655,9 +667,21 @@ export default function DashboardPage() {
       }
 
       const deletedCount = Number(data.deletion?.deletedRecordCount ?? 0);
+      const deletedStatus = organization.status?.toUpperCase();
       setOrganizations((current) => current.filter((item) => item.id !== organization.id));
       setRecentOrganizations((current) => current.filter((item) => item.id !== organization.id));
       setRecentOrganizationsTotal((current) => Math.max(0, current - 1));
+      setStatsData((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          totalOrganizations: Math.max(0, current.totalOrganizations - 1),
+          activeOrganizations: Math.max(0, current.activeOrganizations - (deletedStatus === "ACTIVE" ? 1 : 0)),
+          pendingSetupOrganizations: Math.max(0, current.pendingSetupOrganizations - (deletedStatus === "PENDING_SETUP" ? 1 : 0)),
+          suspendedOrganizations: Math.max(0, current.suspendedOrganizations - (deletedStatus === "SUSPENDED" ? 1 : 0)),
+          archivedOrganizations: Math.max(0, current.archivedOrganizations - (deletedStatus === "ARCHIVED" ? 1 : 0)),
+        };
+      });
       if (recentOrganizations.length === 1 && recentOrganizationsPage > 1) {
         setRecentOrganizationsPage((current) => Math.max(1, current - 1));
       }
@@ -666,7 +690,7 @@ export default function DashboardPage() {
       setStatusActionNotice(
         `${organization.name} was permanently deleted with ${deletedCount.toLocaleString()} related database record(s).`,
       );
-      setReloadKey((value) => value + 1);
+      window.dispatchEvent(new Event(ORGANIZATION_DELETED_EVENT));
     } catch (error) {
       setDeleteActionError(
         error instanceof Error
