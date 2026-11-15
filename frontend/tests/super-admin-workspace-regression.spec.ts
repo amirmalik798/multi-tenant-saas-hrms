@@ -1039,12 +1039,20 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
   });
 
   test("SA-056: choosing Pending marks that invitation status filter as selected", async ({ page }) => {
+    const initialRequestPromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname === "/api/backend/platform-invitations" &&
+        url.searchParams.get("status") === "ALL";
+    });
+    await openPage(page, "/dashboard/invitations", "Invitation Management");
+    const initialResponse = await initialRequestPromise;
+    expect(initialResponse.status()).toBe(200);
+
     const pendingRequestPromise = page.waitForResponse((response) => {
       const url = new URL(response.url());
       return url.pathname === "/api/backend/platform-invitations" &&
         url.searchParams.get("status") === "PENDING";
     });
-    await openPage(page, "/dashboard/invitations", "Invitation Management");
     const filters = page.locator('[aria-label="Filter invitations by status"]');
     const pending = filters.getByRole("button", { name: "Pending", exact: true });
     await pending.click();
