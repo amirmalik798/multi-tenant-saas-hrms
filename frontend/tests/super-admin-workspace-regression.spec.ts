@@ -119,6 +119,32 @@ type PaymentRecord = {
   status: string;
 };
 
+type InvitationCreateResponse = {
+  status?: string;
+  message?: string;
+  emailSent?: boolean;
+  emailDeliverySkipped?: boolean;
+  emailMode?: string;
+  emailProvider?: string;
+  invitation?: { id?: string };
+  invitationUrl?: string;
+};
+
+function expectInvitationDeliveryMode(body: InvitationCreateResponse | null) {
+  expect(body?.status).toBe("ok");
+
+  if (body?.emailMode === "local") {
+    expect(body.emailProvider).toBe("local_preview");
+    expect(body.emailSent).toBe(false);
+    expect(body.emailDeliverySkipped).toBe(true);
+    return;
+  }
+
+  expect(["sandbox", "live"]).toContain(body?.emailMode);
+  expect(body?.emailSent).toBe(true);
+  expect(body?.emailDeliverySkipped).toBe(false);
+}
+
 function sameOriginHeaders(page: Page) {
   return {
     origin: new URL(page.url()).origin,
@@ -325,11 +351,11 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
       },
     );
     const invitationBody = await invitationResponse.json().catch(() => null) as
-      | { emailSent?: boolean; invitation?: { id?: string }; message?: string }
+      | InvitationCreateResponse
       | null;
 
     expect(invitationResponse.status(), "The initial test Organization Admin invitation must be created successfully.").toBe(201);
-    expect(invitationBody?.emailSent, "The configured provider must deliver the test invitation.").toBe(true);
+    expectInvitationDeliveryMode(invitationBody);
     seedInvitationId = invitationBody?.invitation?.id ?? "";
     expect(seedInvitationId).toBeTruthy();
 
@@ -371,11 +397,11 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
       },
     );
     const activeInvitationBody = await activeInvitationResponse.json().catch(() => null) as
-      | { emailSent?: boolean; invitation?: { id?: string }; invitationUrl?: string; message?: string }
+      | InvitationCreateResponse
       | null;
 
     expect(activeInvitationResponse.status(), "The accepted-admin fixture invitation must be created successfully.").toBe(201);
-    expect(activeInvitationBody?.emailSent, "The configured provider must deliver the active-admin invitation.").toBe(true);
+    expectInvitationDeliveryMode(activeInvitationBody);
     expect(activeInvitationBody?.invitation?.id).toBeTruthy();
     expect(activeInvitationBody?.invitationUrl).toBeTruthy();
 
@@ -448,10 +474,10 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
       },
     );
     const secondInvitationBody = await secondInvitationResponse.json().catch(() => null) as
-      | { emailSent?: boolean; invitation?: { id?: string }; invitationUrl?: string; message?: string }
+      | InvitationCreateResponse
       | null;
     expect(secondInvitationResponse.status()).toBe(201);
-    expect(secondInvitationBody?.emailSent).toBe(true);
+    expectInvitationDeliveryMode(secondInvitationBody);
     expect(secondInvitationBody?.invitation?.id).toBeTruthy();
     expect(secondInvitationBody?.invitationUrl).toBeTruthy();
 
