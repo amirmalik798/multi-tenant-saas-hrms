@@ -105,6 +105,7 @@ type IconName =
   | "refresh"
   | "copy"
   | "check"
+  | "trash"
   | "more";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
@@ -188,6 +189,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     refresh: <path d="M20 7v5h-5M4 17v-5h5m-4.2-3A8 8 0 0 1 18 6l2 6M4 12l2 6a8 8 0 0 0 13.2-3" />,
     copy: <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></>,
     check: <path d="m5 12 4 4L19 6" />,
+    trash: <><path d="M3 6h18M8 6V4h8v2m3 0-.8 14H5.8L5 6m4 4v6m6-6v6" /></>,
     more: (
       <>
         <circle cx="12" cy="5" r="1" />
@@ -388,6 +390,13 @@ export default function OrganizationsPage() {
   const [statusConfirmationSlug, setStatusConfirmationSlug] = useState("");
   const [statusActionError, setStatusActionError] = useState("");
   const [tableActionSuccess, setTableActionSuccess] = useState("");
+  const [deleteActionOrganization, setDeleteActionOrganization] =
+    useState<Organization | null>(null);
+  const [deleteConfirmationSlug, setDeleteConfirmationSlug] = useState("");
+  const [deleteActionError, setDeleteActionError] = useState("");
+  const [deletingOrganizationId, setDeletingOrganizationId] =
+    useState<string | null>(null);
+  const deleteDialogRef = useRef<HTMLDivElement | null>(null);
   const statusDialogRef = useRef<HTMLDivElement | null>(null);
   const statusConfirmationInputRef = useRef<HTMLInputElement | null>(null);
   const statusConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -1263,6 +1272,76 @@ export default function OrganizationsPage() {
       setError(restoreError instanceof Error ? restoreError.message : "Could not restore this organization.");
     } finally {
       setStatusUpdatingOrganizationId(null);
+    }
+  }
+
+  function openDeleteOrganizationDialog(organization: Organization) {
+    setDeleteActionOrganization(organization);
+    setDeleteConfirmationSlug("");
+    setDeleteActionError("");
+  }
+
+  function closeDeleteOrganizationDialog() {
+    if (deletingOrganizationId) return;
+    setDeleteActionOrganization(null);
+    setDeleteConfirmationSlug("");
+    setDeleteActionError("");
+  }
+
+  async function handleConfirmOrganizationDeletion() {
+    const organization = deleteActionOrganization;
+    if (!organization || deletingOrganizationId) return;
+
+    if (deleteConfirmationSlug.trim() !== organization.slug) {
+      setDeleteActionError("Type the organization's slug exactly to confirm deletion.");
+      return;
+    }
+
+    setDeletingOrganizationId(organization.id);
+    setDeleteActionError("");
+    setTableActionSuccess("");
+
+    try {
+      const response = await fetch(
+        "/api/backend/organizations/" + encodeURIComponent(organization.id),
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmationSlug: deleteConfirmationSlug.trim() }),
+        },
+      );
+      const data = await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        setDeleteActionOrganization(null);
+        router.replace("/");
+        return;
+      }
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to delete this organization.");
+      }
+
+      const deletedCount = Number(data.deletion?.deletedRecordCount ?? 0);
+      setSelectedOrganization((current) =>
+        current?.id === organization.id ? null : current,
+      );
+      setDeleteActionOrganization(null);
+      setDeleteConfirmationSlug("");
+      setOrganizationsReloadKey((key) => key + 1);
+      setTableActionSuccess(
+        organization.name +
+          " was permanently deleted with " +
+          deletedCount.toLocaleString() +
+          " related database record(s).",
+      );
+    } catch (deletionError) {
+      setDeleteActionError(
+        deletionError instanceof Error
+          ? deletionError.message
+          : "Could not delete this organization. Please try again.",
+      );
+    } finally {
+      setDeletingOrganizationId(null);
     }
   }
 
@@ -2246,6 +2325,16 @@ export default function OrganizationsPage() {
                                 >
                                   {organization.status === "PENDING_SETUP" ? "Invite Admin" : "Full details"}
                                 </Link>
+                                <button
+                                  type="button"
+                                  onClick={() => openDeleteOrganizationDialog(organization)}
+                                  disabled={Boolean(deletingOrganizationId)}
+                                  title={"Permanently delete " + organization.name}
+                                  aria-label={"Permanently delete " + organization.name}
+                                  className="inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-rose-400/25 bg-rose-500/[0.07] px-2.5 py-1.5 text-[11px] font-semibold text-rose-200 transition hover:border-rose-300/45 hover:bg-rose-500/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <Icon name="trash" size={12} /> Delete
+                                </button>
                               </span>
                             </span>
                           </div>
@@ -3270,6 +3359,116 @@ export default function OrganizationsPage() {
           setOrganizationsReloadKey((key) => key + 1);
         }}
       />
+
+      {deleteActionOrganization && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeDeleteOrganizationDialog();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") closeDeleteOrganizationDialog();
+          }}
+        >
+          <div
+            ref={deleteDialogRef}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="organization-delete-title"
+            aria-describedby="organization-delete-description"
+            tabIndex={-1}
+            onMouseDown={(event) => event.stopPropagation()}
+            className="w-full max-w-xl rounded-2xl border border-rose-400/30 bg-[#182232] p-5 text-white shadow-[0_28px_80px_rgba(0,0,0,0.65)] sm:p-6"
+          >
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-300">
+                <Icon name="trash" size={22} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-rose-300">
+                  Irreversible platform action
+                </p>
+                <h2 id="organization-delete-title" className="mt-1 text-xl font-bold tracking-tight text-white">
+                  Permanently delete organization?
+                </h2>
+                <p className="mt-1 break-words text-sm font-semibold text-slate-200">
+                  {deleteActionOrganization.name}
+                </p>
+              </div>
+            </div>
+
+            <div id="organization-delete-description" className="mt-5 space-y-3 text-sm leading-6 text-slate-300">
+              <p>
+                This permanently removes the organization and its tenant-owned
+                records, including user accounts, employees, departments,
+                attendance, leave, salary records, documents, invitations,
+                schedules, onboarding, communications, licenses, and payment
+                submissions with their proof images.
+              </p>
+              <p className="rounded-lg border border-rose-400/20 bg-rose-500/[0.07] px-3 py-2.5 text-xs leading-5 text-rose-100/90">
+                This cannot be undone. Users from this organization will no
+                longer be able to sign in, and existing sessions will be
+                rejected by the database-backed authentication checks.
+              </p>
+              <p className="rounded-lg border border-sky-400/15 bg-sky-500/[0.05] px-3 py-2.5 text-xs leading-5 text-sky-100/85">
+                Platform audit history is retained with tenant references
+                anonymized. Deletion is blocked while contracts or documents
+                are under a legal hold.
+              </p>
+              <label htmlFor="confirm-organization-delete-slug" className="block pt-1 text-xs font-semibold text-slate-200">
+                Type this organization&apos;s slug to confirm:
+                <span className="ml-1 font-bold text-rose-200">{deleteActionOrganization.slug}</span>
+              </label>
+              <input
+                id="confirm-organization-delete-slug"
+                type="text"
+                autoComplete="off"
+                autoFocus
+                value={deleteConfirmationSlug}
+                onChange={(event) => {
+                  setDeleteConfirmationSlug(event.target.value);
+                  setDeleteActionError("");
+                }}
+                placeholder={deleteActionOrganization.slug}
+                disabled={Boolean(deletingOrganizationId)}
+                className="h-11 w-full rounded-lg border border-[#29384b] bg-[#0f1724] px-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-rose-400/60 focus:ring-4 focus:ring-rose-500/10 disabled:opacity-60"
+              />
+            </div>
+
+            {deleteActionError && (
+              <p role="alert" className="mt-4 rounded-lg border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+                {deleteActionError}
+              </p>
+            )}
+
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeDeleteOrganizationDialog}
+                disabled={Boolean(deletingOrganizationId)}
+                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-[#29384b] bg-white/[0.04] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmOrganizationDeletion()}
+                disabled={
+                  Boolean(deletingOrganizationId) ||
+                  deleteConfirmationSlug.trim() !== deleteActionOrganization.slug
+                }
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-rose-500/35 bg-rose-600/90 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <Icon name="trash" size={15} />
+                {deletingOrganizationId === deleteActionOrganization.id
+                  ? "Deleting organization…"
+                  : "Permanently delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {statusActionOrganization && (
           <div
