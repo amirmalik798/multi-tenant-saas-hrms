@@ -603,8 +603,6 @@ export async function DELETE(
           ") THEN NULL ELSE actor_user_id END, " +
           "actor_email = CASE WHEN actor_user_id IN (" +
           "  SELECT id FROM public.users WHERE organization_id = $1::uuid" +
-          ") OR actor_email IN (" +
-          "  SELECT email FROM public.users WHERE organization_id = $1::uuid" +
           ") THEN 'redacted@deleted.invalid' ELSE actor_email END, " +
           "target_id = NULL, organization_id = NULL, reason = NULL, " +
           "before_state = '{}'::jsonb, after_state = '{}'::jsonb, metadata = '{}'::jsonb " +
@@ -612,9 +610,6 @@ export async function DELETE(
           "OR (target_type = 'ORGANIZATION' AND target_id = $1::uuid) " +
           "OR actor_user_id IN (" +
           "  SELECT id FROM public.users WHERE organization_id = $1::uuid" +
-          ") " +
-          "OR actor_email IN (" +
-          "  SELECT email FROM public.users WHERE organization_id = $1::uuid" +
           ")",
         [organization.id],
       );
