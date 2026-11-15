@@ -33,8 +33,10 @@ const backendPg = backendRequire("pg") as {
  * UI assertions use the actual accessible controls in frontend/app/page.tsx.
  * Organizations, invitations, administrators, and workforce accounts are
  * created through the real backend APIs. Direct SQL is limited to fixture
- * states with no product-side mutation route: workforce SUSPENDED accounts
- * and an EXPIRED license. No route interception or API mocking is used.
+ * states with no product-side mutation route or temporary license-state
+ * transitions: suspended workforce accounts, NOT_ACTIVATED licenses, and
+ * EXPIRED licenses. Temporary license states are restored after each test.
+ * No route interception or API mocking is used.
  *
  * Run from frontend:
  *   npx playwright test tests/login-regression.spec.ts --project=chromium --workers=1
@@ -619,7 +621,7 @@ async function initializeNegativeLoginFixtures() {
   }
   if (!fixtureDatabase) {
     negativeFixtureSkipReason =
-      "The suite needs DB_HOST, DB_NAME, DB_USER, and DB_PASSWORD (or PG* equivalents) to seed SUSPENDED user and EXPIRED license states. The backend .env.local/.env files are loaded automatically when present.";
+      "The suite needs DB_HOST, DB_NAME, DB_USER, and DB_PASSWORD (or PG* equivalents) to seed suspended users and temporarily change license states. The backend .env.local/.env files are loaded automatically when present.";
     return;
   }
 
