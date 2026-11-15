@@ -222,6 +222,10 @@ export async function deleteOrganizationTenantData(
     );
   }
 
+  // Set the transaction-scoped purge context before any updates so deferred
+  // hierarchy guards can safely skip checks for rows being removed wholesale.
+  await client.query("SET LOCAL app.organization_deletion = 'on'");
+
   // The current schema has one intentional table cycle: employees <-> departments.
   // Break those references before deriving the table deletion order. Deferred
   // hierarchy triggers will see no row at commit because these tables are
@@ -250,8 +254,6 @@ export async function deleteOrganizationTenantData(
 
   // Employee history remains append-only in normal workflows. The migration
   // lets its trigger permit DELETE only in this transaction-scoped purge.
-  await client.query("SET LOCAL app.organization_deletion = 'on'");
-
   // Child tables must be deleted before the rows they reference.
   const outgoing = new Map<string, Set<string>>();
   const incomingCount = new Map<string, number>();
