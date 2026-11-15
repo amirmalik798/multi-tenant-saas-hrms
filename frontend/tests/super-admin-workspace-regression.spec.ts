@@ -273,6 +273,14 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
     ).toBe(201);
     seedOrganizationId = createBody?.organization?.id ?? "";
     expect(seedOrganizationId).toBeTruthy();
+    const seedOrganizationInTestDatabase = await regressionDb.query(
+      "SELECT id FROM public.organizations WHERE id = $1::uuid",
+      [seedOrganizationId],
+    );
+    expect(
+      seedOrganizationInTestDatabase.rowCount,
+      "The real backend API and Playwright database fixture must target the same PostgreSQL database.",
+    ).toBe(1);
 
     const invitationResponse = await superAdminApi.post(
       "/api/backend/organizations/" + encodeURIComponent(seedOrganizationId) + "/invitations",
@@ -1917,6 +1925,7 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
 
   test("SA-103: Super Admin suspends and reactivates an organization through the directory", async ({ page, superAdminApi }) => {
     await openPage(page, "/dashboard/organizations", "Organizations");
+    await page.locator("#organization-search").fill(activeOrganizationName);
     const row = page.locator("tbody tr").filter({ hasText: activeOrganizationName });
     await expect(row).toHaveCount(1);
 
@@ -2028,5 +2037,13 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
       email: expiredEmail,
       status: "EXPIRED",
     });
+    const expirationAudit = await regressionDb.query<{ count: number }>(
+      `SELECT COUNT(*)::integer AS count
+       FROM public.platform_audit_logs
+       WHERE target_id::text = $1::text
+         AND action_key = 'organization_admin.invitation.expire'`,
+      [created!.invitation!.id],
+    );
+    expect(Number(expirationAudit.rows[0]?.count ?? 0)).toBeGreaterThan(0);
   });
 });
