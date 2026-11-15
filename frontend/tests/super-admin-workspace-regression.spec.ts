@@ -1817,4 +1817,216 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
     const session = await page.request.get("/api/backend/auth/me");
     expect([401, 403]).toContain(session.status());
   });
+
+  test("SA-101: Super Admin suspends and reactivates an Organization Admin through the details workflow", async ({ page }) => {
+    const admin = await readFixtureAdmin(page);
+    await openPage(page, "/dashboard/organization-admins", "Organization Admins");
+    await page.locator("#admin-table-search").fill(admin.email);
+    const row = page.locator("tbody tr").filter({ hasText: admin.email });
+    await expect(row).toHaveCount(1);
+    await row.getByRole("button", { name: "View details for " + adminDisplayName(admin), exact: true }).click();
+
+    const panel = page.getByRole("dialog", { name: "Organization Admin" });
+    await expect(panel).toBeVisible();
+    await panel.getByRole("button", { name: "Suspend Administrator", exact: true }).click();
+    const suspendDialog = page.getByRole("dialog", { name: "Suspend Organization Admin?" });
+    await expect(suspendDialog).toBeVisible();
+    await suspendDialog.getByPlaceholder("Explain why this account status is being changed...").fill(
+      "Playwright suspension workflow " + RUN_ID,
+    );
+
+    const suspendResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/backend/organization-admins/" + admin.id + "/status" &&
+      response.request().method() === "PATCH",
+    );
+    await suspendDialog.getByRole("button", { name: "Confirm Suspension", exact: true }).click();
+    const suspendResponse = await suspendResponsePromise;
+    expect(suspendResponse.status()).toBe(200);
+    const suspendedBody = await suspendResponse.json();
+    expect(suspendedBody.organizationAdmin).toMatchObject({
+      id: admin.id,
+      account_status: "SUSPENDED",
+    });
+    expect(suspendedBody.auditRecorded).toBe(true);
+
+    await expect(panel.getByRole("button", { name: "Reactivate Administrator", exact: true })).toBeVisible();
+    await panel.getByRole("button", { name: "Reactivate Administrator", exact: true }).click();
+    const reactivateDialog = page.getByRole("dialog", { name: "Reactivate Organization Admin?" });
+    await expect(reactivateDialog).toBeVisible();
+    await reactivateDialog.getByPlaceholder("Explain why this account status is being changed...").fill(
+      "Playwright reactivation workflow " + RUN_ID,
+    );
+
+    const reactivateResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/backend/organization-admins/" + admin.id + "/status" &&
+      response.request().method() === "PATCH",
+    );
+    await reactivateDialog.getByRole("button", { name: "Confirm Reactivation", exact: true }).click();
+    const reactivateResponse = await reactivateResponsePromise;
+    expect(reactivateResponse.status()).toBe(200);
+    const reactivatedBody = await reactivateResponse.json();
+    expect(reactivatedBody.organizationAdmin).toMatchObject({
+      id: admin.id,
+      account_status: "ACTIVE",
+    });
+    expect(reactivatedBody.auditRecorded).toBe(true);
+
+    const persistedAdmins = await readOrganizationAdmins(page);
+    expect(persistedAdmins.find((item) => item.id === admin.id)?.account_status).toBe("ACTIVE");
+  });
+
+  test("SA-102: platform prevents suspension of the last active Organization Admin", async ({ superAdminApi }) => {
+    expect(secondAcceptedAdminId).toBeTruthy();
+
+    const suspendSecond = await superAdminApi.patch(
+      "/api/backend/organization-admins/" + secondAcceptedAdminId + "/status",
+      {
+        data: {
+          status: "SUSPENDED",
+          reason: "Set up last-active-admin protection regression",
+        },
+      },
+    );
+    expect(suspendSecond.status()).toBe(200);
+    expect((await suspendSecond.json()).organizationAdmin.account_status).toBe("SUSPENDED");
+
+    const suspendLast = await superAdminApi.patch(
+      "/api/backend/organization-admins/" + acceptedAdminId + "/status",
+      {
+        data: {
+          status: "SUSPENDED",
+          reason: "This request must be blocked because this is the final active administrator",
+        },
+      },
+    );
+    expect(suspendLast.status()).toBe(409);
+    expect((await suspendLast.json()).message).toMatch(/last active/i);
+
+    const restoreSecond = await superAdminApi.patch(
+      "/api/backend/organization-admins/" + secondAcceptedAdminId + "/status",
+      {
+        data: {
+          status: "ACTIVE",
+          reason: "Restore the second test administrator after the protection assertion",
+        },
+      },
+    );
+    expect(restoreSecond.status()).toBe(200);
+    expect((await restoreSecond.json()).organizationAdmin.account_status).toBe("ACTIVE");
+  });
+
+  test("SA-103: Super Admin suspends and reactivates an organization through the directory", async ({ page, superAdminApi }) => {
+    await openPage(page, "/dashboard/organizations", "Organizations");
+    const row = page.locator("tbody tr").filter({ hasText: activeOrganizationName });
+    await expect(row).toHaveCount(1);
+
+    await row.getByRole("button", {
+      name: "Suspend " + activeOrganizationName,
+      exact: true,
+    }).click();
+    const suspendDialog = page.getByRole("dialog", { name: "Suspend organization?" });
+    await expect(suspendDialog).toBeVisible();
+    await suspendDialog.locator("#confirm-organization-slug").fill(activeOrganizationSlug);
+
+    const suspendResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/backend/organizations/" + activeOrganizationId + "/status" &&
+      response.request().method() === "PATCH",
+    );
+    await suspendDialog.getByRole("button", { name: "Confirm suspension", exact: true }).click();
+    const suspendResponse = await suspendResponsePromise;
+    expect(suspendResponse.status()).toBe(200);
+    expect((await suspendResponse.json()).organization.status).toBe("SUSPENDED");
+
+    const suspendedRow = page.locator("tbody tr").filter({ hasText: activeOrganizationName });
+    await expect(suspendedRow.getByRole("button", {
+      name: "Reactivate " + activeOrganizationName,
+      exact: true,
+    })).toBeVisible();
+    await suspendedRow.getByRole("button", {
+      name: "Reactivate " + activeOrganizationName,
+      exact: true,
+    }).click();
+
+    const reactivateDialog = page.getByRole("dialog", { name: "Reactivate organization?" });
+    await expect(reactivateDialog).toBeVisible();
+    const reactivateResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/backend/organizations/" + activeOrganizationId + "/status" &&
+      response.request().method() === "PATCH",
+    );
+    await reactivateDialog.getByRole("button", { name: "Confirm reactivation", exact: true }).click();
+    const reactivateResponse = await reactivateResponsePromise;
+    expect(reactivateResponse.status()).toBe(200);
+    expect((await reactivateResponse.json()).organization.status).toBe("ACTIVE");
+
+    const persisted = await superAdminApi.get("/api/backend/organizations/" + activeOrganizationId);
+    expect(persisted.status()).toBe(200);
+    expect((await persisted.json()).organization.status).toBe("ACTIVE");
+  });
+
+  test("SA-104: invitation preview marks a time-expired pending invitation EXPIRED and records its audit event", async ({ superAdminApi }) => {
+    const expiredEmail = "pw-sa-expired-invite-" + RUN_ID + "@yopmail.com";
+    const createResponse = await superAdminApi.post(
+      "/api/backend/organizations/" + activeOrganizationId + "/invitations",
+      {
+        data: {
+          email: expiredEmail,
+          adminFirstName: "Playwright",
+          adminLastName: "Expired",
+          adminPhone: "+250 788 123 459",
+          adminCountry: "Rwanda",
+          adminCity: "Kigali",
+        },
+      },
+    );
+    const created = await createResponse.json().catch(() => null) as
+      | {
+          emailSent?: boolean;
+          invitation?: { id?: string; status?: string };
+          invitationUrl?: string;
+          message?: string;
+        }
+      | null;
+    expect(createResponse.status()).toBe(201);
+    expect(created?.emailSent).toBe(true);
+    expect(created?.invitation?.status).toBe("PENDING");
+    expect(created?.invitation?.id).toBeTruthy();
+    expect(created?.invitationUrl).toBeTruthy();
+
+    const token = new URL(created!.invitationUrl!).searchParams.get("token");
+    expect(token).toBeTruthy();
+    const expireResult = await regressionDb.query(
+      `UPDATE public.organization_invitations
+       SET expires_at = NOW() - INTERVAL '1 minute',
+           updated_at = NOW()
+       WHERE id = $1::uuid
+         AND organization_id = $2::uuid
+         AND status = 'PENDING'
+       RETURNING id`,
+      [created!.invitation!.id, activeOrganizationId],
+    );
+    expect(expireResult.rowCount).toBe(1);
+
+    const preview = await superAdminApi.get(
+      "/api/backend/invitations/accept?token=" + encodeURIComponent(token!),
+    );
+    expect(preview.status()).toBe(410);
+    expect((await preview.json()).message).toMatch(/expired/i);
+
+    const registry = await superAdminApi.get(
+      "/api/backend/platform-invitations?page=1&pageSize=25&status=EXPIRED&search=" +
+        encodeURIComponent(expiredEmail),
+    );
+    expect(registry.status()).toBe(200);
+    const registryBody = await registry.json();
+    const expiredInvitation = (registryBody.invitations as Array<{
+      id: string;
+      email: string;
+      status: string;
+    }>).find((item) => item.id === created!.invitation!.id);
+    expect(expiredInvitation).toMatchObject({
+      id: created!.invitation!.id,
+      email: expiredEmail,
+      status: "EXPIRED",
+    });
+  });
 });
