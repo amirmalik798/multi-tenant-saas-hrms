@@ -594,6 +594,14 @@ export async function DELETE(
         );
       }
 
+      // Lock tenant users before audit redaction. This closes the race where
+      // a concurrent request could add a platform audit row referencing a
+      // tenant user after the redaction query but before that user is deleted.
+      await client.query(
+        "SELECT 1 FROM public.users WHERE organization_id = $1::uuid FOR UPDATE",
+        [organization.id],
+      );
+
       // Redact retained platform audit entries before tenant users are
       // deleted, so entries authored by tenant users are also anonymized even
       // when an older audit row has no organization_id populated.
