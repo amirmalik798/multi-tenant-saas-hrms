@@ -550,6 +550,64 @@ async function setFixtureUserSuspended(account: LoginFixtureAccount, organizatio
   }
 }
 
+async function withTemporaryFixtureLicenseState(
+  organizationId: string,
+  targetStatus: "NOT_ACTIVATED" | "EXPIRED",
+  action: () => Promise<void>,
+) {
+  if (!fixtureDatabase) {
+    throw new Error("Login fixture database connection is unavailable.");
+  }
+
+  const snapshotResult = await fixtureDatabase.query(
+    `SELECT status, expires_at
+     FROM public.organization_licenses
+     WHERE organization_id = $1::uuid
+     LIMIT 1`,
+    [organizationId],
+  );
+  const snapshot = snapshotResult.rows[0];
+  if (!snapshot) {
+    throw new Error("Could not load the original license state for temporary test setup.");
+  }
+
+  if (targetStatus === "NOT_ACTIVATED") {
+    await fixtureDatabase.query(
+      `UPDATE public.organization_licenses
+       SET status = 'NOT_ACTIVATED',
+           updated_at = NOW()
+       WHERE organization_id = $1::uuid`,
+      [organizationId],
+    );
+  } else {
+    await fixtureDatabase.query(
+      `UPDATE public.organization_licenses
+       SET status = 'EXPIRED',
+           expires_at = NOW() - INTERVAL '1 day',
+           updated_at = NOW()
+       WHERE organization_id = $1::uuid`,
+      [organizationId],
+    );
+  }
+
+  try {
+    await action();
+  } finally {
+    const restored = await fixtureDatabase.query(
+      `UPDATE public.organization_licenses
+       SET status = $2,
+           expires_at = $3,
+           updated_at = NOW()
+       WHERE organization_id = $1::uuid
+       RETURNING organization_id`,
+      [organizationId, snapshot.status, snapshot.expires_at],
+    );
+    if (restored.rowCount !== 1) {
+      throw new Error("Could not restore the original organization license after the login test.");
+    }
+  }
+}
+
 async function initializeNegativeLoginFixtures() {
   const superAdminEmail = process.env.PW_SUPER_ADMIN_EMAIL?.trim();
   const superAdminPassword = process.env.PW_SUPER_ADMIN_PASSWORD;
@@ -793,7 +851,101 @@ async function expectLoginFailure(
   await expect(page).toHaveURL(/\/$/);
 }
 
-test.describe("Login outcomes — successful roles, then 25 negative cases", () => {
+async function expectSuspendedOrganizationLoginFailure(
+  page: Page,
+  organizationId: string,
+  account: LoginFixtureAccount,
+) {
+  if (!platformFixtureApi) {
+    throw new Error("Platform fixture API is unavailable.");
+  }
+
+  const suspendResponse = await platformFixtureApi.patch(
+    "/api/backend/organizations/" + encodeURIComponent(organizationId) + "/status",
+    {
+      data: {
+        status: "SUSPENDED",
+        reason: "Playwright suspended-organization role login regression",
+      },
+    },
+  );
+  await setupJson(suspendResponse, 200, "Suspend organization for role login test");
+
+  try {
+    const response = await submitLogin(page, account.email, account.password);
+    await expectLoginFailure(
+      page,
+      response,
+      403,
+      "Your organization has been suspended. Please contact your platform administrator.",
+    );
+
+    const cookies = await page.context().cookies();
+    expect(
+      cookies.filter((cookie) =>
+        ["crm_admin_session", "crm_org_session", "crm_employee_session"].includes(cookie.name),
+      ),
+    ).toHaveLength(0);
+  } finally {
+    const restoreResponse = await platformFixtureApi.patch(
+      "/api/backend/organizations/" + encodeURIComponent(organizationId) + "/status",
+      {
+        data: {
+          status: "ACTIVE",
+          reason: "Restore organization after Playwright role login regression",
+        },
+      },
+    );
+    await setupJson(restoreResponse, 200, "Restore organization after role login test");
+  }
+}
+
+async function expectWorkforceLicenseRestrictedLogin(
+  page: Page,
+  account: LoginFixtureAccount,
+  role: "HR_MANAGER" | "DEPARTMENT_MANAGER" | "EMPLOYEE",
+  licenseStatus: "NOT_ACTIVATED" | "EXPIRED",
+) {
+  const response = await submitLogin(page, account.email, account.password);
+  expect(response.status()).toBe(200);
+
+  const loginBody = await response.json();
+  expect(loginBody.status).toBe("ok");
+  expect(loginBody.destination).toBe("/employee/welcome");
+  expect(loginBody.user?.role).toBe(role);
+
+  await page.waitForURL(
+    (url) => url.pathname === "/employee/welcome",
+    { timeout: 20_000 },
+  );
+
+  // License restrictions do not invalidate the workforce identity session.
+  // They prevent workspace access through the shared license gate.
+  const sessionResponse = await page.request.get("/api/backend/employee-auth/me");
+  expect(sessionResponse.status()).toBe(200);
+  const sessionBody = await sessionResponse.json();
+  expect(sessionBody.authenticated).toBe(true);
+  expect(sessionBody.user?.role).toBe(role);
+
+  const licenseResponse = await page.request.get("/api/backend/license-access");
+  expect(licenseResponse.status()).toBe(200);
+  const licenseBody = await licenseResponse.json();
+  expect(licenseBody.status).toBe("ok");
+  expect(licenseBody.role).toBe(role);
+  expect(licenseBody.license?.status).toBe(licenseStatus);
+  expect(licenseBody.license?.canAccess).toBe(false);
+
+  const expectedHeading = licenseStatus === "EXPIRED"
+    ? "Your organization license has expired"
+    : "Your organization isn’t licensed yet";
+  await expect(page.locator('[data-license-dialog="true"]')).toBeVisible();
+  await expect(page.getByRole("heading", { name: expectedHeading, exact: true })).toBeVisible();
+  await expect(page.getByText("Contact your administrator", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "License & Payments", exact: true })).toHaveCount(0);
+  await expect(page.locator('[data-license-locked="true"]')).toBeVisible();
+}
+
+test.describe("Login outcomes — successful roles, then 35 negative cases", () => {
   test.setTimeout(60_000);
 
   test.beforeAll(async () => {
@@ -846,7 +998,7 @@ test.describe("Login outcomes — successful roles, then 25 negative cases", () 
     await successfulRoleLogin(page, "EMPLOYEE", fixtures.activeEmployee.email, fixtures.activeEmployee.password, "/employee/welcome", "/api/backend/employee-auth/me", "crm_employee_session");
   });
 
-  // 25 negative login, authentication, and license-access cases follow.
+  // 35 negative login, authentication, and license-access cases follow.
 
   test("LOGIN-NEGATIVE-001: empty email is blocked by the login form", async ({ page }) => {
     const requests = observeRequests(page, API.login);
@@ -1087,6 +1239,118 @@ test.describe("Login outcomes — successful roles, then 25 negative cases", () 
     const response = await submitLogin(page, email!, password!);
     await expectLoginFailure(page, response, 401, "Invalid email or password");
   });
+
+  test("LOGIN-NEGATIVE-027: HR Manager cannot sign in while the organization is suspended", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    await expectSuspendedOrganizationLoginFailure(
+      page,
+      fixtures.organizationId,
+      fixtures.activeHrManager,
+    );
+  });
+
+  test("LOGIN-NEGATIVE-028: Department Manager cannot sign in while the organization is suspended", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    await expectSuspendedOrganizationLoginFailure(
+      page,
+      fixtures.organizationId,
+      fixtures.activeDepartmentManager,
+    );
+  });
+
+  test("LOGIN-NEGATIVE-029: Employee cannot sign in while the organization is suspended", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    await expectSuspendedOrganizationLoginFailure(
+      page,
+      fixtures.organizationId,
+      fixtures.activeEmployee,
+    );
+  });
+
+  test("LOGIN-NEGATIVE-030: HR Manager cannot access the workspace when the organization license is not activated", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    await withTemporaryFixtureLicenseState(
+      fixtures.organizationId,
+      "NOT_ACTIVATED",
+      () => expectWorkforceLicenseRestrictedLogin(
+        page,
+        fixtures.activeHrManager,
+        "HR_MANAGER",
+        "NOT_ACTIVATED",
+      ),
+    );
+  });
+
+  test("LOGIN-NEGATIVE-031: Department Manager cannot access the workspace when the organization license is not activated", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    await withTemporaryFixtureLicenseState(
+      fixtures.organizationId,
+      "NOT_ACTIVATED",
+      () => expectWorkforceLicenseRestrictedLogin(
+        page,
+        fixtures.activeDepartmentManager,
+        "DEPARTMENT_MANAGER",
+        "NOT_ACTIVATED",
+      ),
+    );
+  });
+
+  test("LOGIN-NEGATIVE-032: Employee cannot access the workspace when the organization license is not activated", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    await withTemporaryFixtureLicenseState(
+      fixtures.organizationId,
+      "NOT_ACTIVATED",
+      () => expectWorkforceLicenseRestrictedLogin(
+        page,
+        fixtures.activeEmployee,
+        "EMPLOYEE",
+        "NOT_ACTIVATED",
+      ),
+    );
+  });
+
+  test("LOGIN-NEGATIVE-033: HR Manager cannot access the workspace when the organization license has expired", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    await withTemporaryFixtureLicenseState(
+      fixtures.organizationId,
+      "EXPIRED",
+      () => expectWorkforceLicenseRestrictedLogin(
+        page,
+        fixtures.activeHrManager,
+        "HR_MANAGER",
+        "EXPIRED",
+      ),
+    );
+  });
+
+  test("LOGIN-NEGATIVE-034: Department Manager cannot access the workspace when the organization license has expired", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    await withTemporaryFixtureLicenseState(
+      fixtures.organizationId,
+      "EXPIRED",
+      () => expectWorkforceLicenseRestrictedLogin(
+        page,
+        fixtures.activeDepartmentManager,
+        "DEPARTMENT_MANAGER",
+        "EXPIRED",
+      ),
+    );
+  });
+
+  test("LOGIN-NEGATIVE-035: Employee cannot access the workspace when the organization license has expired", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    await withTemporaryFixtureLicenseState(
+      fixtures.organizationId,
+      "EXPIRED",
+      () => expectWorkforceLicenseRestrictedLogin(
+        page,
+        fixtures.activeEmployee,
+        "EMPLOYEE",
+        "EXPIRED",
+      ),
+    );
+  });
+
 });
 
 test.describe("Login and password recovery — complete regression suite", () => {
