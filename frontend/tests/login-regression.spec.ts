@@ -275,9 +275,11 @@ async function createFixtureOrganizationAdminAccount(
     throw new Error("Organization Admin role was not found for the login fixture.");
   }
 
-  // Organization Admins are workforce-linked accounts in this schema.
-  // Mirror the profile + user association created by the production
-  // organization-invitation acceptance route, but do not send an email.
+  // Organization Admins need a linked employee row to satisfy the users
+  // scope-association constraint, but they are not workforce roles. Keep this
+  // fixture profile INACTIVE because the database rejects an ACTIVE employee
+  // profile without one of the supported workforce roles. Organization Admin
+  // login validates the organization account and role, not employee status.
   const employeeCode = "ADM-" + randomBytes(8).toString("hex").toUpperCase();
   const employeeResult = await fixtureDatabase.query(
     `INSERT INTO public.employees (
@@ -294,7 +296,7 @@ async function createFixtureOrganizationAdminAccount(
        joining_date
      )
      VALUES (
-       $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, 'ACTIVE', CURRENT_DATE
+       $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, 'INACTIVE', CURRENT_DATE
      )
      RETURNING id`,
     [
