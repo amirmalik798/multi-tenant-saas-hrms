@@ -12,7 +12,7 @@ const envFile = path.resolve(configDirectory, ".env.playwright");
 // import backend/lib/db.ts; never place database credentials in .env.playwright.
 loadEnvConfig(backendDirectory, process.env.NODE_ENV !== "production");
 
-// Playwright-only credentials and the explicit test-database name stay local.
+// Playwright-only credentials and the explicit database target stay local.
 dotenv.config({ path: envFile, override: false });
 
 export default defineConfig({
