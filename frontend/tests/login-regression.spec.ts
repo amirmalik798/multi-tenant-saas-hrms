@@ -447,7 +447,7 @@ async function createWorkforceLoginAccount(
 async function setFixtureUserSuspended(account: LoginFixtureAccount, organizationId: string, roleName: string) {
   if (!fixtureDatabase) throw new Error("Login fixture database connection is unavailable.");
   const result = await fixtureDatabase.query(
-    \`UPDATE public.users AS u
+    `UPDATE public.users AS u
      SET status = 'SUSPENDED',
          session_version = session_version + 1,
          updated_at = NOW()
@@ -459,7 +459,7 @@ async function setFixtureUserSuspended(account: LoginFixtureAccount, organizatio
        AND r.organization_id = u.organization_id
        AND r.scope = 'ORGANIZATION'
        AND r.name = $3
-     RETURNING u.id\`,
+     RETURNING u.id`,
     [account.userId, organizationId, roleName],
   );
   if (result.rowCount !== 1) {
@@ -575,7 +575,7 @@ async function initializeNegativeLoginFixtures() {
   await completeOrganizationSetup(expiredTenantFixtureApi, "expired-license test organization");
 
   const expiredLicenseUpdate = await fixtureDatabase.query(
-    \`UPDATE public.organization_licenses
+    `UPDATE public.organization_licenses
      SET status = 'EXPIRED',
          activation_source = 'LEGACY_GRACE',
          starts_at = NOW() - INTERVAL '31 days',
@@ -583,7 +583,7 @@ async function initializeNegativeLoginFixtures() {
          last_approved_payment_id = NULL,
          updated_at = NOW()
      WHERE organization_id = $1::uuid
-     RETURNING status\`,
+     RETURNING status`,
     [expiredTenant.organizationId],
   );
   if (expiredLicenseUpdate.rowCount !== 1 || expiredLicenseUpdate.rows[0]?.status !== "EXPIRED") {
@@ -591,7 +591,7 @@ async function initializeNegativeLoginFixtures() {
   }
 
   const unactivatedLicense = await fixtureDatabase.query(
-    \`SELECT status FROM public.organization_licenses WHERE organization_id = $1::uuid\`,
+    `SELECT status FROM public.organization_licenses WHERE organization_id = $1::uuid`,
     [activeTenant.organizationId],
   );
   if (unactivatedLicense.rows[0]?.status !== "NOT_ACTIVATED") {
