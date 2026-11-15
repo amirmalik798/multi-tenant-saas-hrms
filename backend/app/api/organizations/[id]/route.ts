@@ -593,15 +593,9 @@ export async function DELETE(
         );
       }
 
-      const deletionReport = await deleteOrganizationTenantData(
-        client,
-        organization.id,
-      );
-
-      // Retain the platform audit event count/history, but remove tenant
-      // identifiers, user emails, snapshots, and metadata from older entries.
-      // This prevents retained platform audit rows from becoming a hidden
-      // copy of deleted organization data.
+      // Redact retained platform audit entries before tenant users are
+      // deleted, so entries authored by tenant users are also anonymized even
+      // when an older audit row has no organization_id populated.
       await client.query(
         "UPDATE public.platform_audit_logs " +
           "SET actor_user_id = NULL, actor_email = 'redacted@deleted.invalid', " +
@@ -613,6 +607,11 @@ export async function DELETE(
           "  SELECT id FROM public.users WHERE organization_id = $1::uuid" +
           ")",
         [organization.id],
+      );
+
+      const deletionReport = await deleteOrganizationTenantData(
+        client,
+        organization.id,
       );
 
       const deletedOrganization = await client.query(
