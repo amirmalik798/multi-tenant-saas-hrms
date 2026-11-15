@@ -65,7 +65,7 @@ type IconName =
   | "shield-check"
   | "user-plus"
   | "trash"
-  | "refresh";
+  | "lock";
 function Icon({
   name,
   size = 20,
@@ -179,9 +179,10 @@ function Icon({
         <path d="M3 6h18M8 6V4h8v2m3 0-.8 14H5.8L5 6m4 4v6m6-6v6" />
       </>
     ),
-    refresh: (
+    lock: (
       <>
-        <path d="M20 7v5h-5M4 17v-5h5m-4.2-3A8 8 0 0 1 18 6l2 6M4 12l2 6a8 8 0 0 0 13.2-3" />
+        <rect x="4" y="10" width="16" height="11" rx="2" />
+        <path d="M8 10V7a4 4 0 1 1 8 0v3M12 14v3" />
       </>
     ),
     shield: (
@@ -1212,7 +1213,7 @@ export default function DashboardPage() {
                                 className={`${organizationRowActionButtonBaseClass} border-slate-400/15 bg-slate-500/[0.05] text-slate-400`}
                                 title="Archived organizations are read-only."
                               >
-                                <Icon name="shield" size={15} />
+                                <Icon name="lock" size={15} />
                               </span>
                             ) : (
                               <Link

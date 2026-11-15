@@ -111,8 +111,7 @@ type IconName =
   | "pencil"
   | "ban"
   | "shield-check"
-  | "user-plus"
-  | "refresh";
+  | "user-plus";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
