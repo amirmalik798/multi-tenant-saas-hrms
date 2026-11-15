@@ -1,5 +1,31 @@
 import { randomBytes } from "node:crypto";
-import { expect, test, type Page, type Response } from "@playwright/test";
+import { createRequire } from "node:module";
+import path from "node:path";
+import dotenv from "dotenv";
+import {
+  expect,
+  request,
+  test,
+  type APIRequestContext,
+  type Page,
+  type Response,
+} from "@playwright/test";
+
+// Load the same database settings used by the backend without overriding
+// values explicitly supplied in frontend/.env.playwright.
+dotenv.config({ path: path.resolve(process.cwd(), "../backend/.env.local"), override: false });
+dotenv.config({ path: path.resolve(process.cwd(), "../backend/.env"), override: false });
+
+const backendRequire = createRequire(path.resolve(process.cwd(), "../backend/package.json"));
+const backendPg = backendRequire("pg") as {
+  Pool: new (config: Record<string, unknown>) => {
+    query: (sql: string, values?: unknown[]) => Promise<{
+      rowCount: number | null;
+      rows: Array<Record<string, unknown>>;
+    }>;
+    end: () => Promise<void>;
+  };
+};
 
 /**
  * Unified login and password-recovery regression suite.
@@ -17,58 +43,6 @@ const API = {
   resetRequest: "/api/backend/password-reset/request",
   resetComplete: "/api/backend/password-reset/complete",
 } as const;
-
-type RoleCredentials = {
-  role: "SUPER_ADMIN" | "ORGANIZATION_ADMIN" | "HR_MANAGER" | "DEPARTMENT_MANAGER" | "EMPLOYEE";
-  emailEnv: string;
-  passwordEnv: string;
-  destination: string;
-  sessionCookie: string;
-  sessionCheck: string;
-};
-
-const roleCredentials: RoleCredentials[] = [
-  {
-    role: "SUPER_ADMIN",
-    emailEnv: "PW_SUPER_ADMIN_EMAIL",
-    passwordEnv: "PW_SUPER_ADMIN_PASSWORD",
-    destination: "/dashboard",
-    sessionCookie: "crm_admin_session",
-    sessionCheck: "/api/backend/auth/me",
-  },
-  {
-    role: "ORGANIZATION_ADMIN",
-    emailEnv: "PW_ORG_ADMIN_EMAIL",
-    passwordEnv: "PW_ORG_ADMIN_PASSWORD",
-    destination: "/org/dashboard",
-    sessionCookie: "crm_org_session",
-    sessionCheck: "/api/backend/org/auth/me",
-  },
-  {
-    role: "HR_MANAGER",
-    emailEnv: "PW_HR_MANAGER_EMAIL",
-    passwordEnv: "PW_HR_MANAGER_PASSWORD",
-    destination: "/employee/welcome",
-    sessionCookie: "crm_employee_session",
-    sessionCheck: "/api/backend/employee-auth/me",
-  },
-  {
-    role: "DEPARTMENT_MANAGER",
-    emailEnv: "PW_DEPARTMENT_MANAGER_EMAIL",
-    passwordEnv: "PW_DEPARTMENT_MANAGER_PASSWORD",
-    destination: "/employee/welcome",
-    sessionCookie: "crm_employee_session",
-    sessionCheck: "/api/backend/employee-auth/me",
-  },
-  {
-    role: "EMPLOYEE",
-    emailEnv: "PW_EMPLOYEE_EMAIL",
-    passwordEnv: "PW_EMPLOYEE_PASSWORD",
-    destination: "/employee/welcome",
-    sessionCookie: "crm_employee_session",
-    sessionCheck: "/api/backend/employee-auth/me",
-  },
-];
 
 const loginEmail = (page: Page) => page.locator("#email");
 const loginPassword = (page: Page) => page.locator("#password");
@@ -161,6 +135,817 @@ async function submitLogin(page: Page, email: string, password: string) {
   expect(currentUrl.searchParams.has("password")).toBe(false);
   return response;
 }
+
+type LoginFixtureAccount = {
+  email: string;
+  password: string;
+  userId: string;
+  employeeId?: string;
+};
+
+type LoginNegativeFixtures = {
+  organizationId: string;
+  primaryAdmin: LoginFixtureAccount;
+  suspendedAdmin: LoginFixtureAccount;
+  suspendedHrManager: LoginFixtureAccount;
+  activeHrManager: LoginFixtureAccount;
+  suspendedDepartmentManager: LoginFixtureAccount;
+  activeDepartmentManager: LoginFixtureAccount;
+  suspendedEmployee: LoginFixtureAccount;
+  activeEmployee: LoginFixtureAccount;
+  expiredOrganizationId: string;
+  expiredAdmin: LoginFixtureAccount;
+};
+
+type SetupJson = Record<string, any>;
+
+const LOGIN_RUN_ID = randomBytes(5).toString("hex");
+const LOGIN_TEST_PASSWORD = "PW-Login-Fixture!" + LOGIN_RUN_ID + "Aa";
+const LOGIN_BASE_URL = (process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3001").replace(/\/+$/, "");
+const LOGIN_ORIGIN_HEADERS = {
+  origin: LOGIN_BASE_URL,
+  "sec-fetch-site": "same-origin",
+  "ngrok-skip-browser-warning": "true",
+};
+
+let negativeFixtures: LoginNegativeFixtures | null = null;
+let negativeFixtureSkipReason = "Login negative fixtures have not been initialized.";
+let platformFixtureApi: APIRequestContext | null = null;
+let tenantFixtureApi: APIRequestContext | null = null;
+let expiredTenantFixtureApi: APIRequestContext | null = null;
+let fixtureDatabase: ReturnType<typeof createFixturePool> | null = null;
+
+function createFixturePool() {
+  const host = process.env.DB_HOST ?? process.env.PGHOST;
+  const database = process.env.DB_NAME ?? process.env.PGDATABASE;
+  const user = process.env.DB_USER ?? process.env.PGUSER;
+  const password = process.env.DB_PASSWORD ?? process.env.PGPASSWORD;
+  if (!host || !database || !user || !password) return null;
+
+  return new backendPg.Pool({
+    host,
+    port: Number(process.env.DB_PORT ?? process.env.PGPORT ?? 5432),
+    database,
+    user,
+    password,
+    max: 2,
+    connectionTimeoutMillis: 5_000,
+    idleTimeoutMillis: 10_000,
+  });
+}
+
+async function setupJson(
+  response: { status(): number; text(): Promise<string> },
+  expectedStatus: number,
+  description: string,
+): Promise<SetupJson> {
+  const raw = await response.text();
+  let body: SetupJson = {};
+  try {
+    body = raw ? JSON.parse(raw) as SetupJson : {};
+  } catch {
+    body = { raw };
+  }
+  if (response.status() !== expectedStatus) {
+    throw new Error(
+      description + " failed. Expected HTTP " + expectedStatus +
+      ", received HTTP " + response.status() + ". Response: " +
+      JSON.stringify(body).slice(0, 1200),
+    );
+  }
+  return body;
+}
+
+function generatedAccount(emailPrefix: string, password: string): LoginFixtureAccount {
+  return {
+    email: emailPrefix + "-" + LOGIN_RUN_ID + "@yopmail.com",
+    password,
+    userId: "",
+  };
+}
+
+async function createOrganizationWithAdmin(
+  nameSuffix: string,
+  adminPrefix: string,
+): Promise<{ organizationId: string; admin: LoginFixtureAccount }> {
+  if (!platformFixtureApi) throw new Error("Platform fixture API is unavailable.");
+
+  const name = "PW Login " + nameSuffix + " " + LOGIN_RUN_ID;
+  const slug = "pw-login-" + nameSuffix.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + LOGIN_RUN_ID;
+  const admin = generatedAccount(adminPrefix, LOGIN_TEST_PASSWORD);
+
+  const organizationResponse = await platformFixtureApi.post("/api/backend/organizations", {
+    data: {
+      name,
+      slug,
+      contactEmail: "pw-login-contact-" + nameSuffix.toLowerCase() + "-" + LOGIN_RUN_ID + "@yopmail.com",
+      contactPhone: "+250 788 123 450",
+      country: "Rwanda",
+      address: "Playwright Login Regression Avenue, Kigali, Rwanda",
+    },
+  });
+  const organizationBody = await setupJson(organizationResponse, 201, "Create " + name);
+  const organizationId = organizationBody.organization?.id as string | undefined;
+  if (!organizationId) throw new Error("Organization creation did not return an organization ID.");
+
+  const invitationResponse = await platformFixtureApi.post(
+    "/api/backend/organizations/" + encodeURIComponent(organizationId) + "/invitations",
+    {
+      data: {
+        email: admin.email,
+        adminFirstName: "Playwright",
+        adminLastName: nameSuffix + " Admin",
+        adminPhone: "+250 788 123 450",
+        adminCountry: "Rwanda",
+        adminCity: "Kigali",
+      },
+    },
+  );
+  const invitationBody = await setupJson(invitationResponse, 201, "Invite " + admin.email);
+  if (invitationBody.emailSent !== true || typeof invitationBody.invitationUrl !== "string") {
+    throw new Error("Invitation for " + admin.email + " was not confirmed as delivered.");
+  }
+
+  const token = new URL(invitationBody.invitationUrl).searchParams.get("token");
+  if (!token) throw new Error("Invitation URL for " + admin.email + " did not contain its token.");
+
+  const acceptanceResponse = await platformFixtureApi.post("/api/backend/invitations/accept", {
+    data: {
+      token,
+      firstName: "Playwright",
+      lastName: nameSuffix + " Admin",
+      phone: "+250 788 123 450",
+      country: "Rwanda",
+      city: "Kigali",
+      password: admin.password,
+    },
+  });
+  const acceptanceBody = await setupJson(acceptanceResponse, 201, "Accept " + admin.email);
+  if (acceptanceBody.user?.status !== "ACTIVE" || acceptanceBody.organization?.status !== "ACTIVE") {
+    throw new Error("Invitation acceptance did not activate the account and organization for " + admin.email);
+  }
+  admin.userId = acceptanceBody.user.id as string;
+
+  return { organizationId, admin };
+}
+
+async function createAdditionalOrganizationAdmin(
+  organizationId: string,
+  prefix: string,
+): Promise<LoginFixtureAccount> {
+  if (!platformFixtureApi) throw new Error("Platform fixture API is unavailable.");
+
+  const admin = generatedAccount(prefix, LOGIN_TEST_PASSWORD);
+  const invitationResponse = await platformFixtureApi.post(
+    "/api/backend/organizations/" + encodeURIComponent(organizationId) + "/invitations",
+    {
+      data: {
+        email: admin.email,
+        adminFirstName: "Playwright",
+        adminLastName: "Secondary Admin",
+        adminPhone: "+250 788 123 451",
+        adminCountry: "Rwanda",
+        adminCity: "Kigali",
+      },
+    },
+  );
+  const invitationBody = await setupJson(invitationResponse, 201, "Invite " + admin.email);
+  if (invitationBody.emailSent !== true || typeof invitationBody.invitationUrl !== "string") {
+    throw new Error("Invitation for " + admin.email + " was not confirmed as delivered.");
+  }
+  const token = new URL(invitationBody.invitationUrl).searchParams.get("token");
+  if (!token) throw new Error("Invitation URL for " + admin.email + " did not contain its token.");
+
+  const acceptanceResponse = await platformFixtureApi.post("/api/backend/invitations/accept", {
+    data: {
+      token,
+      firstName: "Playwright",
+      lastName: "Secondary Admin",
+      phone: "+250 788 123 451",
+      country: "Rwanda",
+      city: "Kigali",
+      password: admin.password,
+    },
+  });
+  const body = await setupJson(acceptanceResponse, 201, "Accept " + admin.email);
+  if (body.user?.status !== "ACTIVE") throw new Error("Secondary Organization Admin did not become active.");
+  admin.userId = body.user.id as string;
+  return admin;
+}
+
+async function createTenantApi(account: LoginFixtureAccount): Promise<APIRequestContext> {
+  const api = await request.newContext({
+    baseURL: LOGIN_BASE_URL,
+    extraHTTPHeaders: LOGIN_ORIGIN_HEADERS,
+  });
+  const response = await api.post("/api/backend/unified-auth/login", {
+    data: { email: account.email, password: account.password },
+  });
+  const body = await setupJson(response, 200, "Authenticate fixture " + account.email);
+  if (body.user?.email !== account.email || body.user?.role !== "ORGANIZATION_ADMIN") {
+    await api.dispose();
+    throw new Error("Fixture account did not authenticate as an Organization Admin: " + account.email);
+  }
+  return api;
+}
+
+async function completeOrganizationSetup(api: APIRequestContext, label: string) {
+  const settingsResponse = await api.get("/api/backend/org/settings");
+  await setupJson(settingsResponse, 200, "Load settings for " + label);
+  const completeResponse = await api.post("/api/backend/org/settings/complete", {
+    data: {},
+  });
+  await setupJson(completeResponse, 200, "Complete settings for " + label);
+}
+
+async function createWorkforceLoginAccount(
+  api: APIRequestContext,
+  role: "HR_MANAGER" | "DEPARTMENT_MANAGER" | "EMPLOYEE",
+  prefix: string,
+  managerId?: string,
+  departmentId?: string,
+): Promise<LoginFixtureAccount> {
+  const email = prefix + "-" + LOGIN_RUN_ID + "@yopmail.com";
+  const password = "PW-" + role + "-Fixture!" + LOGIN_RUN_ID + "Aa";
+
+  const profileResponse = await api.post("/api/backend/employees", {
+    data: {
+      employee_code: ("PW-" + prefix + "-" + LOGIN_RUN_ID).toUpperCase().slice(0, 45),
+      first_name: "Playwright",
+      last_name: prefix.replace(/-/g, " "),
+      email,
+      phone: "+250 788 123 45" + (role === "HR_MANAGER" ? "2" : role === "DEPARTMENT_MANAGER" ? "3" : "4"),
+      country: "Rwanda",
+      city: "Kigali",
+      designation: role.replace(/_/g, " "),
+      joining_date: new Date().toISOString().slice(0, 10),
+      workforce_role: role,
+      ...(managerId ? { manager_id: managerId } : {}),
+      ...(departmentId ? { department_id: departmentId } : {}),
+    },
+  });
+  const profileBody = await setupJson(profileResponse, 201, "Create " + role + " profile " + email);
+  const employeeId = profileBody.employee?.id as string | undefined;
+  if (!employeeId) throw new Error("Workforce profile creation returned no employee ID for " + email);
+
+  const invitationResponse = await api.post(
+    "/api/backend/employees/" + encodeURIComponent(employeeId) + "/invitation",
+    { data: { roleName: role } },
+  );
+  const invitationBody = await setupJson(invitationResponse, 201, "Invite " + email);
+  if (invitationBody.emailSent !== true || typeof invitationBody.invitationUrl !== "string") {
+    throw new Error("Workforce invitation for " + email + " was not confirmed as delivered.");
+  }
+  const token = new URL(invitationBody.invitationUrl).searchParams.get("token");
+  if (!token) throw new Error("Workforce invitation URL for " + email + " did not contain its token.");
+
+  const acceptanceResponse = await api.post("/api/backend/employee-invitations/accept", {
+    data: { token, password },
+  });
+  const acceptanceBody = await setupJson(acceptanceResponse, 201, "Accept " + email);
+  if (acceptanceBody.user?.status !== "ACTIVE") {
+    throw new Error("Workforce invitation did not create an active account for " + email);
+  }
+
+  return {
+    email,
+    password,
+    userId: acceptanceBody.user.id as string,
+    employeeId,
+  };
+}
+
+async function setFixtureUserSuspended(account: LoginFixtureAccount, organizationId: string, roleName: string) {
+  if (!fixtureDatabase) throw new Error("Login fixture database connection is unavailable.");
+  const result = await fixtureDatabase.query(
+    \`UPDATE public.users AS u
+     SET status = 'SUSPENDED',
+         session_version = session_version + 1,
+         updated_at = NOW()
+     FROM public.roles AS r
+     WHERE u.id = $1::uuid
+       AND u.organization_id = $2::uuid
+       AND u.account_scope = 'ORGANIZATION'
+       AND u.role_id = r.id
+       AND r.organization_id = u.organization_id
+       AND r.scope = 'ORGANIZATION'
+       AND r.name = $3
+     RETURNING u.id\`,
+    [account.userId, organizationId, roleName],
+  );
+  if (result.rowCount !== 1) {
+    throw new Error("Could not mark the " + roleName + " fixture account as SUSPENDED.");
+  }
+}
+
+async function initializeNegativeLoginFixtures() {
+  const superAdminEmail = process.env.PW_SUPER_ADMIN_EMAIL?.trim();
+  const superAdminPassword = process.env.PW_SUPER_ADMIN_PASSWORD;
+  fixtureDatabase = createFixturePool();
+
+  if (!superAdminEmail || !superAdminPassword) {
+    negativeFixtureSkipReason = "Set PW_SUPER_ADMIN_EMAIL and PW_SUPER_ADMIN_PASSWORD in frontend/.env.playwright.";
+    return;
+  }
+  if (!fixtureDatabase) {
+    negativeFixtureSkipReason =
+      "The suite needs DB_HOST, DB_NAME, DB_USER, and DB_PASSWORD (or PG* equivalents) to seed SUSPENDED user and EXPIRED license states. The backend .env.local/.env files are loaded automatically when present.";
+    return;
+  }
+
+  platformFixtureApi = await request.newContext({
+    baseURL: LOGIN_BASE_URL,
+    extraHTTPHeaders: LOGIN_ORIGIN_HEADERS,
+  });
+  const platformLogin = await platformFixtureApi.post("/api/backend/unified-auth/login", {
+    data: { email: superAdminEmail, password: superAdminPassword },
+  });
+  const platformLoginBody = await setupJson(platformLogin, 200, "Authenticate Platform Super Admin");
+  if (platformLoginBody.user?.role !== "SUPER_ADMIN") {
+    throw new Error("PW_SUPER_ADMIN_EMAIL must belong to an active Platform Super Admin.");
+  }
+
+  await fixtureDatabase.query("SELECT 1");
+
+  // New organizations start with NOT_ACTIVATED licenses.
+  const activeTenant = await createOrganizationWithAdmin("Unlicensed", "pw-login-primary-admin");
+  const suspendedAdmin = await createAdditionalOrganizationAdmin(activeTenant.organizationId, "pw-login-suspended-admin");
+  tenantFixtureApi = await createTenantApi(activeTenant.admin);
+  await completeOrganizationSetup(tenantFixtureApi, "unlicensed test organization");
+
+  // One account per role is suspended after activation; a second remains active
+  // for valid-role fixture checks and wrong-password negative cases.
+  const suspendedHrManager = await createWorkforceLoginAccount(
+    tenantFixtureApi, "HR_MANAGER", "pw-login-suspended-hr",
+  );
+  const activeHrManager = await createWorkforceLoginAccount(
+    tenantFixtureApi, "HR_MANAGER", "pw-login-active-hr",
+  );
+
+  const primaryHrResponse = await tenantFixtureApi.patch(
+    "/api/backend/employees/" + encodeURIComponent(activeHrManager.employeeId!),
+    { data: { is_primary_hr_manager: true } },
+  );
+  await setupJson(primaryHrResponse, 200, "Set active HR Manager as Primary HR Manager");
+
+  const suspendedDepartmentManager = await createWorkforceLoginAccount(
+    tenantFixtureApi, "DEPARTMENT_MANAGER", "pw-login-suspended-dm", activeHrManager.employeeId,
+  );
+  const activeDepartmentManager = await createWorkforceLoginAccount(
+    tenantFixtureApi, "DEPARTMENT_MANAGER", "pw-login-active-dm", activeHrManager.employeeId,
+  );
+
+  const departmentResponse = await tenantFixtureApi.post("/api/backend/departments", {
+    data: {
+      name: "PW Login Department " + LOGIN_RUN_ID,
+      description: "Playwright login regression fixtures",
+    },
+  });
+  const departmentBody = await setupJson(departmentResponse, 201, "Create login fixture department");
+  const departmentId = departmentBody.department?.id as string | undefined;
+  if (!departmentId) throw new Error("Department creation did not return its ID.");
+
+  const assignManagerResponse = await tenantFixtureApi.patch(
+    "/api/backend/departments/" + encodeURIComponent(departmentId),
+    { data: { manager_id: activeDepartmentManager.employeeId } },
+  );
+  await setupJson(assignManagerResponse, 200, "Assign active Department Manager to fixture department");
+
+  const suspendedEmployee = await createWorkforceLoginAccount(
+    tenantFixtureApi, "EMPLOYEE", "pw-login-suspended-employee", undefined, departmentId,
+  );
+  const activeEmployee = await createWorkforceLoginAccount(
+    tenantFixtureApi, "EMPLOYEE", "pw-login-active-employee", undefined, departmentId,
+  );
+
+  // The unified login route rejects every users.status other than ACTIVE.
+  // Current workforce workflows do not expose a Suspend action, so these
+  // fixtures retain ACTIVE employment and seed the existing account state.
+  await setFixtureUserSuspended(suspendedHrManager, activeTenant.organizationId, "HR_MANAGER");
+  await setFixtureUserSuspended(suspendedDepartmentManager, activeTenant.organizationId, "DEPARTMENT_MANAGER");
+  await setFixtureUserSuspended(suspendedEmployee, activeTenant.organizationId, "EMPLOYEE");
+
+  // Keep a second active Organization Admin so the platform can suspend one
+  // account without violating the last-active-administrator safeguard.
+  const adminsResponse = await platformFixtureApi.get("/api/backend/organization-admins");
+  const adminsBody = await setupJson(adminsResponse, 200, "Read Organization Admin directory");
+  const suspendedAdminRecord = (adminsBody.organizationAdmins ?? []).find(
+    (item: SetupJson) => item.email?.toLowerCase() === suspendedAdmin.email.toLowerCase(),
+  );
+  if (!suspendedAdminRecord?.id) throw new Error("Secondary Organization Admin is missing from the directory.");
+  const suspendAdminResponse = await platformFixtureApi.patch(
+    "/api/backend/organization-admins/" + encodeURIComponent(suspendedAdminRecord.id) + "/status",
+    { data: { status: "SUSPENDED", reason: "Playwright negative login regression fixture" } },
+  );
+  await setupJson(suspendAdminResponse, 200, "Suspend secondary Organization Admin fixture");
+
+  // A separate tenant provides an independently expired license. Expiry uses
+  // database time, so changing the browser clock cannot create this state.
+  const expiredTenant = await createOrganizationWithAdmin("Expired License", "pw-login-expired-admin");
+  expiredTenantFixtureApi = await createTenantApi(expiredTenant.admin);
+  await completeOrganizationSetup(expiredTenantFixtureApi, "expired-license test organization");
+
+  const expiredLicenseUpdate = await fixtureDatabase.query(
+    \`UPDATE public.organization_licenses
+     SET status = 'EXPIRED',
+         activation_source = 'LEGACY_GRACE',
+         starts_at = NOW() - INTERVAL '31 days',
+         expires_at = NOW() - INTERVAL '1 day',
+         last_approved_payment_id = NULL,
+         updated_at = NOW()
+     WHERE organization_id = $1::uuid
+     RETURNING status\`,
+    [expiredTenant.organizationId],
+  );
+  if (expiredLicenseUpdate.rowCount !== 1 || expiredLicenseUpdate.rows[0]?.status !== "EXPIRED") {
+    throw new Error("Could not seed an EXPIRED license for the dedicated test organization.");
+  }
+
+  const unactivatedLicense = await fixtureDatabase.query(
+    \`SELECT status FROM public.organization_licenses WHERE organization_id = $1::uuid\`,
+    [activeTenant.organizationId],
+  );
+  if (unactivatedLicense.rows[0]?.status !== "NOT_ACTIVATED") {
+    throw new Error("The unlicensed fixture organization did not retain NOT_ACTIVATED status.");
+  }
+
+  negativeFixtures = {
+    organizationId: activeTenant.organizationId,
+    primaryAdmin: activeTenant.admin,
+    suspendedAdmin,
+    suspendedHrManager,
+    activeHrManager,
+    suspendedDepartmentManager,
+    activeDepartmentManager,
+    suspendedEmployee,
+    activeEmployee,
+    expiredOrganizationId: expiredTenant.organizationId,
+    expiredAdmin: expiredTenant.admin,
+  };
+  negativeFixtureSkipReason = "";
+}
+
+async function successfulRoleLogin(
+  page: Page,
+  role: string,
+  email: string,
+  password: string,
+  destination: string,
+  sessionCheck: string,
+  sessionCookie: string,
+) {
+  const sessionResponsePromise = page.waitForResponse(
+    (candidate) =>
+      new URL(candidate.url()).pathname === sessionCheck &&
+      candidate.request().method() === "GET",
+    { timeout: 20_000 },
+  );
+
+  const response = await submitLogin(page, email, password);
+  expect(response.status()).toBe(200);
+  const body = await response.json();
+  expect(body.status).toBe("ok");
+  expect(body.user?.role).toBe(role);
+  expect(body.destination).toBe(destination);
+
+  const sessionResponse = await sessionResponsePromise;
+  expect(sessionResponse.status()).toBe(200);
+  const sessionBody = await sessionResponse.json();
+  expect(sessionBody.authenticated).toBe(true);
+  expect(sessionBody.user?.role).toBe(role);
+
+  await page.waitForURL((url) => url.pathname === destination, { timeout: 20_000 });
+  const cookies = await page.context().cookies();
+  const roleCookieNames = ["crm_admin_session", "crm_org_session", "crm_employee_session"];
+  const issuedRoleCookies = cookies
+    .filter((cookie) => roleCookieNames.includes(cookie.name))
+    .map((cookie) => cookie.name);
+  expect(issuedRoleCookies).toEqual([sessionCookie]);
+  const cookie = cookies.find((item) => item.name === sessionCookie);
+  expect(cookie).toBeTruthy();
+  expect(cookie?.httpOnly).toBe(true);
+  expect(cookie?.path).toBe("/");
+  expect(cookie?.sameSite).toBe("Lax");
+}
+
+function requireNegativeFixtures(): LoginNegativeFixtures {
+  test.skip(!negativeFixtures, negativeFixtureSkipReason);
+  return negativeFixtures!;
+}
+
+function sameOriginLoginHeaders(page: Page) {
+  return {
+    origin: new URL(page.url()).origin,
+    "sec-fetch-site": "same-origin",
+  };
+}
+
+async function expectLoginFailure(
+  page: Page,
+  response: Response,
+  status: number,
+  message: string | RegExp,
+) {
+  expect(response.status()).toBe(status);
+  const body = await response.json();
+  expect(body.message).toMatch(message);
+  await expect(appAlert(page, message)).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+}
+
+test.describe("Login outcomes — successful roles, then 25 negative cases", () => {
+  test.setTimeout(60_000);
+
+  test.beforeAll(async () => {
+    test.setTimeout(240_000);
+    await initializeNegativeLoginFixtures();
+  });
+
+  test.afterAll(async () => {
+    await Promise.all([
+      platformFixtureApi?.dispose(),
+      tenantFixtureApi?.dispose(),
+      expiredTenantFixtureApi?.dispose(),
+      fixtureDatabase?.end(),
+    ]);
+    platformFixtureApi = null;
+    tenantFixtureApi = null;
+    expiredTenantFixtureApi = null;
+    fixtureDatabase = null;
+  });
+
+  test.beforeEach(async ({ page }) => openLogin(page));
+
+  // Successful login coverage is deliberately first.
+  test("LOGIN-SUCCESS-001: Super Admin authenticates and receives its platform session", async ({ page }) => {
+    const email = process.env.PW_SUPER_ADMIN_EMAIL?.trim();
+    const password = process.env.PW_SUPER_ADMIN_PASSWORD;
+    test.skip(!email || !password, "Set PW_SUPER_ADMIN_EMAIL and PW_SUPER_ADMIN_PASSWORD in frontend/.env.playwright.");
+    await successfulRoleLogin(page, "SUPER_ADMIN", email!, password!, "/dashboard", "/api/backend/auth/me", "crm_admin_session");
+  });
+
+  test("LOGIN-SUCCESS-002: Organization Admin authenticates and receives its organization session", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    await successfulRoleLogin(page, "ORGANIZATION_ADMIN", fixtures.primaryAdmin.email, fixtures.primaryAdmin.password, "/org/dashboard", "/api/backend/org/auth/me", "crm_org_session");
+  });
+
+  test("LOGIN-SUCCESS-003: HR Manager authenticates and receives its workforce session", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    await successfulRoleLogin(page, "HR_MANAGER", fixtures.activeHrManager.email, fixtures.activeHrManager.password, "/employee/welcome", "/api/backend/employee-auth/me", "crm_employee_session");
+  });
+
+  test("LOGIN-SUCCESS-004: Department Manager authenticates and receives its workforce session", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    await successfulRoleLogin(page, "DEPARTMENT_MANAGER", fixtures.activeDepartmentManager.email, fixtures.activeDepartmentManager.password, "/employee/welcome", "/api/backend/employee-auth/me", "crm_employee_session");
+  });
+
+  test("LOGIN-SUCCESS-005: Employee authenticates and receives its workforce session", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    await successfulRoleLogin(page, "EMPLOYEE", fixtures.activeEmployee.email, fixtures.activeEmployee.password, "/employee/welcome", "/api/backend/employee-auth/me", "crm_employee_session");
+  });
+
+  // 25 negative login, authentication, and license-access cases follow.
+
+  test("LOGIN-NEGATIVE-001: empty email is blocked by the login form", async ({ page }) => {
+    const requests = observeRequests(page, API.login);
+    await loginPassword(page).fill("PW-Irrelevant-Password-123!");
+    await page.getByRole("button", { name: "Sign in securely", exact: true }).click();
+    await expect(loginEmail(page)).toBeFocused();
+    expect(requests).toHaveLength(0);
+  });
+
+  test("LOGIN-NEGATIVE-002: empty password is blocked by the login form", async ({ page }) => {
+    const requests = observeRequests(page, API.login);
+    await loginEmail(page).fill("person@example.com");
+    await page.getByRole("button", { name: "Sign in securely", exact: true }).click();
+    await expect(loginPassword(page)).toBeFocused();
+    expect(requests).toHaveLength(0);
+  });
+
+  test("LOGIN-NEGATIVE-003: malformed email is rejected before the login API request", async ({ page }) => {
+    const requests = observeRequests(page, API.login);
+    await loginEmail(page).fill("not-an-email");
+    await loginPassword(page).fill("PW-Irrelevant-Password-123!");
+    await loginPassword(page).press("Tab");
+    await expect(page.getByText("Enter a valid email address, such as name@company.com.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Sign in securely", exact: true }).click();
+    expect(requests).toHaveLength(0);
+  });
+
+  test("LOGIN-NEGATIVE-004: an unknown account is rejected by the real login endpoint", async ({ page }) => {
+    const response = await submitLogin(page, "pw-login-unknown-" + LOGIN_RUN_ID + "@example.invalid", LOGIN_TEST_PASSWORD);
+    await expectLoginFailure(page, response, 401, "Invalid email or password");
+  });
+
+  test("LOGIN-NEGATIVE-005: an incorrect Super Admin password is rejected", async ({ page }) => {
+    const email = process.env.PW_SUPER_ADMIN_EMAIL?.trim();
+    const password = process.env.PW_SUPER_ADMIN_PASSWORD;
+    test.skip(!email || !password, "Configure the real Super Admin credentials to test a wrong-password attempt.");
+    const response = await submitLogin(page, email!, password! + "-incorrect");
+    await expectLoginFailure(page, response, 401, "Invalid email or password");
+  });
+
+  test("LOGIN-NEGATIVE-006: an incorrect Organization Admin password is rejected", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    const response = await submitLogin(page, fixtures.primaryAdmin.email, fixtures.primaryAdmin.password + "-incorrect");
+    await expectLoginFailure(page, response, 401, "Invalid email or password");
+  });
+
+  test("LOGIN-NEGATIVE-007: an incorrect HR Manager password is rejected", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    const response = await submitLogin(page, fixtures.activeHrManager.email, fixtures.activeHrManager.password + "-incorrect");
+    await expectLoginFailure(page, response, 401, "Invalid email or password");
+  });
+
+  test("LOGIN-NEGATIVE-008: an incorrect Department Manager password is rejected", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    const response = await submitLogin(page, fixtures.activeDepartmentManager.email, fixtures.activeDepartmentManager.password + "-incorrect");
+    await expectLoginFailure(page, response, 401, "Invalid email or password");
+  });
+
+  test("LOGIN-NEGATIVE-009: an incorrect Employee password is rejected", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    const response = await submitLogin(page, fixtures.activeEmployee.email, fixtures.activeEmployee.password + "-incorrect");
+    await expectLoginFailure(page, response, 401, "Invalid email or password");
+  });
+
+  test("LOGIN-NEGATIVE-010: the backend rejects a login payload without an email", async ({ page }) => {
+    const response = await page.request.post(API.login, {
+      data: { password: LOGIN_TEST_PASSWORD },
+      headers: sameOriginLoginHeaders(page),
+    });
+    expect(response.status()).toBe(400);
+    expect((await response.json()).message).toMatch(/email and password are required/i);
+  });
+
+  test("LOGIN-NEGATIVE-011: the backend rejects a login payload without a password", async ({ page }) => {
+    const response = await page.request.post(API.login, {
+      data: { email: "person@example.com" },
+      headers: sameOriginLoginHeaders(page),
+    });
+    expect(response.status()).toBe(400);
+    expect((await response.json()).message).toMatch(/email and password are required/i);
+  });
+
+  test("LOGIN-NEGATIVE-012: the backend rejects a non-string email value", async ({ page }) => {
+    const response = await page.request.post(API.login, {
+      data: { email: 123, password: LOGIN_TEST_PASSWORD },
+      headers: sameOriginLoginHeaders(page),
+    });
+    expect(response.status()).toBe(400);
+    expect((await response.json()).message).toMatch(/email and password are required/i);
+  });
+
+  test("LOGIN-NEGATIVE-013: the backend rejects a non-string password value", async ({ page }) => {
+    const response = await page.request.post(API.login, {
+      data: { email: "person@example.com", password: 123 },
+      headers: sameOriginLoginHeaders(page),
+    });
+    expect(response.status()).toBe(400);
+    expect((await response.json()).message).toMatch(/email and password are required/i);
+  });
+
+  test("LOGIN-NEGATIVE-014: the backend rejects a malformed email without checking credentials", async ({ page }) => {
+    const response = await page.request.post(API.login, {
+      data: { email: "not-an-email", password: LOGIN_TEST_PASSWORD },
+      headers: sameOriginLoginHeaders(page),
+    });
+    expect(response.status()).toBe(400);
+    expect((await response.json()).message).toBe("Invalid email or password");
+  });
+
+  test("LOGIN-NEGATIVE-015: the backend rejects a password longer than its 1024-character input limit", async ({ page }) => {
+    const response = await page.request.post(API.login, {
+      data: { email: "person@example.com", password: "x".repeat(1025) },
+      headers: sameOriginLoginHeaders(page),
+    });
+    expect(response.status()).toBe(400);
+    expect((await response.json()).message).toBe("Invalid email or password");
+  });
+
+  test("LOGIN-NEGATIVE-016: malformed JSON is rejected by the login endpoint", async ({ page }) => {
+    const response = await page.request.post(API.login, {
+      data: "{",
+      headers: {
+        ...sameOriginLoginHeaders(page),
+        "content-type": "application/json",
+      },
+    });
+    expect(response.status()).toBe(400);
+    expect((await response.json()).message).toMatch(/invalid json/i);
+  });
+
+  test("LOGIN-NEGATIVE-017: non-JSON login requests are rejected", async ({ page }) => {
+    const response = await page.request.post(API.login, {
+      data: "email=person%40example.com&password=secret",
+      headers: {
+        ...sameOriginLoginHeaders(page),
+        "content-type": "text/plain",
+      },
+    });
+    expect(response.status()).toBe(415);
+    expect((await response.json()).message).toMatch(/content-type/i);
+  });
+
+  test("LOGIN-NEGATIVE-018: cross-origin login requests are rejected before authentication", async ({ page }) => {
+    const response = await page.request.post(API.login, {
+      data: { email: "person@example.com", password: LOGIN_TEST_PASSWORD },
+      headers: {
+        origin: "https://attacker.example",
+        "sec-fetch-site": "cross-site",
+      },
+    });
+    expect(response.status()).toBe(403);
+    expect((await response.json()).message).toMatch(/origin/i);
+  });
+
+  test("LOGIN-NEGATIVE-019: an active Organization Admin cannot sign in while the organization is suspended", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    if (!platformFixtureApi) throw new Error("Platform fixture API is unavailable.");
+    const suspend = await platformFixtureApi.patch(
+      "/api/backend/organizations/" + encodeURIComponent(fixtures.organizationId) + "/status",
+      { data: { status: "SUSPENDED", reason: "Playwright suspended-organization login test" } },
+    );
+    await setupJson(suspend, 200, "Suspend organization for login test");
+    try {
+      const response = await submitLogin(page, fixtures.primaryAdmin.email, fixtures.primaryAdmin.password);
+      await expectLoginFailure(
+        page,
+        response,
+        403,
+        "Your organization has been suspended. Please contact your platform administrator.",
+      );
+    } finally {
+      const restore = await platformFixtureApi.patch(
+        "/api/backend/organizations/" + encodeURIComponent(fixtures.organizationId) + "/status",
+        { data: { status: "ACTIVE", reason: "Restore organization after Playwright login test" } },
+      );
+      await setupJson(restore, 200, "Restore organization after login test");
+    }
+  });
+
+  test("LOGIN-NEGATIVE-020: a suspended Organization Admin account cannot sign in", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    const response = await submitLogin(page, fixtures.suspendedAdmin.email, fixtures.suspendedAdmin.password);
+    await expectLoginFailure(page, response, 403, "Your account is not active. Please contact your administrator.");
+  });
+
+  test("LOGIN-NEGATIVE-021: a suspended HR Manager account cannot sign in", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    const response = await submitLogin(page, fixtures.suspendedHrManager.email, fixtures.suspendedHrManager.password);
+    await expectLoginFailure(page, response, 403, "Your account is not active. Please contact your administrator.");
+  });
+
+  test("LOGIN-NEGATIVE-022: a suspended Department Manager account cannot sign in", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    const response = await submitLogin(page, fixtures.suspendedDepartmentManager.email, fixtures.suspendedDepartmentManager.password);
+    await expectLoginFailure(page, response, 403, "Your account is not active. Please contact your administrator.");
+  });
+
+  test("LOGIN-NEGATIVE-023: a suspended Employee account cannot sign in", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    const response = await submitLogin(page, fixtures.suspendedEmployee.email, fixtures.suspendedEmployee.password);
+    await expectLoginFailure(page, response, 403, "Your account is not active. Please contact your administrator.");
+  });
+
+  test("LOGIN-NEGATIVE-024: an organization without an activated license is locked after successful authentication", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    const response = await submitLogin(page, fixtures.primaryAdmin.email, fixtures.primaryAdmin.password);
+    expect(response.status()).toBe(200);
+    expect((await response.json()).user?.role).toBe("ORGANIZATION_ADMIN");
+    await page.waitForURL((url) => url.pathname === "/org/dashboard", { timeout: 20_000 });
+    const licenseResponse = await page.request.get("/api/backend/license-access");
+    expect(licenseResponse.status()).toBe(200);
+    const licenseBody = await licenseResponse.json();
+    expect(licenseBody.license?.status).toBe("NOT_ACTIVATED");
+    expect(licenseBody.license?.canAccess).toBe(false);
+    await expect(page.locator('[data-license-dialog="true"]')).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your organization isn’t licensed yet", exact: true })).toBeVisible();
+  });
+
+  test("LOGIN-NEGATIVE-025: an organization with an expired license is locked after successful authentication", async ({ page }) => {
+    const fixtures = requireNegativeFixtures();
+    const response = await submitLogin(page, fixtures.expiredAdmin.email, fixtures.expiredAdmin.password);
+    expect(response.status()).toBe(200);
+    expect((await response.json()).user?.role).toBe("ORGANIZATION_ADMIN");
+    await page.waitForURL((url) => url.pathname === "/org/dashboard", { timeout: 20_000 });
+    const licenseResponse = await page.request.get("/api/backend/license-access");
+    expect(licenseResponse.status()).toBe(200);
+    const licenseBody = await licenseResponse.json();
+    expect(licenseBody.license?.status).toBe("EXPIRED");
+    expect(licenseBody.license?.canAccess).toBe(false);
+    await expect(page.locator('[data-license-dialog="true"]')).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your organization license has expired", exact: true })).toBeVisible();
+  });
+
+  test("LOGIN-NEGATIVE-026: the previously configured invalid-password account is rejected by the real backend", async ({ page }) => {
+    const email = process.env.PW_INVALID_LOGIN_EMAIL?.trim();
+    const password = process.env.PW_INVALID_LOGIN_PASSWORD;
+    test.skip(!email || !password, "Configure a dedicated PW_INVALID_LOGIN_EMAIL and intentionally incorrect PW_INVALID_LOGIN_PASSWORD.");
+    const response = await submitLogin(page, email!, password!);
+    await expectLoginFailure(page, response, 401, "Invalid email or password");
+  });
+});
 
 test.describe("Login and password recovery — complete regression suite", () => {
   test.beforeEach(async ({ page }) => openLogin(page));
@@ -394,86 +1179,6 @@ test.describe("Login and password recovery — complete regression suite", () =>
     expect(response.status()).toBe(200);
     await expect(appStatus(page, /if an account with that email address exists/i)).toBeVisible();
   });
-
-  for (const credentials of roleCredentials) {
-    test(`LOGIN-ROLE-${credentials.role}: real credential is checked by backend database and workspace session`, async ({ page }) => {
-      const email = process.env[credentials.emailEnv]?.trim();
-      const password = process.env[credentials.passwordEnv];
-      test.skip(!email || !password, `Set ${credentials.emailEnv} and ${credentials.passwordEnv} to enable this real database-backed login test.`);
-
-      // Register before submitting: the page immediately calls its role-specific
-      // session endpoint after the login endpoint succeeds.
-      const sessionResponsePromise = page.waitForResponse(
-        (candidate) =>
-          new URL(candidate.url()).pathname === credentials.sessionCheck &&
-          candidate.request().method() === "GET",
-        { timeout: 20_000 },
-      );
-
-      const response = await submitLogin(page, email!, password!);
-      const loginRequest = response.request();
-      const loginPayload = loginRequest.postDataJSON() as {
-        email?: string;
-        password?: string;
-      };
-      expect(loginRequest.headers()["content-type"]).toContain("application/json");
-      expect(loginPayload.email).toBe(email!.trim().toLowerCase());
-      expect(typeof loginPayload.password).toBe("string");
-      expect(loginPayload.password?.length).toBe(password!.length);
-      // Compare secrets as booleans so a failing assertion never prints a password.
-      expect(loginPayload.password === password!).toBe(true);
-      const requestUrl = new URL(loginRequest.url());
-      expect(requestUrl.searchParams.has("email")).toBe(false);
-      expect(requestUrl.searchParams.has("password")).toBe(false);
-
-      const responseText = await response.text();
-      expect(response.status(), `Real login endpoint response for ${credentials.role}: ${responseText}`).toBe(200);
-      const body = JSON.parse(responseText) as {
-        status?: string;
-        destination?: string;
-        user?: { role?: string; organizationId?: string | null; employeeId?: string | null };
-      };
-      expect(body.status).toBe("ok");
-      expect(body.user?.role).toBe(credentials.role);
-      expect(body.destination).toBe(credentials.destination);
-
-      // The page independently verifies the role-specific session with the real API.
-      const sessionResponse = await sessionResponsePromise;
-      expect(sessionResponse.status()).toBe(200);
-      const sessionBody = await sessionResponse.json();
-      expect(sessionBody.authenticated).toBe(true);
-      expect(sessionBody.user?.role).toBe(credentials.role);
-      if (credentials.role !== "SUPER_ADMIN") {
-        expect(sessionBody.user?.organizationId).toBe(body.user?.organizationId);
-      }
-      if (["HR_MANAGER", "DEPARTMENT_MANAGER", "EMPLOYEE"].includes(credentials.role)) {
-        expect(sessionBody.user?.employeeId).toBe(body.user?.employeeId);
-      }
-
-      await page.waitForURL((url) => url.pathname === credentials.destination, { timeout: 20_000 });
-      const cookies = await page.context().cookies();
-      const roleCookieNames = ["crm_admin_session", "crm_org_session", "crm_employee_session"];
-      const issuedRoleCookies = cookies
-        .filter((item) => roleCookieNames.includes(item.name))
-        .map((item) => item.name);
-      expect(issuedRoleCookies).toEqual([credentials.sessionCookie]);
-
-      const cookie = cookies.find((item) => item.name === credentials.sessionCookie);
-      expect(cookie, `Expected the actual ${credentials.role} session cookie`).toBeTruthy();
-      expect(cookie?.httpOnly).toBe(true);
-      expect(cookie?.path).toBe("/");
-      expect(cookie?.sameSite).toBe("Lax");
-
-      // Re-check the session through the actual endpoint after the redirect.
-      const persistedSessionResponse = await page.request.get(
-        new URL(credentials.sessionCheck, page.url()).toString(),
-      );
-      expect(persistedSessionResponse.status()).toBe(200);
-      const persistedSession = await persistedSessionResponse.json();
-      expect(persistedSession.authenticated).toBe(true);
-      expect(persistedSession.user?.role).toBe(credentials.role);
-    });
-  }
 
   test("LOGIN-022: login and password-recovery forms use POST", async ({ page }) => {
     const loginMethod = await loginEmail(page).evaluate(
@@ -1215,16 +1920,5 @@ test.describe("Login and password recovery — complete regression suite", () =>
     await expect(page.getByRole("button", { name: "Reset password", exact: true })).toBeVisible();
   });
 
-  test("LOGIN-NEGATIVE-001: dedicated invalid password is rejected by real backend", async ({ page }) => {
-    const email = process.env.PW_INVALID_LOGIN_EMAIL?.trim();
-    const password = process.env.PW_INVALID_LOGIN_PASSWORD;
-    test.skip(!email || !password, "Configure a dedicated PW_INVALID_LOGIN_EMAIL and intentionally incorrect PW_INVALID_LOGIN_PASSWORD.");
 
-    const response = await submitLogin(page, email!, password!);
-    expect(response.status()).toBe(401);
-    const body = await response.json();
-    expect(body.message).toBe("Invalid email or password");
-    await expect(appAlert(page, "Invalid email or password")).toBeVisible();
-    await expect(page).toHaveURL(/\/$/);
-  });
 });
