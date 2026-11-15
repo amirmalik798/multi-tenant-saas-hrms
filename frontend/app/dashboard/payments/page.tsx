@@ -547,7 +547,7 @@ export default function PlatformPaymentsPage() {
           {notice && <div role="status" className="mb-5 flex items-start justify-between gap-3 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200"><span className="flex items-start gap-2"><CheckCircle2 size={18} className="mt-0.5 shrink-0" />{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Dismiss notification" className="rounded-md p-1 hover:bg-white/10"><X size={16} /></button></div>}
           {logoutError && <p role="alert" className="mb-4 rounded-lg border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{logoutError}</p>}
 
-          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <section aria-label="Payment overview metrics" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard label="All submissions" value={summary.total} detail="Recorded payment proofs" icon={CreditCard} tone="blue" />
             <StatCard label="Awaiting review" value={summary.pending} detail={`${summary.organizationsWithPending} organizations waiting`} icon={Clock3} tone="amber" />
             <StatCard label="Approved" value={summary.approved} detail="Verified payment submissions" icon={BadgeCheck} tone="green" />
