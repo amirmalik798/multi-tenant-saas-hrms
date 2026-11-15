@@ -341,7 +341,7 @@ export default function PlatformSupportWorkspace({ role }: { role: "ORGANIZATION
                 </div>
                 <button type="button" onClick={() => void changeConversationStatus()} disabled={sending || !selected} className="ml-auto shrink-0 rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/5 disabled:opacity-40">{selected?.status === "CLOSED" ? "Reopen" : "Close"}</button>
               </header>
-              <div role="region" aria-label="Support conversation messages" className="flex-1 space-y-4 overflow-y-auto bg-[#0b111b]/70 p-5 sm:p-7">
+              <div className="flex-1 space-y-4 overflow-y-auto bg-[#0b111b]/70 p-5 sm:p-7">
                 {threadLoading && messages.length === 0 ? <p className="text-sm text-slate-400">Loading conversation…</p>
                   : messages.length === 0 ? <p className="text-sm text-slate-400">No messages in this conversation yet.</p>
                   : messages.map((item) => {

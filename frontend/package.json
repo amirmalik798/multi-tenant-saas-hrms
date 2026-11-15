@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:login": "playwright test --project=chromium --workers=1",
-    "test:super-admin": "playwright test --config=playwright.super-admin.config.ts --project=chromium --workers=1"
+    "test:login": "playwright test --project=chromium --workers=1"
   },
   "dependencies": {
     "lucide-react": "^1.61.0",

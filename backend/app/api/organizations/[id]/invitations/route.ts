@@ -351,28 +351,13 @@ export async function POST(
 
     if (
       emailMode !== "sandbox" &&
-      emailMode !== "live" &&
-      emailMode !== "local"
+      emailMode !== "live"
     ) {
       return jsonResponse(
         {
           status: "error",
           message:
-            'Email mode is invalid. Set EMAIL_MODE to "sandbox", "live", or "local". Local mode is available only outside production.',
-        },
-        503,
-      );
-    }
-
-    if (
-      emailMode === "local" &&
-      (process.env.NODE_ENV === "production" ||
-        process.env.VERCEL_ENV === "production")
-    ) {
-      return jsonResponse(
-        {
-          status: "error",
-          message: "Local email preview mode is disabled in production.",
+            'Email delivery mode is invalid. Set EMAIL_MODE to "sandbox" or "live" and configure the corresponding provider in the backend environment.',
         },
         503,
       );
@@ -411,11 +396,9 @@ export async function POST(
     }
 
     const emailProvider =
-      emailMode === "local"
-        ? "local_preview"
-        : emailMode === "live"
-          ? "google_apps_script"
-          : "mailtrap_sandbox";
+      emailMode === "live"
+        ? "google_apps_script"
+        : "mailtrap_sandbox";
 
     const frontendUrlValue =
       process.env.FRONTEND_URL?.trim() ||
@@ -792,31 +775,17 @@ export async function POST(
     transactionOpen = false;
 
     /*
-     * 9. Deliver through the configured provider after commit.
-     *
-     * Local mode intentionally skips external delivery. The authenticated
-     * Super Admin receives the invitation URL in the API response so the
-     * acceptance workflow can be tested without consuming provider quotas.
-     * Local mode is rejected above whenever the backend is running in
-     * production.
+     * 9. Send through the shared provider after commit. If sending fails,
+     * attempt to revoke the invitation and audit that change separately.
      */
-    if (emailMode === "local") {
-      console.info(
-        "[LOCAL EMAIL PREVIEW] Organization Admin invitation created; external delivery skipped.",
-        {
-          organizationId,
-          invitationId: invitation.id,
-        },
-      );
-    } else {
-      try {
-        await sendOrganizationAdminInvitationEmail({
-          to: invitation.email,
-          organizationName: organization.name,
-          invitationUrl: invitationUrl.toString(),
-          expiresAt: new Date(invitation.expires_at),
-        });
-      } catch (emailError) {
+    try {
+      await sendOrganizationAdminInvitationEmail({
+        to: invitation.email,
+        organizationName: organization.name,
+        invitationUrl: invitationUrl.toString(),
+        expiresAt: new Date(invitation.expires_at),
+      });
+    } catch (emailError) {
       console.error(
         "Organization Admin invitation email failed:",
         emailError,
@@ -896,18 +865,13 @@ export async function POST(
         },
         502,
       );
-      }
     }
 
     return jsonResponse(
       {
         status: "ok",
-        message:
-          emailMode === "local"
-            ? "Invitation created for local testing. No email was sent."
-            : "Invitation email sent successfully",
-        emailSent: emailMode !== "local",
-        emailDeliverySkipped: emailMode === "local",
+        message: "Invitation email sent successfully",
+        emailSent: true,
         emailMode,
         emailProvider,
         invitation: {
