@@ -227,7 +227,6 @@ const test = baseTest.extend<{}, { sharedPage: Page }>({
       window.localStorage.clear();
       window.sessionStorage.clear();
     });
-    await sharedPage.goto("about:blank");
 
     const tracePath = testInfo.outputPath("trace.zip");
     await context.tracing.start({
@@ -261,8 +260,9 @@ const test = baseTest.extend<{}, { sharedPage: Page }>({
         });
       }
 
-      // Leave the same Chromium tab alive and ready for the next test.
-      await sharedPage.goto("about:blank").catch(() => undefined);
+      // Remove request observers created by the current test so they cannot
+      // accumulate or affect assertions in later tests. Keep the visible page open.
+      await sharedPage.removeAllListeners("request");
     }
   },
 });
