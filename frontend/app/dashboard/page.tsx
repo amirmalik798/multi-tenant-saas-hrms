@@ -56,9 +56,16 @@ type IconName =
   | "clock"
   | "arrow"
   | "external"
-   | "shield"
-   | "calendar"
-   | "more";
+  | "shield"
+  | "calendar"
+  | "more"
+  | "eye"
+  | "pencil"
+  | "ban"
+  | "shield-check"
+  | "user-plus"
+  | "trash"
+  | "lock";
 function Icon({
   name,
   size = 20,
@@ -137,6 +144,47 @@ function Icon({
         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
       </>
     ),
+    eye: (
+      <>
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+        <circle cx="12" cy="12" r="3" />
+      </>
+    ),
+    pencil: (
+      <>
+        <path d="m16 5 3 3" />
+        <path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17l-1 3Z" />
+      </>
+    ),
+    ban: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="m5.6 5.6 12.8 12.8" />
+      </>
+    ),
+    "shield-check": (
+      <>
+        <path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z" />
+        <path d="m9 12 2 2 4-4" />
+      </>
+    ),
+    "user-plus": (
+      <>
+        <circle cx="9" cy="8" r="4" />
+        <path d="M2 21v-1a7 7 0 0 1 14 0v1M19 8v6m-3-3h6" />
+      </>
+    ),
+    trash: (
+      <>
+        <path d="M3 6h18M8 6V4h8v2m3 0-.8 14H5.8L5 6m4 4v6m6-6v6" />
+      </>
+    ),
+    lock: (
+      <>
+        <rect x="4" y="10" width="16" height="11" rx="2" />
+        <path d="M8 10V7a4 4 0 1 1 8 0v3M12 14v3" />
+      </>
+    ),
     shield: (
       <>
         <path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z" />
@@ -174,6 +222,11 @@ function Icon({
     </svg>
   );
 }
+const organizationRowActionButtonBaseClass =
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#141f2e] disabled:cursor-not-allowed disabled:opacity-50";
+
+const ORGANIZATION_DELETED_EVENT = "hrms:organization-deleted";
+
 function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
@@ -259,8 +312,14 @@ export default function DashboardPage() {
   const [statusUpdatingOrganizationId, setStatusUpdatingOrganizationId] = useState<string | null>(null);
   const [statusActionError, setStatusActionError] = useState("");
   const [statusActionNotice, setStatusActionNotice] = useState("");
+  const [deleteActionOrganization, setDeleteActionOrganization] = useState<Organization | null>(null);
+  const [deleteConfirmationSlug, setDeleteConfirmationSlug] = useState("");
+  const [deleteActionError, setDeleteActionError] = useState("");
+  const [deletingOrganizationId, setDeletingOrganizationId] = useState<string | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const statusDialogRef = useRef<HTMLDivElement>(null);
+  const deleteDialogRef = useRef<HTMLDivElement>(null);
+  const deleteConfirmationInputRef = useRef<HTMLInputElement>(null);
   const statusConfirmationInputRef = useRef<HTMLInputElement>(null);
   const statusConfirmButtonRef = useRef<HTMLButtonElement>(null);
   // Keep the existing Super Admin session verification.
@@ -444,6 +503,16 @@ export default function DashboardPage() {
     };
   }, [user, router, reloadKey, recentOrganizationsPage, debouncedSearchQuery]);
 
+  useEffect(() => {
+    const refreshAfterOrganizationDeletion = () => {
+      setReloadKey((current) => current + 1);
+    };
+    window.addEventListener(ORGANIZATION_DELETED_EVENT, refreshAfterOrganizationDeletion);
+    return () => {
+      window.removeEventListener(ORGANIZATION_DELETED_EVENT, refreshAfterOrganizationDeletion);
+    };
+  }, []);
+
   async function handleLogout() {
     setLoggingOut(true);
     setLogoutError("");
@@ -551,6 +620,126 @@ export default function DashboardPage() {
       setStatusUpdatingOrganizationId(null);
     }
   }
+
+  function openDeleteOrganizationDialog(organization: Organization) {
+    setDeleteActionOrganization(organization);
+    setDeleteConfirmationSlug("");
+    setDeleteActionError("");
+  }
+
+  function closeDeleteOrganizationDialog() {
+    if (deletingOrganizationId) return;
+    setDeleteActionOrganization(null);
+    setDeleteConfirmationSlug("");
+    setDeleteActionError("");
+  }
+
+  async function handleConfirmOrganizationDeletion() {
+    const organization = deleteActionOrganization;
+    if (!organization || deletingOrganizationId) return;
+
+    if (deleteConfirmationSlug.trim() !== organization.slug.trim()) {
+      setDeleteActionError("Type the organization's slug exactly to confirm deletion.");
+      return;
+    }
+
+    setDeletingOrganizationId(organization.id);
+    setDeleteActionError("");
+
+    try {
+      const response = await fetch(
+        `/api/backend/organizations/${encodeURIComponent(organization.id)}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmationSlug: deleteConfirmationSlug.trim() }),
+        },
+      );
+      const data = await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        setDeleteActionOrganization(null);
+        router.replace("/");
+        return;
+      }
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to delete this organization.");
+      }
+
+      const deletedCount = Number(data.deletion?.deletedRecordCount ?? 0);
+      const deletedStatus = organization.status?.toUpperCase();
+      setOrganizations((current) => current.filter((item) => item.id !== organization.id));
+      setRecentOrganizations((current) => current.filter((item) => item.id !== organization.id));
+      setRecentOrganizationsTotal((current) => Math.max(0, current - 1));
+      setStatsData((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          totalOrganizations: Math.max(0, current.totalOrganizations - 1),
+          activeOrganizations: Math.max(0, current.activeOrganizations - (deletedStatus === "ACTIVE" ? 1 : 0)),
+          pendingSetupOrganizations: Math.max(0, current.pendingSetupOrganizations - (deletedStatus === "PENDING_SETUP" ? 1 : 0)),
+          suspendedOrganizations: Math.max(0, current.suspendedOrganizations - (deletedStatus === "SUSPENDED" ? 1 : 0)),
+          archivedOrganizations: Math.max(0, current.archivedOrganizations - (deletedStatus === "ARCHIVED" ? 1 : 0)),
+        };
+      });
+      if (recentOrganizations.length === 1 && recentOrganizationsPage > 1) {
+        setRecentOrganizationsPage((current) => Math.max(1, current - 1));
+      }
+      setDeleteActionOrganization(null);
+      setDeleteConfirmationSlug("");
+      setStatusActionNotice(
+        `${organization.name} was permanently deleted with ${deletedCount.toLocaleString()} related database record(s).`,
+      );
+      window.dispatchEvent(new Event(ORGANIZATION_DELETED_EVENT));
+    } catch (error) {
+      setDeleteActionError(
+        error instanceof Error
+          ? error.message
+          : "Could not delete this organization. Please try again.",
+      );
+    } finally {
+      setDeletingOrganizationId(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!deleteActionOrganization) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    deleteConfirmationInputRef.current?.focus();
+
+    function handleDeleteDialogKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDeleteOrganizationDialog();
+        return;
+      }
+      if (event.key !== "Tab" || !deleteDialogRef.current) return;
+      const focusable = Array.from(deleteDialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleDeleteDialogKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleDeleteDialogKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [deleteActionOrganization, deletingOrganizationId]);
 
   useEffect(() => {
     if (!statusActionOrganization || statusUpdatingOrganizationId) return;
@@ -1036,23 +1225,28 @@ export default function DashboardPage() {
                             <Link
                               href={`/dashboard/organizations?organizationId=${encodeURIComponent(organization.id)}&panel=view`}
                               title="View organization details"
-                              className="inline-flex min-h-8 shrink-0 items-center justify-center gap-1 rounded-lg border border-[#75c7ff]/25 bg-[#75c7ff]/[0.07] px-2.5 py-1.5 text-[11px] font-semibold text-[#9ed5ff] transition-all duration-200 hover:border-[#75c7ff]/50 hover:bg-[#75c7ff]/[0.13] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#75c7ff]"
+                              aria-label={`View ${organization.name} details`}
+                              className={`${organizationRowActionButtonBaseClass} border-[#75c7ff]/25 bg-[#75c7ff]/[0.07] text-[#9ed5ff] hover:border-[#75c7ff]/50 hover:bg-[#75c7ff]/[0.13]`}
                             >
-                              View details <Icon name="arrow" size={11} />
+                              <Icon name="eye" size={16} />
                             </Link>
                             {organization.status?.toUpperCase() === "ARCHIVED" ? (
                               <span
-                                className="inline-flex min-h-8 shrink-0 items-center justify-center rounded-lg border border-slate-400/15 bg-slate-500/[0.05] px-2.5 py-1.5 text-[11px] font-semibold text-slate-400"
+                                role="img"
+                                aria-label={`${organization.name} is read-only`}
+                                className={`${organizationRowActionButtonBaseClass} border-slate-400/15 bg-slate-500/[0.05] text-slate-400`}
                                 title="Archived organizations are read-only."
                               >
-                                Read-only
+                                <Icon name="lock" size={15} />
                               </span>
                             ) : (
                               <Link
                                 href={`/dashboard/organizations?organizationId=${encodeURIComponent(organization.id)}&panel=edit`}
-                                className="inline-flex min-h-8 shrink-0 items-center justify-center rounded-lg border border-white/[0.09] bg-white/[0.025] px-2.5 py-1.5 text-[11px] font-semibold text-[#d3deeb] transition-colors hover:border-[#75c7ff]/25 hover:bg-[#1d2a3b] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#75c7ff]"
+                                title="Edit organization"
+                                aria-label={`Edit ${organization.name}`}
+                                className={`${organizationRowActionButtonBaseClass} border-white/[0.09] bg-white/[0.025] text-[#d3deeb] hover:border-[#75c7ff]/25 hover:bg-[#1d2a3b] hover:text-white`}
                               >
-                                Edit
+                                <Icon name="pencil" size={15} />
                               </Link>
                             )}
                             {organization.status === "ACTIVE" || organization.status === "SUSPENDED" ? (
@@ -1067,38 +1261,48 @@ export default function DashboardPage() {
                                 disabled={statusUpdatingOrganizationId === organization.id}
                                 title={organization.status === "ACTIVE" ? "Suspend organization" : "Reactivate organization"}
                                 aria-label={`${organization.status === "ACTIVE" ? "Suspend" : "Reactivate"} ${organization.name}`}
-                                className={`inline-flex min-h-8 shrink-0 items-center justify-center rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#75c7ff] disabled:cursor-not-allowed disabled:opacity-60 ${
+                                className={`${organizationRowActionButtonBaseClass} ${
                                   organization.status === "ACTIVE"
                                     ? "border-rose-400/20 bg-rose-500/[0.06] text-rose-300 hover:border-rose-300/35 hover:bg-rose-500/10"
                                     : "border-emerald-400/20 bg-emerald-500/[0.06] text-emerald-300 hover:border-emerald-300/35 hover:bg-emerald-500/10"
                                 }`}
                               >
-                                {statusUpdatingOrganizationId === organization.id
-                                  ? "Updating…"
-                                  : organization.status === "ACTIVE" ? "Suspend" : "Reactivate"}
+                                <Icon name={organization.status === "ACTIVE" ? "ban" : "shield-check"} size={15} />
                               </button>
                             ) : (
                               <span
-                                className={`inline-flex min-h-8 shrink-0 items-center justify-center rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold ${
+                                role="img"
+                                aria-label={organization.status?.toUpperCase() === "ARCHIVED" ? `${organization.name} is archived` : `${organization.name} requires setup before status changes`}
+                                className={`${organizationRowActionButtonBaseClass} ${
                                   organization.status?.toUpperCase() === "ARCHIVED"
                                     ? "border-slate-400/15 bg-slate-500/[0.05] text-slate-400"
                                     : "border-amber-300/15 bg-amber-400/[0.04] text-amber-200/70"
                                 }`}
-                                title={organization.status?.toUpperCase() === "ARCHIVED" ? "Archived organizations are read-only." : "Organization setup must be completed before changing its status."}
+                                title={organization.status?.toUpperCase() === "ARCHIVED" ? "Archived organizations are read-only." : "Complete organization setup before changing its status."}
                               >
-                                {organization.status?.toUpperCase() === "ARCHIVED" ? "Archived" : "Setup first"}
+                                <Icon name={organization.status?.toUpperCase() === "ARCHIVED" ? "shield" : "clock"} size={15} />
                               </span>
                             )}
                             <Link
                               href={`/dashboard/organizations/${encodeURIComponent(organization.id)}`}
                               aria-label={organization.status === "PENDING_SETUP"
-                                ? `Open invitation setup for ${organization.name}`
+                                ? `Invite an administrator for ${organization.name}`
                                 : `Open full details for ${organization.name}`}
                               title={organization.status === "PENDING_SETUP" ? "Invite administrator" : "Open full organization details"}
-                              className="inline-flex min-h-8 shrink-0 items-center justify-center rounded-lg border border-white/[0.09] bg-white/[0.025] px-2.5 py-1.5 text-[11px] font-semibold text-[#b9c7d8] transition hover:border-[#75c7ff]/25 hover:bg-[#1d2a3b] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#75c7ff]"
+                              className={`${organizationRowActionButtonBaseClass} border-white/[0.09] bg-white/[0.025] text-[#b9c7d8] hover:border-[#75c7ff]/25 hover:bg-[#1d2a3b] hover:text-white`}
                             >
-                              {organization.status === "PENDING_SETUP" ? "Invite Admin" : "Full details"}
+                              <Icon name={organization.status === "PENDING_SETUP" ? "user-plus" : "external"} size={15} />
                             </Link>
+                            <button
+                              type="button"
+                              onClick={() => openDeleteOrganizationDialog(organization)}
+                              disabled={Boolean(deletingOrganizationId)}
+                              title={`Permanently delete ${organization.name}`}
+                              aria-label={`Permanently delete ${organization.name}`}
+                              className={`${organizationRowActionButtonBaseClass} border-rose-400/25 bg-rose-500/[0.07] text-rose-200 hover:border-rose-300/45 hover:bg-rose-500/[0.14] focus-visible:ring-rose-300`}
+                            >
+                              <Icon name="trash" size={15} />
+                            </button>
                           </div>
                         </td>
                         <td className="px-3 py-4 align-middle min-w-0">
@@ -1188,8 +1392,109 @@ export default function DashboardPage() {
           onOpenChange={setCommandPaletteOpen}
           items={commandItems}
           onSelect={selectCommandItem}
-          blocked={Boolean(statusActionOrganization)}
+          blocked={Boolean(statusActionOrganization) || Boolean(deleteActionOrganization)}
         />
+
+        {deleteActionOrganization && (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) closeDeleteOrganizationDialog();
+            }}
+          >
+            <div
+              ref={deleteDialogRef}
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="dashboard-organization-delete-title"
+              aria-describedby="dashboard-organization-delete-description"
+              tabIndex={-1}
+              onMouseDown={(event) => event.stopPropagation()}
+              className="w-full max-w-xl rounded-2xl border border-rose-400/30 bg-[#182232] p-5 text-white shadow-[0_28px_80px_rgba(0,0,0,0.65)] sm:p-6"
+            >
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-300">
+                  <Icon name="trash" size={22} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-rose-300">
+                    Irreversible platform action
+                  </p>
+                  <h2 id="dashboard-organization-delete-title" className="mt-1 text-xl font-bold tracking-tight text-white">
+                    Permanently delete organization?
+                  </h2>
+                  <p className="mt-1 break-words text-sm font-semibold text-slate-200">
+                    {deleteActionOrganization.name}
+                  </p>
+                </div>
+              </div>
+
+              <div id="dashboard-organization-delete-description" className="mt-5 space-y-3 text-sm leading-6 text-slate-300">
+                <p>
+                  This permanently removes the organization and its tenant-owned
+                  records, including user accounts, employees, departments,
+                  attendance, leave, salary records, documents, invitations,
+                  schedules, communications, licenses, and payment submissions.
+                </p>
+                <p className="rounded-lg border border-rose-400/20 bg-rose-500/[0.07] px-3 py-2.5 text-xs leading-5 text-rose-100/90">
+                  This cannot be undone. Organization users will lose access.
+                  Platform audit history is retained with tenant references anonymized.
+                  Deletion is blocked while contracts or documents are under legal hold.
+                </p>
+                <label htmlFor="dashboard-confirm-organization-delete-slug" className="block pt-1 text-xs font-semibold text-slate-200">
+                  Type this organization&apos;s slug to confirm:
+                  <span className="ml-1 font-bold text-rose-200">{deleteActionOrganization.slug}</span>
+                </label>
+                <input
+                  ref={deleteConfirmationInputRef}
+                  id="dashboard-confirm-organization-delete-slug"
+                  type="text"
+                  autoComplete="off"
+                  value={deleteConfirmationSlug}
+                  onChange={(event) => {
+                    setDeleteConfirmationSlug(event.target.value);
+                    setDeleteActionError("");
+                  }}
+                  placeholder={deleteActionOrganization.slug}
+                  disabled={Boolean(deletingOrganizationId)}
+                  className="h-11 w-full rounded-lg border border-[#29384b] bg-[#0f1724] px-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-rose-400/60 focus:ring-4 focus:ring-rose-500/10 disabled:opacity-60"
+                />
+              </div>
+
+              {deleteActionError && (
+                <p role="alert" className="mt-4 rounded-lg border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+                  {deleteActionError}
+                </p>
+              )}
+
+              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeDeleteOrganizationDialog}
+                  disabled={Boolean(deletingOrganizationId)}
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleConfirmOrganizationDeletion()}
+                  disabled={
+                    Boolean(deletingOrganizationId) ||
+                    deleteConfirmationSlug.trim() !== deleteActionOrganization.slug
+                  }
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-rose-500/35 bg-rose-600/90 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <Icon name="trash" size={15} />
+                  {deletingOrganizationId === deleteActionOrganization.id
+                    ? "Deleting organization…"
+                    : "Permanently delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {statusActionOrganization && (
           <div
