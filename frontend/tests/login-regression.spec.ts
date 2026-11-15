@@ -35,8 +35,9 @@ const backendPg = backendRequire("pg") as {
  *
  * UI assertions use the actual accessible controls in frontend/app/page.tsx.
  * Organizations and workforce profiles are created through real backend APIs.
- * Login identities are seeded in the dedicated test database with bcrypt hashes
- * so login coverage does not depend on outbound invitation email delivery.
+ * Login identities are seeded in the dedicated test database with bcrypt hashes;
+ * Organization Admin and workforce accounts are linked to their real employee
+ * profiles so fixtures satisfy the production schema without outbound emails.
  * Direct SQL is also used for fixture-only account suspension and temporary
  * license states. Every login and session assertion uses the real backend.
  * No route interception or API mocking is used.
@@ -274,6 +275,45 @@ async function createFixtureOrganizationAdminAccount(
     throw new Error("Organization Admin role was not found for the login fixture.");
   }
 
+  // Organization Admins are workforce-linked accounts in this schema.
+  // Mirror the profile + user association created by the production
+  // organization-invitation acceptance route, but do not send an email.
+  const employeeCode = "ADM-" + randomBytes(8).toString("hex").toUpperCase();
+  const employeeResult = await fixtureDatabase.query(
+    `INSERT INTO public.employees (
+       organization_id,
+       employee_code,
+       first_name,
+       last_name,
+       email,
+       country,
+       city,
+       phone,
+       designation,
+       employment_status,
+       joining_date
+     )
+     VALUES (
+       $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, 'ACTIVE', CURRENT_DATE
+     )
+     RETURNING id`,
+    [
+      organizationId,
+      employeeCode,
+      "Playwright",
+      "Organization Admin",
+      account.email,
+      "Rwanda",
+      "Kigali",
+      "+250 788 123 450",
+      "Organization Admin",
+    ],
+  );
+  const employeeId = employeeResult.rows[0]?.id;
+  if (typeof employeeId !== "string") {
+    throw new Error("Organization Admin employee profile was not created.");
+  }
+
   const passwordHash = await backendBcrypt.hash(account.password, 12);
   const userResult = await fixtureDatabase.query(
     `INSERT INTO public.users (
@@ -283,11 +323,23 @@ async function createFixtureOrganizationAdminAccount(
        organization_id,
        employee_id,
        status,
-       role_id
+       role_id,
+       contact_phone,
+       contact_country,
+       contact_city
      )
-     VALUES ($1, $2, 'ORGANIZATION', $3::uuid, NULL, 'ACTIVE', $4::uuid)
+     VALUES ($1, $2, 'ORGANIZATION', $3::uuid, $4::uuid, 'ACTIVE', $5::uuid, $6, $7, $8)
      RETURNING id`,
-    [account.email, passwordHash, organizationId, roleId],
+    [
+      account.email,
+      passwordHash,
+      organizationId,
+      employeeId,
+      roleId,
+      "+250 788 123 450",
+      "Rwanda",
+      "Kigali",
+    ],
   );
   const userId = userResult.rows[0]?.id;
   if (typeof userId !== "string") {
