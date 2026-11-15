@@ -330,6 +330,8 @@ export default function OrganizationsPage() {
     useState<OrganizationViewTab>("overview");
   const [organizationUserFilter, setOrganizationUserFilter] =
     useState<OrganizationUserFilter>("ALL");
+  const [organizationUserSearch, setOrganizationUserSearch] = useState("");
+  const [debouncedOrganizationUserSearch, setDebouncedOrganizationUserSearch] = useState("");
   const [copyFeedback, setCopyFeedback] = useState<"id" | "slug" | null>(null);
   const copyFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [slugAvailability, setSlugAvailability] = useState<SlugAvailability>("idle");
@@ -376,6 +378,18 @@ export default function OrganizationsPage() {
     useState(0);
   const organizationUsersLoadedKeyRef = useRef<string | null>(null);
   const organizationInvitationsLoadedKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedOrganizationUserSearch(organizationUserSearch.trim());
+    }, 250);
+    return () => window.clearTimeout(timeoutId);
+  }, [organizationUserSearch]);
+
+  useEffect(() => {
+    setOrganizationUserSearch("");
+    setDebouncedOrganizationUserSearch("");
+  }, [selectedOrganization?.id]);
 
   const [panelError, setPanelError] = useState("");
   const [panelSuccess, setPanelSuccess] = useState("");
@@ -818,7 +832,7 @@ export default function OrganizationsPage() {
     }
 
     const requestOrganizationId: string = organizationId;
-    const loadKey = `${requestOrganizationId}:${organizationUserFilter}:${organizationUsersReloadKey}`;
+    const loadKey = `${requestOrganizationId}:${organizationUserFilter}:${debouncedOrganizationUserSearch}:${organizationUsersReloadKey}`;
     if (organizationUsersLoadedKeyRef.current === loadKey) {
       setLoadingOrganizationUsers(false);
       return;
@@ -851,6 +865,7 @@ export default function OrganizationsPage() {
         const query = new URLSearchParams({
           status: organizationUserFilter,
           offset: "0",
+          q: debouncedOrganizationUserSearch,
         });
         const response = await fetch(
           `/api/backend/organizations/${encodeURIComponent(requestOrganizationId)}/users?${query.toString()}`,
@@ -941,7 +956,7 @@ export default function OrganizationsPage() {
       organizationUsersLoadMoreControllerRef.current?.abort();
       organizationUsersLoadMoreControllerRef.current = null;
     };
-  }, [selectedOrganization?.id, panelMode, organizationViewTab, organizationUserFilter, organizationUsersReloadKey, router]);
+  }, [selectedOrganization?.id, panelMode, organizationViewTab, organizationUserFilter, debouncedOrganizationUserSearch, organizationUsersReloadKey, router]);
 
   async function loadMoreOrganizationUsers() {
     const organizationId = selectedOrganization?.id;
@@ -963,6 +978,7 @@ export default function OrganizationsPage() {
       const query = new URLSearchParams({
         status: organizationUserFilter,
         offset: String(organizationUsers.length),
+        q: debouncedOrganizationUserSearch,
       });
       const response = await fetch(
         `/api/backend/organizations/${encodeURIComponent(organizationId)}/users?${query.toString()}`,
@@ -2785,6 +2801,20 @@ export default function OrganizationsPage() {
                       </div>
                     </div>
 
+                    <div className="border-b border-[#29384b] px-4 py-3 sm:px-5">
+                      <label htmlFor="organization-user-search" className="mb-2 block text-xs font-semibold text-slate-300">
+                        Search accounts
+                      </label>
+                      <input
+                        id="organization-user-search"
+                        type="search"
+                        value={organizationUserSearch}
+                        onChange={(event) => setOrganizationUserSearch(event.target.value)}
+                        placeholder="Search name, email, role or employee code"
+                        className="h-10 w-full rounded-lg border border-[#34485e] bg-[#0f1724] px-3.5 text-sm text-slate-100 outline-none placeholder:text-slate-400 transition focus:border-[#75c7ff] focus:ring-2 focus:ring-[#75c7ff]/20"
+                      />
+                    </div>
+
                     {loadingOrganizationUsers && !organizationUsersSummary ? (
                       <div className="flex items-center justify-center gap-3 px-5 py-8 text-sm text-slate-300">
                         <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
@@ -3188,7 +3218,7 @@ export default function OrganizationsPage() {
 
                       <button
                         type="submit"
-                        disabled={savingOrganization || !hasOrganizationChanges || slugAvailability === "checking" || slugAvailability === "taken"}
+                        disabled={savingOrganization || !hasOrganizationChanges || Object.keys(editFieldErrors).length > 0 || slugAvailability === "checking" || slugAvailability === "taken"}
                         className="rounded-lg border border-[#75c7ff]/20 bg-[#21486a] px-5 py-3 text-sm font-semibold text-[#eff8ff] shadow-sm shadow-black/20 transition hover:border-[#75c7ff]/35 hover:bg-[#285577] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#75c7ff] disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {savingOrganization ? "Saving changes…" : "Save changes"}
