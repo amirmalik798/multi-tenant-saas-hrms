@@ -614,37 +614,40 @@ export async function DELETE(
         organizations: 1,
       };
 
-      // Preserve the platform-wide audit trail with organization_id = NULL.
-      // This event records the deletion without retaining a live tenant
-      // relationship or deleting the Super Admin's audit history.
+      // Retain the platform audit event count/history, but remove tenant
+      // identifiers, user emails, snapshots, and metadata from older entries.
+      // This prevents retained platform audit rows from becoming a hidden
+      // copy of deleted organization data.
+      await client.query(
+        "UPDATE public.platform_audit_logs " +
+          "SET actor_user_id = NULL, actor_email = 'redacted@deleted.invalid', " +
+          "target_id = NULL, organization_id = NULL, reason = NULL, " +
+          "before_state = '{}'::jsonb, after_state = '{}'::jsonb, metadata = '{}'::jsonb " +
+          "WHERE organization_id = $1::uuid OR target_id = $1::uuid",
+        [organization.id],
+      );
+
+      // Write a minimal platform-level record for the deletion. It deliberately
+      // contains no tenant name, slug, UUID, contact details, or tenant user data.
       await client.query(
         "INSERT INTO public.platform_audit_logs (" +
           "actor_user_id, actor_email, action_key, target_type, target_id, " +
           "organization_id, reason, before_state, after_state, metadata" +
           ") VALUES (" +
-          "$1::uuid, $2, 'organization.delete', 'ORGANIZATION', $3, " +
-          "NULL, 'Permanent organization deletion from Super Admin workspace', " +
-          "$4::jsonb, $5::jsonb, $6::jsonb" +
+          "$1::uuid, $2, 'organization.delete', 'ORGANIZATION', NULL, " +
+          "NULL, 'Organization permanently deleted by Super Admin', " +
+          "'{}'::jsonb, $3::jsonb, $4::jsonb" +
           ")",
         [
           admin.id,
           admin.email,
-          organization.id,
-          JSON.stringify({
-            id: organization.id,
-            name: organization.name,
-            slug: organization.slug,
-            contactEmail: organization.contact_email,
-            status: organization.status,
-            exists: true,
-          }),
           JSON.stringify({ exists: false }),
           JSON.stringify({
             deletedRecordCount: totalDeletedRecords,
             deletedTableCount: deletionReport.deletedTableCount + 1,
             recordsByTable,
             source: "super_admin_organization_delete",
-            auditRetention: "platform audit history retained and tenant references anonymized",
+            tenantDataRetained: false,
           }),
         ],
       );
