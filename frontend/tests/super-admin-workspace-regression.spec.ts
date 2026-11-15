@@ -1208,14 +1208,12 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
   });
 
   test("SA-057: global invitation search finds the Yopmail Organization Admin invitation", async ({ page }) => {
-    test.skip(!seedInvitationId, invitationSetupError || "Seed Yopmail invitation was not created.");
     await openPage(page, "/dashboard/invitations", "Invitation Management");
     await page.locator("#invitation-search").fill(seedOrganizationAdminEmail);
     await expect(page.locator("tbody tr").filter({ hasText: seedOrganizationAdminEmail }).first()).toBeVisible();
   });
 
   test("SA-058: pending invitation row exposes the revoke action for the Yopmail admin", async ({ page }) => {
-    test.skip(!seedInvitationId, invitationSetupError || "Seed Yopmail invitation was not created.");
     await openPage(page, "/dashboard/invitations", "Invitation Management");
     await page.locator("#invitation-search").fill(seedOrganizationAdminEmail);
     const row = page.locator("tr").filter({ hasText: seedOrganizationAdminEmail });
@@ -1224,7 +1222,6 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
   });
 
   test("SA-059: invitation revocation dialog requires a reason and supports cancellation", async ({ page }) => {
-    test.skip(!seedInvitationId, invitationSetupError || "Seed Yopmail invitation was not created.");
     await openPage(page, "/dashboard/invitations", "Invitation Management");
     await page.locator("#invitation-search").fill(seedOrganizationAdminEmail);
     const row = page.locator("tr").filter({ hasText: seedOrganizationAdminEmail });
@@ -1239,7 +1236,6 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
   });
 
   test("SA-060: invitation API rejects a revocation reason shorter than three characters", async ({ page }) => {
-    test.skip(!seedInvitationId, invitationSetupError || "Seed Yopmail invitation was not created.");
     const response = await page.request.patch(
       "/api/backend/organizations/" + seedOrganizationId + "/invitations",
       {
@@ -1253,7 +1249,6 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
   });
 
   test("SA-061: Super Admin can revoke the dedicated pending Yopmail invitation with an audit reason", async ({ page }) => {
-    test.skip(!seedInvitationId, invitationSetupError || "Seed Yopmail invitation was not created.");
     await openPage(page, "/dashboard/invitations", "Invitation Management");
     await page.locator("#invitation-search").fill(seedOrganizationAdminEmail);
     const row = page.locator("tr").filter({ hasText: seedOrganizationAdminEmail });
@@ -1338,33 +1333,31 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
     await expect(page.locator("#payment-status-filter")).toHaveValue("REJECTED");
   });
 
-  test("SA-069: payment detail dialog displays the private proof and license evidence for a configured test submission", async ({ page }) => {
-    const paymentId = process.env.PW_SUPER_ADMIN_PAYMENT_REVIEW_ID;
-    test.skip(!paymentId, "Set PW_SUPER_ADMIN_PAYMENT_REVIEW_ID to a dedicated test submission before exercising payment details.");
-    const dialog = await openPayment(page, paymentId!);
+  test("SA-069: payment detail dialog displays the private proof and license evidence for the suite-created submission", async ({ page }) => {
+    const paymentId = paymentReviewId;
+    expect(paymentId).toBeTruthy();
+    const dialog = await openPayment(page, paymentId);
     await expect(dialog.locator("#payment-detail-title")).toBeVisible();
     await expect(dialog.getByText("Payment proof", { exact: true })).toBeVisible();
     await expect(dialog.getByText("Transaction reference", { exact: true })).toBeVisible();
     await expect(dialog.getByText("License status", { exact: true })).toBeVisible();
   });
 
-  test("SA-070: Super Admin approves a disposable pending payment and activates its license", async ({ page }) => {
-    const paymentId = process.env.PW_SUPER_ADMIN_APPROVE_PAYMENT_ID;
-    const rejectPaymentId = process.env.PW_SUPER_ADMIN_REJECT_PAYMENT_ID;
-    test.skip(!paymentId, "Set PW_SUPER_ADMIN_APPROVE_PAYMENT_ID to a disposable PENDING_REVIEW submission. Approval is irreversible and consumes this record.");
-    test.skip(paymentId === rejectPaymentId, "Approval and rejection must use two different disposable payment submissions.");
+  test("SA-070: Super Admin approves the suite-created pending payment and activates its license", async ({ page }) => {
+    const paymentId = paymentReviewId;
+    expect(paymentId).toBeTruthy();
 
     const lookup = await page.request.get(
       "/api/backend/platform-payments?page=1&pageSize=100&status=ALL&sort=NEWEST&search=" +
-        encodeURIComponent(paymentId!),
+        encodeURIComponent(paymentId),
     );
     expect(lookup.status()).toBe(200);
     const lookupBody = await lookup.json() as { payments?: PaymentRecord[] };
     const payment = (lookupBody.payments ?? []).find((item) => item.id === paymentId);
-    test.skip(!payment, "The configured approval payment ID is not visible to the Super Admin.");
-    test.skip(payment!.status !== "PENDING_REVIEW", "The approval test record must still be PENDING_REVIEW; use a fresh disposable submission.");
+    expect(payment, "The suite-created approval submission must be visible to the Super Admin.").toBeTruthy();
+    expect(payment!.status).toBe("PENDING_REVIEW");
 
-    const dialog = await openPayment(page, paymentId!);
+    const dialog = await openPayment(page, paymentId);
     await dialog.getByRole("button", { name: "Approve payment", exact: true }).click();
     await expect(dialog.getByText("Confirm payment approval", { exact: true })).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Confirm approval", exact: true })).toBeEnabled();
@@ -1392,23 +1385,24 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
     await expect(page.getByRole("status").filter({ hasText: "Payment approved." })).toBeVisible();
   });
 
-  test("SA-071: Super Admin rejects a separate disposable pending payment with an audited reason", async ({ page }) => {
-    const paymentId = process.env.PW_SUPER_ADMIN_REJECT_PAYMENT_ID;
-    const approvePaymentId = process.env.PW_SUPER_ADMIN_APPROVE_PAYMENT_ID;
-    test.skip(!paymentId, "Set PW_SUPER_ADMIN_REJECT_PAYMENT_ID to a separate disposable PENDING_REVIEW submission. Rejection is irreversible and consumes this record.");
-    test.skip(paymentId === approvePaymentId, "Approval and rejection must use two different disposable payment submissions.");
+  test("SA-071: Super Admin rejects a second real payment submission with an audited reason", async ({ page }) => {
+    expect(activeOrganizationAdminApi, "The beforeAll Organization Admin session is required to create a second payment fixture.").toBeTruthy();
+    const paymentId = await submitTestPayment(
+      activeOrganizationAdminApi!,
+      "PW-SA-" + RUN_ID + "-REJECTION",
+    );
 
     const lookup = await page.request.get(
       "/api/backend/platform-payments?page=1&pageSize=100&status=ALL&sort=NEWEST&search=" +
-        encodeURIComponent(paymentId!),
+        encodeURIComponent(paymentId),
     );
     expect(lookup.status()).toBe(200);
     const lookupBody = await lookup.json() as { payments?: PaymentRecord[] };
     const payment = (lookupBody.payments ?? []).find((item) => item.id === paymentId);
-    test.skip(!payment, "The configured rejection payment ID is not visible to the Super Admin.");
-    test.skip(payment!.status !== "PENDING_REVIEW", "The rejection test record must still be PENDING_REVIEW; use a fresh disposable submission.");
+    expect(payment, "The suite-created rejection submission must be visible to the Super Admin.").toBeTruthy();
+    expect(payment!.status).toBe("PENDING_REVIEW");
 
-    const dialog = await openPayment(page, paymentId!);
+    const dialog = await openPayment(page, paymentId);
     await dialog.getByRole("button", { name: "Reject payment", exact: true }).click();
     await expect(dialog.getByText("Confirm payment rejection", { exact: true })).toBeVisible();
     const reason = "Playwright Super Admin rejection " + RUN_ID;
@@ -1467,7 +1461,7 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
   test("SA-075: completed payment submissions are exposed as read-only history", async ({ page }) => {
     const payments = await readPayments(page);
     const completed = payments.filter((payment) => ["APPROVED", "REJECTED"].includes(payment.status));
-    test.skip(completed.length === 0, "No completed payment submission exists in the current test database.");
+    expect(completed.length, "The suite approval and rejection workflows must create completed payment history.").toBeGreaterThan(0);
     await openPage(page, "/dashboard/payments", "Payments & Licenses");
     await page.locator("#payment-status-filter").selectOption(completed[0].status);
     const row = page.locator("tbody tr").filter({ hasText: completed[0].organizationName });
@@ -1530,11 +1524,11 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
     await expect(page.getByRole("heading", { name: "Select an organization conversation", exact: true })).toBeVisible();
   });
 
-  test("SA-081: a configured test support conversation can be opened in the thread pane", async ({ page }) => {
-    const conversationId = process.env.PW_SUPER_ADMIN_TEST_SUPPORT_CONVERSATION_ID;
-    test.skip(!conversationId, "Set PW_SUPER_ADMIN_TEST_SUPPORT_CONVERSATION_ID to a dedicated test conversation.");
+  test("SA-081: the suite-created support conversation can be opened in the thread pane", async ({ page }) => {
+    const conversationId = supportConversationId;
+    expect(conversationId).toBeTruthy();
     const response = await page.request.get("/api/backend/platform-support/" + conversationId);
-    test.skip(!response.ok(), "The configured support conversation is not accessible.");
+    expect(response.status()).toBe(200);
     const body = await response.json();
     const subject = body.conversation?.subject as string | undefined;
     expect(subject).toBeTruthy();
@@ -1545,13 +1539,13 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
     await expect(page.getByPlaceholder("Write a reply…")).toBeVisible();
   });
 
-  test("SA-082: Super Admin can send a reply to an explicitly configured test support thread", async ({ page }) => {
-    const conversationId = process.env.PW_SUPER_ADMIN_TEST_SUPPORT_CONVERSATION_ID;
-    test.skip(!conversationId, "Set PW_SUPER_ADMIN_TEST_SUPPORT_CONVERSATION_ID to a dedicated OPEN test conversation.");
+  test("SA-082: Super Admin can send a reply to the suite-created support thread", async ({ page }) => {
+    const conversationId = supportConversationId;
+    expect(conversationId).toBeTruthy();
     const threadResponse = await page.request.get("/api/backend/platform-support/" + conversationId);
-    test.skip(!threadResponse.ok(), "The configured support conversation is not accessible.");
+    expect(threadResponse.status()).toBe(200);
     const thread = await threadResponse.json();
-    test.skip(thread.conversation?.status !== "OPEN", "The configured test support conversation must be OPEN.");
+    expect(thread.conversation?.status).toBe("OPEN");
     const subject = thread.conversation.subject as string;
     const reply = "Playwright Super Admin regression reply " + RUN_ID;
     await openPage(page, "/dashboard/support", "Platform Support Inbox");
@@ -1570,14 +1564,14 @@ test.describe("Super Admin workspace — full workflow regression suite", () => 
     ).toBeVisible();
   });
 
-  test("SA-083: Super Admin can close and reopen an explicitly configured test support thread", async ({ page }) => {
-    const conversationId = process.env.PW_SUPER_ADMIN_TEST_SUPPORT_CONVERSATION_ID;
-    test.skip(!conversationId, "Set PW_SUPER_ADMIN_TEST_SUPPORT_CONVERSATION_ID to a dedicated test conversation.");
+  test("SA-083: Super Admin can close and reopen the suite-created support thread", async ({ page }) => {
+    const conversationId = supportConversationId;
+    expect(conversationId).toBeTruthy();
     const threadResponse = await page.request.get("/api/backend/platform-support/" + conversationId);
-    test.skip(!threadResponse.ok(), "The configured support conversation is not accessible.");
+    expect(threadResponse.status()).toBe(200);
     const thread = await threadResponse.json();
     const originalStatus = thread.conversation?.status as string;
-    test.skip(!["OPEN", "CLOSED"].includes(originalStatus), "The configured support conversation has an unsupported status.");
+    expect(["OPEN", "CLOSED"]).toContain(originalStatus);
     await openPage(page, "/dashboard/support", "Platform Support Inbox");
     await page.locator("#support-search").fill(thread.conversation.subject);
     const conversation = page.locator(".oa-support-conversation-row").filter({ hasText: thread.conversation.subject });
