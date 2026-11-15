@@ -4,7 +4,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Permit the current ngrok hostname while running `next dev`.
   // This affects development only. Update it if ngrok changes the hostname.
-  allowedDevOrigins: ["shifty-maroon-pushpin.ngrok-free.dev"],
+  allowedDevOrigins: ["vagrancy-untrained-tactless.ngrok-free.dev/"],
   async rewrites() {
     return [
       {
