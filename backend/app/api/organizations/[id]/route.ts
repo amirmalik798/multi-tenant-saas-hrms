@@ -552,6 +552,7 @@ export async function DELETE(
 
     const client = await pool.connect();
     let transactionOpen = false;
+    let rollbackFailed = false;
 
     try {
       await client.query("BEGIN");
@@ -686,12 +687,19 @@ export async function DELETE(
         try {
           await client.query("ROLLBACK");
         } catch (rollbackError) {
+          rollbackFailed = true;
           console.error("Organization deletion rollback failed:", rollbackError);
         }
       }
       throw transactionError;
     } finally {
-      client.release();
+      // Never return a connection with an uncertain transaction state to the
+      // pool. Destroy it if rollback did not complete successfully.
+      client.release(
+        rollbackFailed
+          ? new Error("Discarding database connection after failed organization-deletion rollback.")
+          : undefined,
+      );
     }
   } catch (error) {
     if (error instanceof OrganizationDeletionBlockedError) {
