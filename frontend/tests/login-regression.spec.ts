@@ -365,6 +365,22 @@ async function createTenantApi(account: LoginFixtureAccount): Promise<APIRequest
 async function completeOrganizationSetup(api: APIRequestContext, label: string) {
   const settingsResponse = await api.get("/api/backend/org/settings");
   await setupJson(settingsResponse, 200, "Load settings for " + label);
+
+  // Write all setup-required fields explicitly instead of relying on whatever
+  // working-day defaults happen to exist in a local database.
+  const updateSettingsResponse = await api.patch("/api/backend/org/settings", {
+    data: {
+      timeZone: "Africa/Kigali",
+      locale: "en-RW",
+      currencyCode: "RWF",
+      dateFormat: "DD/MM/YYYY",
+      weekStartsOn: 1,
+      workingDays: [1, 2, 3, 4, 5],
+      countryCode: "RW",
+    },
+  });
+  await setupJson(updateSettingsResponse, 200, "Save setup-required settings for " + label);
+
   const completeResponse = await api.post("/api/backend/org/settings/complete", {
     data: {},
   });
