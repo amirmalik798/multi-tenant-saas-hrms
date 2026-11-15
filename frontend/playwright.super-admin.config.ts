@@ -19,7 +19,8 @@ export default defineConfig({
   testDir: "./tests",
   testMatch: "super-admin-workspace-regression.spec.ts",
   fullyParallel: false,
-  forbidOnly: Boolean(process.env.CI),
+  // Never allow a local .only marker to silently reduce Super Admin coverage.
+  forbidOnly: true,
   retries: 0,
   workers: 1,
   reporter: [["list"], ["html", { open: "never" }]],
