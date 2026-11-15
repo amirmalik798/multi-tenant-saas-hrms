@@ -598,13 +598,23 @@ export async function DELETE(
       // when an older audit row has no organization_id populated.
       await client.query(
         "UPDATE public.platform_audit_logs " +
-          "SET actor_user_id = NULL, actor_email = 'redacted@deleted.invalid', " +
+          "SET actor_user_id = CASE WHEN actor_user_id IN (" +
+          "  SELECT id FROM public.users WHERE organization_id = $1::uuid" +
+          ") THEN NULL ELSE actor_user_id END, " +
+          "actor_email = CASE WHEN actor_user_id IN (" +
+          "  SELECT id FROM public.users WHERE organization_id = $1::uuid" +
+          ") OR actor_email IN (" +
+          "  SELECT email FROM public.users WHERE organization_id = $1::uuid" +
+          ") THEN 'redacted@deleted.invalid' ELSE actor_email END, " +
           "target_id = NULL, organization_id = NULL, reason = NULL, " +
           "before_state = '{}'::jsonb, after_state = '{}'::jsonb, metadata = '{}'::jsonb " +
           "WHERE organization_id = $1::uuid " +
           "OR (target_type = 'ORGANIZATION' AND target_id = $1::uuid) " +
           "OR actor_user_id IN (" +
           "  SELECT id FROM public.users WHERE organization_id = $1::uuid" +
+          ") " +
+          "OR actor_email IN (" +
+          "  SELECT email FROM public.users WHERE organization_id = $1::uuid" +
           ")",
         [organization.id],
       );
