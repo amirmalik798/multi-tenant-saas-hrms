@@ -607,7 +607,11 @@ export async function DELETE(
           "SET actor_user_id = NULL, actor_email = 'redacted@deleted.invalid', " +
           "target_id = NULL, organization_id = NULL, reason = NULL, " +
           "before_state = '{}'::jsonb, after_state = '{}'::jsonb, metadata = '{}'::jsonb " +
-          "WHERE organization_id = $1::uuid OR target_id = $1::uuid",
+          "WHERE organization_id = $1::uuid " +
+          "OR (target_type = 'ORGANIZATION' AND target_id = $1::uuid) " +
+          "OR actor_user_id IN (" +
+          "  SELECT id FROM public.users WHERE organization_id = $1::uuid" +
+          ")",
         [organization.id],
       );
 
