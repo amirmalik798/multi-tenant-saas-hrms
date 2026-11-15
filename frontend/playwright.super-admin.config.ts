@@ -1,11 +1,18 @@
 import { defineConfig, devices } from "@playwright/test";
+import { loadEnvConfig } from "@next/env";
 import path from "node:path";
 import dotenv from "dotenv";
 
 const configDirectory = process.cwd();
+const backendDirectory = path.resolve(configDirectory, "../backend");
 const envFile = path.resolve(configDirectory, ".env.playwright");
 
-// Keep the Super Admin workspace suite isolated from login-regression.spec.ts.
+// The Super Admin suite imports the backend PostgreSQL pool to seed and verify
+// isolated fixtures. Load the same backend environment before test workers
+// import backend/lib/db.ts; never place database credentials in .env.playwright.
+loadEnvConfig(backendDirectory, process.env.NODE_ENV !== "production");
+
+// Playwright-only credentials and the explicit test-database name stay local.
 dotenv.config({ path: envFile, override: false });
 
 export default defineConfig({
