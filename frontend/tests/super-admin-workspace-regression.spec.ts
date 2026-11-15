@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { pool as regressionDb } from "../../backend/lib/db";
 import {
   expect,
   request,
@@ -78,13 +79,17 @@ const activeOrganizationSlug = "pw-sa-active-admin-" + RUN_ID;
 const activeOrganizationContactEmail = "pw-sa-active-contact-" + RUN_ID + "@yopmail.com";
 const activeOrganizationAdminEmail = "pw-sa-active-admin-" + RUN_ID + "@yopmail.com";
 const activeOrganizationAdminPassword = "PW-SuperAdmin-Test!" + RUN_ID;
+const secondActiveOrganizationAdminEmail = "pw-sa-second-admin-" + RUN_ID + "@yopmail.com";
+const secondActiveOrganizationAdminPassword = "PW-SuperAdmin-Second!" + RUN_ID;
 
 let seedOrganizationId = "";
 let seedInvitationId = "";
-let invitationSetupError = "";
-let activeAdminSetupError = "";
 let activeOrganizationId = "";
 let acceptedAdminId = "";
+let secondAcceptedAdminId = "";
+let paymentReviewId = "";
+let supportConversationId = "";
+let activeOrganizationAdminApi: APIRequestContext | null = null;
 
 type OrganizationRecord = {
   id: string;
@@ -149,10 +154,7 @@ async function readOrganizationAdmins(page: Page): Promise<AdminRecord[]> {
 }
 
 async function readFixtureAdmin(page: Page): Promise<AdminRecord> {
-  test.skip(
-    !acceptedAdminId,
-    activeAdminSetupError || "The accepted Organization Admin fixture was not initialized in beforeAll.",
-  );
+  expect(acceptedAdminId, "beforeAll must provision an accepted Organization Admin.").toBeTruthy();
   const admins = await readOrganizationAdmins(page);
   const admin = admins.find((item) => item.id === acceptedAdminId);
   expect(admin, "The suite-created accepted Organization Admin must remain visible in the directory.").toBeTruthy();
@@ -184,7 +186,7 @@ async function openPayment(page: Page, paymentId: string) {
   expect(lookup.status()).toBe(200);
   const lookupBody = await lookup.json() as { payments?: PaymentRecord[] };
   const payment = (lookupBody.payments ?? []).find((item) => item.id === paymentId);
-  test.skip(!payment, "The configured payment ID is not visible to the Super Admin payment directory.");
+  expect(payment, "The suite-created payment must be visible to the Super Admin payment directory.").toBeTruthy();
 
   await openPage(page, "/dashboard/payments", "Payments & Licenses");
   await page.locator("#payment-status-filter").selectOption("ALL");
@@ -201,11 +203,55 @@ async function openPayment(page: Page, paymentId: string) {
   return dialog;
 }
 
-test.describe("Super Admin workspace — 100-case regression suite", () => {
+const PAYMENT_PROOF_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=",
+  "base64",
+);
+
+async function submitTestPayment(
+  api: APIRequestContext,
+  transactionReference: string,
+): Promise<string> {
+  const response = await api.post("/api/backend/org/license/submissions", {
+    headers: {
+      "x-payment-amount": "1250.00",
+      "x-payment-currency": "RWF",
+      "x-transaction-reference": transactionReference,
+    },
+    multipart: {
+      proofImage: {
+        name: "playwright-payment-proof.png",
+        mimeType: "image/png",
+        buffer: PAYMENT_PROOF_PNG,
+      },
+    },
+  });
+  const body = await response.json().catch(() => null) as
+    | { status?: string; message?: string; payment?: { id?: string; status?: string } }
+    | null;
+  expect(response.status(), "The real Organization Admin payment submission workflow must accept the test proof.").toBe(201);
+  expect(body?.status).toBe("ok");
+  expect(body?.payment?.status).toBe("PENDING_REVIEW");
+  expect(body?.payment?.id).toBeTruthy();
+  return body!.payment!.id!;
+}
+
+test.describe("Super Admin workspace — full workflow regression suite", () => {
   test.setTimeout(60_000);
 
   test.beforeAll(async ({ superAdminApi }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
+
+    const configuredTestDatabase = process.env.PW_TEST_DATABASE_NAME?.trim();
+    expect(
+      configuredTestDatabase,
+      "Set PW_TEST_DATABASE_NAME in frontend/.env.playwright to the dedicated test database configured by backend DB_NAME.",
+    ).toBeTruthy();
+    const databaseCheck = await regressionDb.query<{ database_name: string }>(
+      "SELECT current_database() AS database_name",
+    );
+    expect(databaseCheck.rows[0]?.database_name).toBe(configuredTestDatabase);
+    expect(configuredTestDatabase!.toLowerCase()).not.toMatch(/(^|[-_])prod(uction)?($|[-_])/);
     const createResponse = await superAdminApi.post("/api/backend/organizations", {
       data: {
         name: seedOrganizationName,
@@ -245,13 +291,10 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
       | { emailSent?: boolean; invitation?: { id?: string }; message?: string }
       | null;
 
-    if (invitationResponse.status() === 201 && invitationBody?.emailSent === true) {
-      seedInvitationId = invitationBody.invitation?.id ?? "";
-    } else {
-      invitationSetupError =
-        "Initial Yopmail Organization Admin invitation was not confirmed as sent: " +
-        (invitationBody?.message ?? "HTTP " + invitationResponse.status());
-    }
+    expect(invitationResponse.status(), "The initial test Organization Admin invitation must be created successfully.").toBe(201);
+    expect(invitationBody?.emailSent, "The configured provider must deliver the test invitation.").toBe(true);
+    seedInvitationId = invitationBody?.invitation?.id ?? "";
+    expect(seedInvitationId).toBeTruthy();
 
     // Create a distinct organization for the accepted/active administrator
     // fixture. The original PENDING_SETUP organization above remains intact
@@ -294,12 +337,8 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
       | { emailSent?: boolean; invitation?: { id?: string }; invitationUrl?: string; message?: string }
       | null;
 
-    if (activeInvitationResponse.status() !== 201 || activeInvitationBody?.emailSent !== true) {
-      activeAdminSetupError =
-        "The active-admin fixture invitation was not confirmed as delivered by the configured email provider: " +
-        (activeInvitationBody?.message ?? "HTTP " + activeInvitationResponse.status());
-      return;
-    }
+    expect(activeInvitationResponse.status(), "The accepted-admin fixture invitation must be created successfully.").toBe(201);
+    expect(activeInvitationBody?.emailSent, "The configured provider must deliver the active-admin invitation.").toBe(true);
     expect(activeInvitationBody?.invitation?.id).toBeTruthy();
     expect(activeInvitationBody?.invitationUrl).toBeTruthy();
 
@@ -355,6 +394,113 @@ test.describe("Super Admin workspace — 100-case regression suite", () => {
     expect(acceptedAdmin?.account_status).toBe("ACTIVE");
     expect(acceptedAdmin?.organization_status).toBe("ACTIVE");
     acceptedAdminId = acceptedAdmin!.id;
+
+    // Provision a second active administrator in the same tenant. This allows
+    // the suite to test both successful suspension and the last-active-admin guard.
+    const secondInvitationResponse = await superAdminApi.post(
+      "/api/backend/organizations/" + encodeURIComponent(activeOrganizationId) + "/invitations",
+      {
+        data: {
+          email: secondActiveOrganizationAdminEmail,
+          adminFirstName: "Playwright",
+          adminLastName: "Second Admin",
+          adminPhone: "+250 788 123 458",
+          adminCountry: "Rwanda",
+          adminCity: "Kigali",
+        },
+      },
+    );
+    const secondInvitationBody = await secondInvitationResponse.json().catch(() => null) as
+      | { emailSent?: boolean; invitation?: { id?: string }; invitationUrl?: string; message?: string }
+      | null;
+    expect(secondInvitationResponse.status()).toBe(201);
+    expect(secondInvitationBody?.emailSent).toBe(true);
+    expect(secondInvitationBody?.invitation?.id).toBeTruthy();
+    expect(secondInvitationBody?.invitationUrl).toBeTruthy();
+
+    const secondInvitationToken = new URL(secondInvitationBody!.invitationUrl!).searchParams.get("token");
+    expect(secondInvitationToken).toBeTruthy();
+    const secondAcceptanceResponse = await superAdminApi.post(
+      "/api/backend/invitations/accept",
+      {
+        data: {
+          token: secondInvitationToken,
+          firstName: "Playwright",
+          lastName: "Second Admin",
+          phone: "+250 788 123 458",
+          country: "Rwanda",
+          city: "Kigali",
+          password: secondActiveOrganizationAdminPassword,
+        },
+      },
+    );
+    const secondAcceptanceBody = await secondAcceptanceResponse.json().catch(() => null) as
+      | { status?: string; user?: { id?: string; email?: string; status?: string }; organization?: { id?: string; status?: string } }
+      | null;
+    expect(secondAcceptanceResponse.status()).toBe(201);
+    expect(secondAcceptanceBody?.status).toBe("ok");
+    expect(secondAcceptanceBody?.user?.email).toBe(secondActiveOrganizationAdminEmail);
+    expect(secondAcceptanceBody?.user?.status).toBe("ACTIVE");
+    expect(secondAcceptanceBody?.organization?.id).toBe(activeOrganizationId);
+    expect(secondAcceptanceBody?.organization?.status).toBe("ACTIVE");
+    secondAcceptedAdminId = secondAcceptanceBody?.user?.id ?? "";
+    expect(secondAcceptedAdminId).toBeTruthy();
+
+    // Authenticate a separate Organization Admin API context using the newly
+    // accepted account; use it to create real payment and support fixtures.
+    const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3001";
+    activeOrganizationAdminApi = await request.newContext({
+      baseURL,
+      extraHTTPHeaders: {
+        origin: baseURL,
+        "sec-fetch-site": "same-origin",
+        "ngrok-skip-browser-warning": "true",
+      },
+    });
+    const adminLogin = await activeOrganizationAdminApi.post(
+      "/api/backend/unified-auth/login",
+      {
+        data: {
+          email: activeOrganizationAdminEmail,
+          password: activeOrganizationAdminPassword,
+        },
+      },
+    );
+    const adminLoginBody = await adminLogin.json().catch(() => null) as
+      | { status?: string; user?: { id?: string; role?: string; organizationId?: string } }
+      | null;
+    expect(adminLogin.status()).toBe(200);
+    expect(adminLoginBody?.status).toBe("ok");
+    expect(adminLoginBody?.user?.role).toBe("ORGANIZATION_ADMIN");
+    expect(adminLoginBody?.user?.id).toBe(acceptedAdminId);
+    expect(adminLoginBody?.user?.organizationId).toBe(activeOrganizationId);
+
+    paymentReviewId = await submitTestPayment(
+      activeOrganizationAdminApi,
+      "PW-SA-" + RUN_ID + "-APPROVAL",
+    );
+
+    const supportResponse = await activeOrganizationAdminApi.post(
+      "/api/backend/platform-support",
+      {
+        data: {
+          subject: "PW Super Admin regression support " + RUN_ID,
+          message: "Automated test conversation created by the Super Admin regression suite.",
+        },
+      },
+    );
+    const supportBody = await supportResponse.json().catch(() => null) as
+      | { status?: string; conversationId?: string; message?: string }
+      | null;
+    expect(supportResponse.status()).toBe(201);
+    expect(supportBody?.status).toBe("ok");
+    supportConversationId = supportBody?.conversationId ?? "";
+    expect(supportConversationId).toBeTruthy();
+  });
+
+  test.afterAll(async () => {
+    await activeOrganizationAdminApi?.dispose();
+    await regressionDb.end();
   });
 
   test.beforeEach(async ({ page }) => {
