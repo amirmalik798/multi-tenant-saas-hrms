@@ -3,10 +3,9 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import dotenv from "dotenv";
 import {
-  devices,
   expect,
   request,
-  test as baseTest,
+  test,
   type APIRequestContext,
   type Page,
   type Response,
@@ -190,82 +189,6 @@ const LOGIN_ORIGIN_HEADERS = {
   "sec-fetch-site": "same-origin",
   "ngrok-skip-browser-warning": "true",
 };
-
-/**
- * Keep one visible Chromium page alive for the entire single-worker run.
- * Each test still starts with cleared cookies and browser storage, so login
- * state from one test cannot leak into the next. The window itself stays open.
- */
-const test = baseTest.extend<{}, { sharedPage: Page }>({
-  sharedPage: [
-    async ({ browser }, use) => {
-      const context = await browser.newContext({
-        ...devices["Desktop Chrome"],
-        baseURL: LOGIN_BASE_URL,
-        extraHTTPHeaders: {
-          "ngrok-skip-browser-warning": "true",
-        },
-      });
-      const page = await context.newPage();
-
-      try {
-        await use(page);
-      } finally {
-        await context.close();
-      }
-    },
-    { scope: "worker" },
-  ],
-  page: async ({ sharedPage }, use, testInfo) => {
-    const context = sharedPage.context();
-
-    // Clear the previous test's authentication and client-side state while
-    // reusing the same page and visible Chromium window.
-    await context.clearCookies();
-    await sharedPage.goto(LOGIN_BASE_URL);
-    await sharedPage.evaluate(() => {
-      window.localStorage.clear();
-      window.sessionStorage.clear();
-    });
-
-    const tracePath = testInfo.outputPath("trace.zip");
-    await context.tracing.start({
-      screenshots: true,
-      snapshots: true,
-      sources: true,
-    });
-
-    try {
-      await use(sharedPage);
-    } finally {
-      const failed = testInfo.status !== testInfo.expectedStatus;
-
-      if (failed) {
-        try {
-          await testInfo.attach("screenshot", {
-            body: await sharedPage.screenshot(),
-            contentType: "image/png",
-          });
-        } catch {
-          // Preserve the original assertion failure if screenshot capture fails.
-        }
-      }
-
-      await context.tracing.stop({ path: tracePath });
-
-      if (failed) {
-        await testInfo.attach("trace", {
-          path: tracePath,
-          contentType: "application/zip",
-        });
-      }
-
-      // Remove request observers created by the current test so they cannot
-      // accumulate or affect assertions in later tests. Keep the visible page open.
-      await sharedPage.removeAllListeners("request");
-    }
-  },
-});
 
 let negativeFixtures: LoginNegativeFixtures | null = null;
 let negativeFixtureSkipReason = "Login negative fixtures have not been initialized.";
