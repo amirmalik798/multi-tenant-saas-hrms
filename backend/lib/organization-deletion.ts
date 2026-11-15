@@ -243,9 +243,8 @@ export async function deleteOrganizationTenantData(
 
   await client.query(
     "UPDATE public.employees " +
-      "SET department_id = NULL, manager_id = NULL, is_primary_hr_manager = FALSE " +
-      "WHERE organization_id = $1::uuid AND (" +
-      "department_id IS NOT NULL OR manager_id IS NOT NULL OR is_primary_hr_manager IS TRUE)",
+      "SET department_id = NULL " +
+      "WHERE organization_id = $1::uuid AND department_id IS NOT NULL",
     [organizationId],
   );
 
