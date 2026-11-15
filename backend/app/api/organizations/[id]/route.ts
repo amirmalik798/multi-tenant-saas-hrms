@@ -598,6 +598,19 @@ export async function DELETE(
         organization.id,
       );
 
+      // Retain the platform audit event count/history, but remove tenant
+      // identifiers, user emails, snapshots, and metadata from older entries.
+      // This prevents retained platform audit rows from becoming a hidden
+      // copy of deleted organization data.
+      await client.query(
+        "UPDATE public.platform_audit_logs " +
+          "SET actor_user_id = NULL, actor_email = 'redacted@deleted.invalid', " +
+          "target_id = NULL, organization_id = NULL, reason = NULL, " +
+          "before_state = '{}'::jsonb, after_state = '{}'::jsonb, metadata = '{}'::jsonb " +
+          "WHERE organization_id = $1::uuid OR target_id = $1::uuid",
+        [organization.id],
+      );
+
       const deletedOrganization = await client.query(
         "DELETE FROM public.organizations " +
           "WHERE id = $1::uuid RETURNING id",
@@ -613,19 +626,6 @@ export async function DELETE(
         ...deletionReport.recordsByTable,
         organizations: 1,
       };
-
-      // Retain the platform audit event count/history, but remove tenant
-      // identifiers, user emails, snapshots, and metadata from older entries.
-      // This prevents retained platform audit rows from becoming a hidden
-      // copy of deleted organization data.
-      await client.query(
-        "UPDATE public.platform_audit_logs " +
-          "SET actor_user_id = NULL, actor_email = 'redacted@deleted.invalid', " +
-          "target_id = NULL, organization_id = NULL, reason = NULL, " +
-          "before_state = '{}'::jsonb, after_state = '{}'::jsonb, metadata = '{}'::jsonb " +
-          "WHERE organization_id = $1::uuid OR target_id = $1::uuid",
-        [organization.id],
-      );
 
       // Write a minimal platform-level record for the deletion. It deliberately
       // contains no tenant name, slug, UUID, contact details, or tenant user data.
