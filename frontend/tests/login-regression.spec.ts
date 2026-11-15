@@ -17,6 +17,9 @@ dotenv.config({ path: path.resolve(process.cwd(), "../backend/.env.local"), over
 dotenv.config({ path: path.resolve(process.cwd(), "../backend/.env"), override: false });
 
 const backendRequire = createRequire(path.resolve(process.cwd(), "../backend/package.json"));
+const backendBcrypt = backendRequire("bcryptjs") as {
+  hash: (password: string, rounds: number) => Promise<string>;
+};
 const backendPg = backendRequire("pg") as {
   Pool: new (config: Record<string, unknown>) => {
     query: (sql: string, values?: unknown[]) => Promise<{
@@ -31,11 +34,11 @@ const backendPg = backendRequire("pg") as {
  * Unified login and password-recovery regression suite.
  *
  * UI assertions use the actual accessible controls in frontend/app/page.tsx.
- * Organizations, invitations, administrators, and workforce accounts are
- * created through the real backend APIs. Direct SQL is limited to fixture
- * states with no product-side mutation route or temporary license-state
- * transitions: suspended workforce accounts, NOT_ACTIVATED licenses, and
- * EXPIRED licenses. Temporary license states are restored after each test.
+ * Organizations and workforce profiles are created through real backend APIs.
+ * Login identities are seeded in the dedicated test database with bcrypt hashes
+ * so login coverage does not depend on outbound invitation email delivery.
+ * Direct SQL is also used for fixture-only account suspension and temporary
+ * license states. Every login and session assertion uses the real backend.
  * No route interception or API mocking is used.
  *
  * Run from frontend:
@@ -128,8 +131,12 @@ async function submitLogin(page: Page, email: string, password: string) {
   await loginEmail(page).fill(email);
   await loginPassword(page).fill(password);
   await expect(loginEmail(page)).toHaveValue(email);
-  // Avoid echoing a real .env.playwright password in assertion output.
-  expect((await loginPassword(page).inputValue()) === password).toBe(true);
+  // Wait for the controlled React input to retain the supplied value without
+  // echoing a real .env.playwright password into assertion output.
+  await expect.poll(
+    async () => (await loginPassword(page).inputValue()) === password,
+    { message: "Password field did not retain the supplied login value." },
+  ).toBe(true);
   expect(await loginEmail(page).evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
   const submit = page.getByRole("button", { name: "Sign in securely", exact: true });
   await expect(submit).toBeEnabled();
@@ -166,8 +173,6 @@ type SetupJson = {
   [key: string]: unknown;
   organization?: { id?: string; status?: string };
   user?: { id?: string; email?: string; status?: string; role?: string };
-  invitationUrl?: string;
-  emailSent?: boolean;
   invitation?: { id?: string };
   employee?: { id?: string };
   organizationAdmins?: Array<{ id?: string; email?: string }>;
@@ -247,11 +252,58 @@ function generatedAccount(emailPrefix: string, password: string): LoginFixtureAc
   };
 }
 
+async function createFixtureOrganizationAdminAccount(
+  organizationId: string,
+  account: LoginFixtureAccount,
+): Promise<LoginFixtureAccount> {
+  if (!fixtureDatabase) {
+    throw new Error("Login fixture database connection is unavailable.");
+  }
+
+  const roleResult = await fixtureDatabase.query(
+    `SELECT id
+     FROM public.roles
+     WHERE organization_id = $1::uuid
+       AND scope = 'ORGANIZATION'
+       AND name = 'ORGANIZATION_ADMIN'
+     LIMIT 1`,
+    [organizationId],
+  );
+  const roleId = roleResult.rows[0]?.id;
+  if (typeof roleId !== "string") {
+    throw new Error("Organization Admin role was not found for the login fixture.");
+  }
+
+  const passwordHash = await backendBcrypt.hash(account.password, 12);
+  const userResult = await fixtureDatabase.query(
+    `INSERT INTO public.users (
+       email,
+       password_hash,
+       account_scope,
+       organization_id,
+       employee_id,
+       status,
+       role_id
+     )
+     VALUES ($1, $2, 'ORGANIZATION', $3::uuid, NULL, 'ACTIVE', $4::uuid)
+     RETURNING id`,
+    [account.email, passwordHash, organizationId, roleId],
+  );
+  const userId = userResult.rows[0]?.id;
+  if (typeof userId !== "string") {
+    throw new Error("Organization Admin login fixture account was not created.");
+  }
+
+  account.userId = userId;
+  return account;
+}
+
 async function createOrganizationWithAdmin(
   nameSuffix: string,
   adminPrefix: string,
 ): Promise<{ organizationId: string; admin: LoginFixtureAccount }> {
   if (!platformFixtureApi) throw new Error("Platform fixture API is unavailable.");
+  if (!fixtureDatabase) throw new Error("Login fixture database connection is unavailable.");
 
   const name = "PW Login " + nameSuffix + " " + LOGIN_RUN_ID;
   const slug = "pw-login-" + nameSuffix.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + LOGIN_RUN_ID;
@@ -271,44 +323,23 @@ async function createOrganizationWithAdmin(
   const organizationId = organizationBody.organization?.id as string | undefined;
   if (!organizationId) throw new Error("Organization creation did not return an organization ID.");
 
-  const invitationResponse = await platformFixtureApi.post(
-    "/api/backend/organizations/" + encodeURIComponent(organizationId) + "/invitations",
-    {
-      data: {
-        email: admin.email,
-        adminFirstName: "Playwright",
-        adminLastName: nameSuffix + " Admin",
-        adminPhone: "+250 788 123 450",
-        adminCountry: "Rwanda",
-        adminCity: "Kigali",
-      },
-    },
+  // This suite tests login, not organization-invitation email delivery. Activate
+  // the fixture tenant and seed its bcrypt-backed identity directly so an
+  // external email provider cannot block authentication regression tests.
+  const activationResult = await fixtureDatabase.query(
+    `UPDATE public.organizations
+     SET status = 'ACTIVE',
+         updated_at = NOW()
+     WHERE id = $1::uuid
+       AND status = 'PENDING_SETUP'
+     RETURNING id`,
+    [organizationId],
   );
-  const invitationBody = await setupJson(invitationResponse, 201, "Invite " + admin.email);
-  if (invitationBody.emailSent !== true || typeof invitationBody.invitationUrl !== "string") {
-    throw new Error("Invitation for " + admin.email + " was not confirmed as delivered.");
+  if (activationResult.rowCount !== 1) {
+    throw new Error("Could not activate the newly created login fixture organization.");
   }
 
-  const token = new URL(invitationBody.invitationUrl).searchParams.get("token");
-  if (!token) throw new Error("Invitation URL for " + admin.email + " did not contain its token.");
-
-  const acceptanceResponse = await platformFixtureApi.post("/api/backend/invitations/accept", {
-    data: {
-      token,
-      firstName: "Playwright",
-      lastName: nameSuffix + " Admin",
-      phone: "+250 788 123 450",
-      country: "Rwanda",
-      city: "Kigali",
-      password: admin.password,
-    },
-  });
-  const acceptanceBody = await setupJson(acceptanceResponse, 201, "Accept " + admin.email);
-  if (acceptanceBody.user?.status !== "ACTIVE" || acceptanceBody.organization?.status !== "ACTIVE") {
-    throw new Error("Invitation acceptance did not activate the account and organization for " + admin.email);
-  }
-  admin.userId = acceptanceBody.user.id as string;
-
+  await createFixtureOrganizationAdminAccount(organizationId, admin);
   return { organizationId, admin };
 }
 
@@ -316,44 +347,8 @@ async function createAdditionalOrganizationAdmin(
   organizationId: string,
   prefix: string,
 ): Promise<LoginFixtureAccount> {
-  if (!platformFixtureApi) throw new Error("Platform fixture API is unavailable.");
-
   const admin = generatedAccount(prefix, LOGIN_TEST_PASSWORD);
-  const invitationResponse = await platformFixtureApi.post(
-    "/api/backend/organizations/" + encodeURIComponent(organizationId) + "/invitations",
-    {
-      data: {
-        email: admin.email,
-        adminFirstName: "Playwright",
-        adminLastName: "Secondary Admin",
-        adminPhone: "+250 788 123 451",
-        adminCountry: "Rwanda",
-        adminCity: "Kigali",
-      },
-    },
-  );
-  const invitationBody = await setupJson(invitationResponse, 201, "Invite " + admin.email);
-  if (invitationBody.emailSent !== true || typeof invitationBody.invitationUrl !== "string") {
-    throw new Error("Invitation for " + admin.email + " was not confirmed as delivered.");
-  }
-  const token = new URL(invitationBody.invitationUrl).searchParams.get("token");
-  if (!token) throw new Error("Invitation URL for " + admin.email + " did not contain its token.");
-
-  const acceptanceResponse = await platformFixtureApi.post("/api/backend/invitations/accept", {
-    data: {
-      token,
-      firstName: "Playwright",
-      lastName: "Secondary Admin",
-      phone: "+250 788 123 451",
-      country: "Rwanda",
-      city: "Kigali",
-      password: admin.password,
-    },
-  });
-  const body = await setupJson(acceptanceResponse, 201, "Accept " + admin.email);
-  if (body.user?.status !== "ACTIVE") throw new Error("Secondary Organization Admin did not become active.");
-  admin.userId = body.user.id as string;
-  return admin;
+  return createFixtureOrganizationAdminAccount(organizationId, admin);
 }
 
 async function createTenantApi(account: LoginFixtureAccount): Promise<APIRequestContext> {
@@ -476,6 +471,10 @@ async function createWorkforceLoginAccount(
   managerId?: string,
   departmentId?: string,
 ): Promise<LoginFixtureAccount> {
+  if (!fixtureDatabase) {
+    throw new Error("Login fixture database connection is unavailable.");
+  }
+
   const email = prefix + "-" + LOGIN_RUN_ID + "@yopmail.com";
   const password = "PW-" + role + "-Fixture!" + LOGIN_RUN_ID + "Aa";
 
@@ -502,31 +501,62 @@ async function createWorkforceLoginAccount(
   const employeeId = profileBody.employee?.id as string | undefined;
   if (!employeeId) throw new Error("Workforce profile creation returned no employee ID for " + email);
 
-  const invitationResponse = await api.post(
-    "/api/backend/employees/" + encodeURIComponent(employeeId) + "/invitation",
-    { data: { roleName: role } },
+  // The login suite does not test invitations. Seed the normal active user
+  // account using the same bcrypt work factor and user columns as the backend
+  // invitation-acceptance route. All sign-in/session behavior remains real.
+  const employeeUpdate = await fixtureDatabase.query(
+    `UPDATE public.employees
+     SET employment_status = 'ACTIVE',
+         updated_at = NOW()
+     WHERE id = $1::uuid
+     RETURNING id, organization_id, workforce_role_id`,
+    [employeeId],
   );
-  const invitationBody = await setupJson(invitationResponse, 201, "Invite " + email);
-  if (invitationBody.emailSent !== true || typeof invitationBody.invitationUrl !== "string") {
-    throw new Error("Workforce invitation for " + email + " was not confirmed as delivered.");
-  }
-  const token = new URL(invitationBody.invitationUrl).searchParams.get("token");
-  if (!token) throw new Error("Workforce invitation URL for " + email + " did not contain its token.");
-
-  const acceptanceResponse = await api.post("/api/backend/employee-invitations/accept", {
-    data: { token, password },
-  });
-  const acceptanceBody = await setupJson(acceptanceResponse, 201, "Accept " + email);
-  if (acceptanceBody.user?.status !== "ACTIVE") {
-    throw new Error("Workforce invitation did not create an active account for " + email);
+  const employee = employeeUpdate.rows[0];
+  const organizationId = employee?.organization_id;
+  const roleId = employee?.workforce_role_id;
+  if (
+    employeeUpdate.rowCount !== 1 ||
+    typeof organizationId !== "string" ||
+    typeof roleId !== "string"
+  ) {
+    throw new Error("Could not activate the workforce profile for " + email);
   }
 
-  return {
-    email,
-    password,
-    userId: acceptanceBody.user.id as string,
-    employeeId,
-  };
+  const roleResult = await fixtureDatabase.query(
+    `SELECT name
+     FROM public.roles
+     WHERE id = $1::uuid
+       AND organization_id = $2::uuid
+       AND scope = 'ORGANIZATION'
+     LIMIT 1`,
+    [roleId, organizationId],
+  );
+  if (roleResult.rows[0]?.name !== role) {
+    throw new Error("Workforce profile role did not match " + role + " for " + email);
+  }
+
+  const passwordHash = await backendBcrypt.hash(password, 12);
+  const userResult = await fixtureDatabase.query(
+    `INSERT INTO public.users (
+       email,
+       password_hash,
+       account_scope,
+       organization_id,
+       employee_id,
+       status,
+       role_id
+     )
+     VALUES ($1, $2, 'ORGANIZATION', $3::uuid, $4::uuid, 'ACTIVE', $5::uuid)
+     RETURNING id`,
+    [email, passwordHash, organizationId, employeeId, roleId],
+  );
+  const userId = userResult.rows[0]?.id;
+  if (typeof userId !== "string") {
+    throw new Error("Workforce login account was not created for " + email);
+  }
+
+  return { email, password, userId, employeeId };
 }
 
 async function setFixtureUserSuspended(account: LoginFixtureAccount, organizationId: string, roleName: string) {
@@ -562,7 +592,12 @@ async function withTemporaryFixtureLicenseState(
   }
 
   const snapshotResult = await fixtureDatabase.query(
-    `SELECT status, expires_at
+    `SELECT
+       status,
+       activation_source,
+       starts_at,
+       expires_at,
+       last_approved_payment_id
      FROM public.organization_licenses
      WHERE organization_id = $1::uuid
      LIMIT 1`,
@@ -574,17 +609,25 @@ async function withTemporaryFixtureLicenseState(
   }
 
   if (targetStatus === "NOT_ACTIVATED") {
+    // This exact column combination is required by organization_licenses_period_check.
     await fixtureDatabase.query(
       `UPDATE public.organization_licenses
        SET status = 'NOT_ACTIVATED',
+           activation_source = 'NONE',
+           starts_at = NULL,
+           expires_at = NULL,
+           last_approved_payment_id = NULL,
            updated_at = NOW()
        WHERE organization_id = $1::uuid`,
       [organizationId],
     );
   } else {
+    // Preserve the activation source and payment reference while moving the
+    // valid license period entirely into the past.
     await fixtureDatabase.query(
       `UPDATE public.organization_licenses
        SET status = 'EXPIRED',
+           starts_at = NOW() - INTERVAL '31 days',
            expires_at = NOW() - INTERVAL '1 day',
            updated_at = NOW()
        WHERE organization_id = $1::uuid`,
@@ -598,11 +641,21 @@ async function withTemporaryFixtureLicenseState(
     const restored = await fixtureDatabase.query(
       `UPDATE public.organization_licenses
        SET status = $2,
-           expires_at = $3,
+           activation_source = $3,
+           starts_at = $4,
+           expires_at = $5,
+           last_approved_payment_id = $6,
            updated_at = NOW()
        WHERE organization_id = $1::uuid
        RETURNING organization_id`,
-      [organizationId, snapshot.status, snapshot.expires_at],
+      [
+        organizationId,
+        snapshot.status,
+        snapshot.activation_source,
+        snapshot.starts_at,
+        snapshot.expires_at,
+        snapshot.last_approved_payment_id,
+      ],
     );
     if (restored.rowCount !== 1) {
       throw new Error("Could not restore the original organization license after the login test.");
@@ -1121,14 +1174,16 @@ test.describe("Login outcomes — successful roles, then 35 negative cases", () 
 
   test("LOGIN-NEGATIVE-016: malformed JSON is rejected by the login endpoint", async ({ page }) => {
     const response = await page.request.post(API.login, {
-      data: "{",
+      // Buffer sends the malformed bytes as-is; a string can be JSON-encoded
+      // by a request helper and accidentally become a valid JSON string value.
+      data: Buffer.from("{", "utf8"),
       headers: {
         ...sameOriginLoginHeaders(page),
         "content-type": "application/json",
       },
     });
     expect(response.status()).toBe(400);
-    expect((await response.json()).message).toMatch(/invalid json/i);
+    expect((await response.json()).message).toBe("Invalid JSON request body.");
   });
 
   test("LOGIN-NEGATIVE-017: non-JSON login requests are rejected", async ({ page }) => {
