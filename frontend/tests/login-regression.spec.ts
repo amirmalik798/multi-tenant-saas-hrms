@@ -155,6 +155,7 @@ type LoginNegativeFixtures = {
   activeDepartmentManager: LoginFixtureAccount;
   suspendedEmployee: LoginFixtureAccount;
   activeEmployee: LoginFixtureAccount;
+  unactivatedAdmin: LoginFixtureAccount;
   expiredOrganizationId: string;
   expiredAdmin: LoginFixtureAccount;
 };
@@ -169,6 +170,12 @@ type SetupJson = {
   employee?: { id?: string };
   organizationAdmins?: Array<{ id?: string; email?: string }>;
   department?: { id?: string };
+  payment?: { id?: string; status?: string };
+  license?: {
+    status?: string;
+    activationSource?: string;
+    canAccess?: boolean;
+  };
   message?: string;
 };
 
@@ -185,6 +192,7 @@ let negativeFixtures: LoginNegativeFixtures | null = null;
 let negativeFixtureSkipReason = "Login negative fixtures have not been initialized.";
 let platformFixtureApi: APIRequestContext | null = null;
 let tenantFixtureApi: APIRequestContext | null = null;
+let unactivatedTenantFixtureApi: APIRequestContext | null = null;
 let expiredTenantFixtureApi: APIRequestContext | null = null;
 let fixtureDatabase: ReturnType<typeof createFixturePool> | null = null;
 
@@ -387,6 +395,78 @@ async function completeOrganizationSetup(api: APIRequestContext, label: string) 
   await setupJson(completeResponse, 200, "Complete settings for " + label);
 }
 
+async function activateFixtureOrganizationLicense(
+  organizationApi: APIRequestContext,
+  label: string,
+) {
+  if (!platformFixtureApi) {
+    throw new Error("Platform fixture API is unavailable for license approval.");
+  }
+
+  // This tiny PNG is only a synthetic payment-proof fixture. The submission
+  // and approval still pass through the real application APIs and audit flow.
+  const proofImage = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a/SsAAAAASUVORK5CYII=",
+    "base64",
+  );
+
+  const submissionResponse = await organizationApi.post(
+    "/api/backend/org/license/submissions",
+    {
+      headers: {
+        "x-payment-amount": "1.00",
+        "x-payment-currency": "RWF",
+        "x-transaction-reference": "PW-LOGIN-" + LOGIN_RUN_ID,
+      },
+      multipart: {
+        proofImage: {
+          name: "pw-login-license-proof.png",
+          mimeType: "image/png",
+          buffer: proofImage,
+        },
+      },
+    },
+  );
+  const submissionBody = await setupJson(
+    submissionResponse,
+    201,
+    "Submit synthetic license payment for " + label,
+  );
+  const paymentId = submissionBody.payment?.id;
+  if (!paymentId) {
+    throw new Error("License payment submission returned no payment ID for " + label);
+  }
+
+  const reviewResponse = await platformFixtureApi.patch(
+    "/api/backend/platform-payments/" + encodeURIComponent(paymentId) + "/review",
+    { data: { decision: "APPROVE" } },
+  );
+  const reviewBody = await setupJson(
+    reviewResponse,
+    200,
+    "Approve synthetic license payment for " + label,
+  );
+  if (
+    reviewBody.license?.status !== "ACTIVE" ||
+    reviewBody.license?.activationSource !== "PAYMENT"
+  ) {
+    throw new Error("Approved payment did not activate the license for " + label);
+  }
+
+  const licenseResponse = await organizationApi.get("/api/backend/org/license");
+  const licenseBody = await setupJson(
+    licenseResponse,
+    200,
+    "Verify active license for " + label,
+  );
+  if (
+    licenseBody.license?.status !== "ACTIVE" ||
+    licenseBody.license?.canAccess !== true
+  ) {
+    throw new Error("License access is not active after payment approval for " + label);
+  }
+}
+
 async function createWorkforceLoginAccount(
   api: APIRequestContext,
   role: "HR_MANAGER" | "DEPARTMENT_MANAGER" | "EMPLOYEE",
@@ -496,11 +576,15 @@ async function initializeNegativeLoginFixtures() {
 
   await fixtureDatabase.query("SELECT 1");
 
-  // New organizations start with NOT_ACTIVATED licenses.
-  const activeTenant = await createOrganizationWithAdmin("Unlicensed", "pw-login-primary-admin");
+  // This tenant hosts the successful and suspended-role login fixtures.
+  // New organizations start unlicensed, so activate its license through the
+  // real payment-submission and Super Admin approval workflow before creating
+  // any workforce profiles.
+  const activeTenant = await createOrganizationWithAdmin("Role Fixtures", "pw-login-primary-admin");
   const suspendedAdmin = await createAdditionalOrganizationAdmin(activeTenant.organizationId, "pw-login-suspended-admin");
   tenantFixtureApi = await createTenantApi(activeTenant.admin);
-  await completeOrganizationSetup(tenantFixtureApi, "unlicensed test organization");
+  await completeOrganizationSetup(tenantFixtureApi, "role-fixture test organization");
+  await activateFixtureOrganizationLicense(tenantFixtureApi, "role-fixture test organization");
 
   // One account per role is suspended after activation; a second remains active
   // for valid-role fixture checks and wrong-password negative cases.
@@ -568,7 +652,19 @@ async function initializeNegativeLoginFixtures() {
   );
   await setupJson(suspendAdminResponse, 200, "Suspend secondary Organization Admin fixture");
 
-  // A separate tenant provides an independently expired license. Expiry uses
+  // A separate tenant remains unactivated. It is used only for the
+  // NOT_ACTIVATED license-gate test and never receives workforce profiles.
+  const unactivatedTenant = await createOrganizationWithAdmin(
+    "Unactivated License",
+    "pw-login-unactivated-admin",
+  );
+  unactivatedTenantFixtureApi = await createTenantApi(unactivatedTenant.admin);
+  await completeOrganizationSetup(
+    unactivatedTenantFixtureApi,
+    "unactivated-license test organization",
+  );
+
+  // A third tenant provides an independently expired license. Expiry uses
   // database time, so changing the browser clock cannot create this state.
   const expiredTenant = await createOrganizationWithAdmin("Expired License", "pw-login-expired-admin");
   expiredTenantFixtureApi = await createTenantApi(expiredTenant.admin);
@@ -590,12 +686,23 @@ async function initializeNegativeLoginFixtures() {
     throw new Error("Could not seed an EXPIRED license for the dedicated test organization.");
   }
 
-  const unactivatedLicense = await fixtureDatabase.query(
-    `SELECT status FROM public.organization_licenses WHERE organization_id = $1::uuid`,
+  const activeLicense = await fixtureDatabase.query(
+    `SELECT status, activation_source FROM public.organization_licenses WHERE organization_id = $1::uuid`,
     [activeTenant.organizationId],
   );
+  if (
+    activeLicense.rows[0]?.status !== "ACTIVE" ||
+    activeLicense.rows[0]?.activation_source !== "PAYMENT"
+  ) {
+    throw new Error("The role-fixture organization must have an active, payment-backed license.");
+  }
+
+  const unactivatedLicense = await fixtureDatabase.query(
+    `SELECT status FROM public.organization_licenses WHERE organization_id = $1::uuid`,
+    [unactivatedTenant.organizationId],
+  );
   if (unactivatedLicense.rows[0]?.status !== "NOT_ACTIVATED") {
-    throw new Error("The unlicensed fixture organization did not retain NOT_ACTIVATED status.");
+    throw new Error("The dedicated unactivated-license organization did not retain NOT_ACTIVATED status.");
   }
 
   negativeFixtures = {
@@ -608,6 +715,7 @@ async function initializeNegativeLoginFixtures() {
     activeDepartmentManager,
     suspendedEmployee,
     activeEmployee,
+    unactivatedAdmin: unactivatedTenant.admin,
     expiredOrganizationId: expiredTenant.organizationId,
     expiredAdmin: expiredTenant.admin,
   };
@@ -694,11 +802,13 @@ test.describe("Login outcomes — successful roles, then 25 negative cases", () 
     await Promise.all([
       platformFixtureApi?.dispose(),
       tenantFixtureApi?.dispose(),
+      unactivatedTenantFixtureApi?.dispose(),
       expiredTenantFixtureApi?.dispose(),
       fixtureDatabase?.end(),
     ]);
     platformFixtureApi = null;
     tenantFixtureApi = null;
+    unactivatedTenantFixtureApi = null;
     expiredTenantFixtureApi = null;
     fixtureDatabase = null;
   });
@@ -939,7 +1049,7 @@ test.describe("Login outcomes — successful roles, then 25 negative cases", () 
 
   test("LOGIN-NEGATIVE-024: an organization without an activated license is locked after successful authentication", async ({ page }) => {
     const fixtures = requireNegativeFixtures();
-    const response = await submitLogin(page, fixtures.primaryAdmin.email, fixtures.primaryAdmin.password);
+    const response = await submitLogin(page, fixtures.unactivatedAdmin.email, fixtures.unactivatedAdmin.password);
     expect(response.status()).toBe(200);
     expect((await response.json()).user?.role).toBe("ORGANIZATION_ADMIN");
     await page.waitForURL((url) => url.pathname === "/org/dashboard", { timeout: 20_000 });
