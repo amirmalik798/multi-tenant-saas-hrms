@@ -54,6 +54,20 @@ export async function deleteOrganizationTenantData(
   client: PoolClient,
   organizationId: string,
 ): Promise<OrganizationDeletionReport> {
+  // Lock the tenant's existing contract/document rows before evaluating
+  // legal holds. This prevents a concurrent transaction from turning an
+  // unheld record into a legal hold after the check but before deletion.
+  // The organization row is already locked by the caller, so FK-backed new
+  // rows cannot be inserted while this purge is in progress.
+  await client.query(
+    "SELECT 1 FROM public.employee_contracts WHERE organization_id = $1::uuid FOR UPDATE",
+    [organizationId],
+  );
+  await client.query(
+    "SELECT 1 FROM public.employee_documents WHERE organization_id = $1::uuid FOR UPDATE",
+    [organizationId],
+  );
+
   const legalHoldResult = await client.query<{
     contract_holds: number;
     document_holds: number;
@@ -96,6 +110,37 @@ export async function deleteOrganizationTenantData(
   ].join("\n");
   const tablesResult = await client.query<TenantTable>(tablesSql);
   const tenantTables = tablesResult.rows;
+
+  // Do not silently omit tenant data stored outside the application's
+  // supported public schema. Stop before mutation until that schema is
+  // explicitly included in the deletion design.
+  const nonPublicTenantTablesResult = await client.query<{ qualified_name: string }>(
+    [
+      "SELECT format('%I.%I', namespace_data.nspname, relation_data.relname) AS qualified_name",
+      "FROM pg_class AS relation_data",
+      "JOIN pg_namespace AS namespace_data",
+      "  ON namespace_data.oid = relation_data.relnamespace",
+      "WHERE namespace_data.nspname NOT IN ('public', 'pg_catalog', 'information_schema')",
+      "  AND namespace_data.nspname NOT LIKE 'pg_toast%'",
+      "  AND relation_data.relkind IN ('r', 'p')",
+      "  AND EXISTS (",
+      "    SELECT 1 FROM pg_attribute AS organization_column",
+      "    WHERE organization_column.attrelid = relation_data.oid",
+      "      AND organization_column.attname = 'organization_id'",
+      "      AND organization_column.attnum > 0",
+      "      AND NOT organization_column.attisdropped",
+      "  )",
+      "ORDER BY namespace_data.nspname, relation_data.relname",
+    ].join("\n"),
+  );
+
+  if (nonPublicTenantTablesResult.rows.length > 0) {
+    throw new OrganizationDeletionBlockedError(
+      "Tenant-scoped tables exist outside the supported public schema: " +
+        nonPublicTenantTablesResult.rows.map((row) => row.qualified_name).join(", ") +
+        ". Deletion was stopped safely.",
+    );
+  }
 
   if (tenantTables.length === 0) {
     throw new OrganizationDeletionBlockedError(
@@ -153,7 +198,8 @@ export async function deleteOrganizationTenantData(
     "  ON parent_column.attrelid = foreign_key.confrelid",
     " AND parent_column.attnum = parent_key.attnum",
     "WHERE foreign_key.contype = 'f'",
-    "  AND child_namespace.nspname = 'public'",
+    "  AND child_namespace.nspname NOT IN ('pg_catalog', 'information_schema')",
+    "  AND child_namespace.nspname NOT LIKE 'pg_toast%'",
     "  AND parent_namespace.nspname = 'public'",
     "  AND child_relation.relkind IN ('r', 'p')",
     "  AND parent_relation.relkind IN ('r', 'p')",
