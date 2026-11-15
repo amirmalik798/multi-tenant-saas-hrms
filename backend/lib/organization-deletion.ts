@@ -54,6 +54,25 @@ export async function deleteOrganizationTenantData(
   client: PoolClient,
   organizationId: string,
 ): Promise<OrganizationDeletionReport> {
+  const legalHoldResult = await client.query<{
+    contract_holds: number;
+    document_holds: number;
+  }>(
+    `SELECT
+       (SELECT COUNT(*)::integer FROM public.employee_contracts
+        WHERE organization_id = $1::uuid AND legal_hold IS TRUE) AS contract_holds,
+       (SELECT COUNT(*)::integer FROM public.employee_documents
+        WHERE organization_id = $1::uuid AND legal_hold IS TRUE) AS document_holds`,
+    [organizationId],
+  );
+  const contractHolds = Number(legalHoldResult.rows[0]?.contract_holds ?? 0);
+  const documentHolds = Number(legalHoldResult.rows[0]?.document_holds ?? 0);
+  if (contractHolds > 0 || documentHolds > 0) {
+    throw new OrganizationDeletionBlockedError(
+      `Deletion is blocked by ${contractHolds + documentHolds} legal-hold record(s). Release the legal holds before deleting this organization.`,
+    );
+  }
+
   const tablesSql = [
     "SELECT",
     "  relation_data.oid::text AS relation_oid,",
