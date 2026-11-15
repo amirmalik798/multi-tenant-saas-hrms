@@ -268,6 +268,33 @@ export async function deleteOrganizationTenantData(
     );
   }
 
+  // Self-referencing constraints are not part of the table-level
+  // topological sort. Explicitly allow only the two self-references present
+  // in the supported schema; any newly introduced self-reference must be
+  // reviewed rather than silently ignored.
+  const supportedSelfReferences = new Set([
+    "public.employees:fk_employees_manager_same_org",
+    "public.employee_documents:fk_employee_documents_supersedes_64",
+  ]);
+  const unsupportedSelfReferences = foreignKeys.filter(
+    (foreignKey) =>
+      foreignKey.child_oid === foreignKey.parent_oid &&
+      tableByOid.has(foreignKey.child_oid) &&
+      !supportedSelfReferences.has(
+        foreignKey.child_table + ":" + foreignKey.constraint_name,
+      ),
+  );
+
+  if (unsupportedSelfReferences.length > 0) {
+    throw new OrganizationDeletionBlockedError(
+      "The tenant schema contains an unsupported self-referencing foreign key: " +
+        unsupportedSelfReferences
+          .map((foreignKey) => foreignKey.child_table + "." + foreignKey.constraint_name)
+          .join(", ") +
+        ". Deletion was stopped safely.",
+    );
+  }
+
   // Set the transaction-scoped purge context before any updates so deferred
   // hierarchy guards can safely skip checks for rows being removed wholesale.
   await client.query("SET LOCAL app.organization_deletion = 'on'");
@@ -309,17 +336,20 @@ export async function deleteOrganizationTenantData(
     incomingCount.set(relationOid, 0);
   }
 
-  const detachedConstraints = new Set([
-    "fk_departments_manager_same_org",
-    "fk_employees_department_same_org",
-  ]);
+  const isIntentionallyDetachedConstraint = (foreignKey: ForeignKey) =>
+    (foreignKey.constraint_name === "fk_departments_manager_same_org" &&
+      foreignKey.child_table === "public.departments" &&
+      foreignKey.parent_table === "public.employees") ||
+    (foreignKey.constraint_name === "fk_employees_department_same_org" &&
+      foreignKey.child_table === "public.employees" &&
+      foreignKey.parent_table === "public.departments");
 
   for (const foreignKey of foreignKeys) {
     if (
       !tableByOid.has(foreignKey.child_oid) ||
       !tableByOid.has(foreignKey.parent_oid) ||
       foreignKey.child_oid === foreignKey.parent_oid ||
-      detachedConstraints.has(foreignKey.constraint_name)
+      isIntentionallyDetachedConstraint(foreignKey)
     ) {
       continue;
     }
