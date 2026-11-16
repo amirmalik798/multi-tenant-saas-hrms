@@ -1,5 +1,6 @@
-
 import type { NextConfig } from "next";
+
+const backendUrl = (process.env.BACKEND_URL ?? "http://localhost:3000").replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
   // Permit the current ngrok hostname while running `next dev`.
@@ -9,7 +10,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/api/backend/:path*",
-        destination: "http://localhost:3000/api/:path*",
+        destination: `${backendUrl}/api/:path*`,
       },
     ];
   },
