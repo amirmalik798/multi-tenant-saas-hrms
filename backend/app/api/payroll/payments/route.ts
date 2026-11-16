@@ -58,6 +58,16 @@ export async function GET(request: Request) {
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORG_OWNER%'
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'TENANT_ADMIN%'
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ADMINISTRATOR%'
+         AND (
+           $7::boolean
+           OR (
+             (
+               COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'HR_MANAGER%'
+               AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'HRMANAGER%'
+             )
+             OR e.id = $5::uuid
+           )
+         )
          AND NOT EXISTS (
            SELECT 1
            FROM public.users AS target_account
