@@ -601,7 +601,7 @@ export default function OrganizationSettingsPage() {
 
       <OrganizationAdminSidebar activePage="settings" />
 
-      <main className="relative z-10 min-h-screen lg:ml-64">
+      <main id="org-admin-main-content" tabIndex={-1} className="relative z-10 min-h-screen lg:ml-64">
         <OrganizationAdminHeader
           activePage="settings"
           organizationName={user.organizationName}
