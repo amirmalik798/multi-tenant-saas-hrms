@@ -65,8 +65,8 @@ export async function GET(request: Request) {
       [actor.organizationId, employeeId],
     );
     if (!target.rowCount) return json({ message: "Employee not found in this organization" }, 404);
-    if (isExcludedHrTargetRole(target.rows[0].workforce_role) || target.rows[0].is_organization_admin) {
-      return json({ message: "Organization Admin and HR Manager records are not eligible for employee pay rates" }, 403);
+    if (isExcludedHrTargetRole(target.rows[0].workforce_role, { allowHrManager: actor.kind === "ORGANIZATION_ADMIN" }) || target.rows[0].is_organization_admin) {
+      return json({ message: "Organization Admin records are not eligible for employee pay rates" }, 403);
     }
 
     const [result, settings] = await Promise.all([
@@ -160,9 +160,9 @@ export async function PUT(request: Request) {
       await client.query("ROLLBACK");
       return json({ message: "Employee not found in this organization" }, 404);
     }
-    if (isExcludedHrTargetRole(employee.rows[0].workforce_role) || employee.rows[0].is_organization_admin) {
+    if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: actor.kind === "ORGANIZATION_ADMIN" }) || employee.rows[0].is_organization_admin) {
       await client.query("ROLLBACK");
-      return json({ message: "Organization Admin and HR Manager records are not eligible for employee pay rates" }, 403);
+      return json({ message: "Organization Admin records are not eligible for employee pay rates" }, 403);
     }
 
     const currencyHistory = await client.query<{ currency_code: string }>(
