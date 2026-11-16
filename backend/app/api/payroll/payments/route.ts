@@ -163,7 +163,7 @@ export async function PUT(request: Request) {
   try {
     const actor = await getTenantPermissionActor();
     if (!actor) return json({ message: "Authentication required" }, 401);
-    if (!canManage(actor)) return json({ message: "Only the Organization Admin can record salary payments" }, 403);
+    if (!canManage(actor)) return json({ message: "Only an Organization Admin or HR Manager can record salary payments" }, 403);
     if (!(await organizationIsActive(pool, actor.organizationId))) return json({ message: "This organization is not active" }, 403);
     const parsedBody = await parseJsonRequestBody(request);
     if (!parsedBody.ok) return parsedBody.response;
