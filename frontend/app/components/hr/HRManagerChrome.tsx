@@ -97,6 +97,7 @@ const navGroups: NavGroup[] = [
     label: "Time, leave & holidays",
     icon: CalendarClock,
     items: [
+      { label: "My attendance", href: "/hr/my-attendance", icon: CalendarDays },
       { label: "Team schedule calendar", href: "/hr/modules/attendance?section=calendar", icon: CalendarDays },
       { label: "Schedules", href: "/hr/modules/time-schedules", icon: CalendarClock },
       { label: "Leave & public holidays", href: "/hr/modules/leave", icon: CalendarDays },
