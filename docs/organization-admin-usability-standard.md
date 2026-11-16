@@ -55,3 +55,56 @@ Every route below must be reviewed in desktop, tablet, and mobile layouts, inclu
 ## Verification policy
 
 Review each route and its nested views against all ten heuristics. Record concrete defects and fix them in the feature branch. Do not mark an item passed until it has been inspected in the running application at the relevant viewport and state. Automated tests and builds must be reported separately from visual/usability review.
+
+## 2026-11-17 implementation review — code-level findings
+
+The following safeguards were implemented after reviewing the Organization Admin routes and their shared workspaces. This is a source-code review record; it is not a browser-based usability certification.
+
+### Shared workspace and navigation
+
+- Desktop navigation is grouped into Overview, People, Time & Pay, Communication, and Account. The current route remains visually and semantically identified.
+- The mobile navigation remains available as a horizontally scrollable navigation strip so all destinations remain reachable at narrow widths.
+- The reusable attendance/payroll module shell now provides a consistent page heading, breadcrumb, organization-workspace context, session recovery, and scoped Organization Admin theme root.
+- Added a keyboard skip link and matching main-content target across Organization Admin pages.
+- Kept the shared command palette, visible focus treatment, and reduced-motion behavior.
+- Added semantic page headings and breadcrumbs to Dashboard, Employees, Departments, Invitations, Organization Chart, Profile, Settings, and License & Payments; the shared shell supplies them to Attendance, Schedules, Leave, Pay Rates, Payroll, Reports, Messages, and Platform Support.
+
+### High-impact action and recovery improvements
+
+- **Departments:** replaced native browser confirmation dialogs for single deactivation, bulk deactivation, and deactivation during an edit-save with themed confirmation dialogs. The dialogs explain that active employees assigned to the department are also marked inactive. Added Escape handling and keyboard focus containment/restoration.
+- **Leave:** replaced browser prompts/confirms for approve, reject, cancel, and public-holiday removal with themed dialogs. Rejection requires a reason; the dialogs identify the affected request or holiday and explain downstream calendar/payroll impact. Added keyboard focus handling, accessible search/filter names, empty-vs-filtered-empty messaging, clear-filters action, and retry/loading states.
+- **Pay Rates:** Organization Admin rate changes now require a review confirmation showing employee, regular/overtime hourly rates, currency, and effective period. The dialog supports keyboard focus handling.
+- **Payroll:** changing a payment status to Paid or reversing a Paid status now requires confirmation. The dialog shows employee, calculated amount, month, and available payment reference, and explicitly asks the admin to confirm the underlying payment/correction.
+- **License & Payments:** submitting payment proof now requires a final review of amount, currency, transaction reference, receipt filename and size. The dialog clarifies that proof submission is for verification and does not itself activate the license or make a payment.
+- **Error recovery:** added explicit retry actions to Leave, Pay Rates, Payroll, Reports, Invitations, Profile, and License error states. Existing dashboard, department, settings, and organization-chart recovery paths were retained.
+- **Status visibility:** exposed the organization date/timezone loading state in Attendance Reports and made Leave loading states announce themselves to assistive technology.
+
+### Route review status
+
+| Route | Code-level review performed | Safeguards confirmed or added |
+|---|---|---|
+| /org/dashboard | Yes | Metrics loading/error states, recent-activity empty/error states, accessible chart descriptions, retry paths, page hierarchy |
+| /org/employees | Yes | Validated forms, unsaved-change protection, drawer/dialog keyboard handling, bulk-action confirmation, loading and error states |
+| /org/departments | Yes | Validated forms, unsaved-change protection, eligible-manager loading/error/retry, themed single/bulk deactivation confirmation, keyboard focus handling |
+| /org/organization-chart | Yes | Search, expand/collapse controls, loading/error/empty states, unresolved reporting-line review, page hierarchy |
+| /org/invitations | Yes | Search/status filters, table/card views, loading/error/empty states, resend progress, pagination, retry |
+| /org/attendance | Yes | Attendance summary, section navigation, scoped review queues, per-source errors/empty states, action progress, self-review prevention |
+| /org/schedules | Yes | Schedule creation/assignment forms, effective-date constraints, loading/error/empty states, correction workflow and status visibility |
+| /org/leave | Yes | Search/status filtering, request/holiday empty/loading states, approval/rejection/cancel confirmation, holiday-removal confirmation, retry |
+| /org/pay-rates | Yes | Required/range-constrained rate fields, organization currency context, effective-dated history, confirmation of rate changes, retry |
+| /org/payroll | Yes | Month selection, search/filter/sort, calculated earnings context, review states, paid/unpaid confirmation, retry |
+| /org/reports | Yes | Date/timezone context, loading/progress, download success/error, retry |
+| /org/communications | Yes | Shared shell and workspace message loading/error/empty/send states; keyboard behavior retained in the shared workspace |
+| /org/support | Yes | Shared shell and support inbox/thread loading/error/empty/send states |
+| /org/profile | Yes | Profile/contact edit and save states, upload progress, success/error recovery, retry |
+| /org/settings | Yes | Setup guidance, required settings, save/complete states, unsaved-change refresh guard, validation and retry |
+| /org/license | Yes | License/payment status, proof validation, submission progress, receipt preview failure state, themed proof-submission confirmation and retry |
+
+### Verification still required
+
+- Open every route in the running app at desktop, tablet, and mobile widths.
+- Exercise each route's real loading, populated, empty, filtered-empty, validation-error, API-error, success, and confirmation states.
+- Verify color contrast for every chart, table, badge, date control, popover, drawer, and modal in both themes using actual rendered content.
+- Verify keyboard-only navigation and screen-reader announcements in the running app, including focus order when dialogs open/close.
+- Verify that all confirmation flows still call the same existing APIs and that server-side validation, tenant isolation, authorization, and audit logging remain authoritative.
+- Run the build and regression suite only under the project's agreed testing procedure. No build or regression pass is claimed by this document.
