@@ -189,7 +189,7 @@ export async function PUT(request: Request) {
       [employeeId, actor.organizationId],
     );
     if (!employee.rowCount) { await client.query("ROLLBACK"); return json({ message: "Employee not found in this organization" }, 404); }
-    if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: true }) && !employee.rows[0].is_organization_admin || employee.rows[0].is_organization_admin) {
+    if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: true }) || employee.rows[0].is_organization_admin) {
       await client.query("ROLLBACK");
       return json({ message: "Organization Admin records are not eligible for salary payments" }, 403);
     }
