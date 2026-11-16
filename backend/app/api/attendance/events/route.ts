@@ -49,7 +49,7 @@ const ATTENDANCE_EVENT_SELECT = `
    AND d.organization_id = e.organization_id
 `;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const actor = await getTenantPermissionActor();
 
@@ -77,6 +77,13 @@ export async function GET() {
       values.push(actor.employeeId);
 
       conditions.push(`ae.employee_id = $${values.length}::uuid`);
+    } else if (
+      actor.kind === "ORGANIZATION_USER" &&
+      actor.roleName === "HR_MANAGER" &&
+      new URL(request.url).searchParams.get("scope") === "self"
+    ) {
+      values.push(actor.employeeId);
+      conditions.push("ae.employee_id = $" + values.length + "::uuid");
     } else if (
       actor.kind === "ORGANIZATION_USER" &&
       actor.roleName === "DEPARTMENT_MANAGER"
@@ -123,7 +130,7 @@ export async function GET() {
 
     if (
       actor.kind === "ORGANIZATION_USER" &&
-      (actor.roleName === "EMPLOYEE" || actor.roleName === "DEPARTMENT_MANAGER")
+      (actor.roleName === "EMPLOYEE" || actor.roleName === "DEPARTMENT_MANAGER" || actor.roleName === "HR_MANAGER")
     ) {
       // Keep the personal punch history independent from the 100-row team feed.
       // Otherwise a busy team's recent activity can push an earlier clock-in
@@ -214,13 +221,13 @@ export async function POST(request: Request) {
     // remain shared and enforced server-side.
     if (
       actor.kind !== "ORGANIZATION_USER" ||
-      (actor.roleName !== "EMPLOYEE" && actor.roleName !== "DEPARTMENT_MANAGER") ||
+      (actor.roleName !== "EMPLOYEE" && actor.roleName !== "DEPARTMENT_MANAGER" && actor.roleName !== "HR_MANAGER") ||
       !actor.employeeId
     ) {
       return jsonResponse(
         {
           message:
-            "Clock-in and clock-out are available to employees and Department Managers for their own account",
+            "Clock-in and clock-out are available to employees, Department Managers, and HR Managers for their own account",
         },
         403,
       );
