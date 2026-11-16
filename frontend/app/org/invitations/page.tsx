@@ -339,7 +339,7 @@ export default function OrganizationInvitationsPage() {
             ))}
           </section>
 
-          {error && <div role="alert" className="mb-5 flex items-start gap-3 rounded-xl border border-rose-400/30 bg-rose-500/15 p-4 text-sm font-medium text-rose-200"><Icon name="alert" size={18} /><div className="flex-1"><p>{error}</p></div></div>}
+          {error && <div role="alert" className="mb-5 flex flex-col gap-3 rounded-xl border border-rose-400/30 bg-rose-500/15 p-4 text-sm font-medium text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span className="flex min-w-0 items-start gap-3"><Icon name="alert" size={18} /><span>{error}</span></span><button type="button" onClick={refresh} disabled={loading || Boolean(resendingId)} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">Retry</button></div>
           {actionMessage && <div role={actionMessage.type === "error" ? "alert" : "status"} className={`mb-5 rounded-xl border p-3 text-sm font-medium ${actionMessage.type === "error" ? "border-rose-400/30 bg-rose-500/10 text-rose-200" : "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"}`}>{actionMessage.text}</div>}
 
           <section className="overflow-hidden rounded-xl border border-[#29384b] bg-[#141f2e]/90">
