@@ -285,6 +285,9 @@ function EmployeeTreeNode({
                 {employee.department_name && (
                   <span className="text-[10px] font-medium text-slate-300">· {employee.department_name}</span>
                 )}
+                {employee.manager_name && (
+                  <span className="text-[10px] font-medium text-sky-200">· Reports to {employee.manager_name}</span>
+                )}
                 {hasChildren && (
                   <span className="rounded bg-[#75c7ff]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[#d4efff] border border-[#75c7ff]/30">
                     {childIds.length} reports
