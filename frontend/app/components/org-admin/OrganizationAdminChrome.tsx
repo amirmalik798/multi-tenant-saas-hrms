@@ -88,14 +88,15 @@ type OrganizationAdminHeaderProps = {
   headerMeta?: ReactNode;
 };
 
-const navItems: Array<{
+type OrganizationNavItem = {
   id: OrganizationPage;
   label: string;
   href: string;
   icon: "dashboard" | "users" | "layers" | "hierarchy" | "mail" | "settings" | "credit-card";
-}> = [
+};
+
+const navItems: OrganizationNavItem[] = [
   { id: "dashboard", label: "Dashboard", href: "/org/dashboard", icon: "dashboard" },
-  { id: "profile", label: "My Profile", href: "/org/profile", icon: "settings" },
   { id: "employees", label: "Employees", href: "/org/employees", icon: "users" },
   { id: "departments", label: "Departments", href: "/org/departments", icon: "layers" },
   { id: "organization-chart", label: "Organization Chart", href: "/org/organization-chart", icon: "hierarchy" },
@@ -108,8 +109,17 @@ const navItems: Array<{
   { id: "reports", label: "Attendance Reports", href: "/org/reports", icon: "dashboard" },
   { id: "communications", label: "Messages", href: "/org/communications", icon: "mail" },
   { id: "support", label: "Platform Support", href: "/org/support", icon: "mail" },
+  { id: "profile", label: "My Profile", href: "/org/profile", icon: "settings" },
   { id: "settings", label: "Organization Profile & Settings", href: "/org/settings", icon: "settings" },
   { id: "license", label: "License & Payments", href: "/org/license", icon: "credit-card" },
+];
+
+const navGroups: Array<{ label: string; items: OrganizationNavItem[] }> = [
+  { label: "Overview", items: navItems.filter((item) => item.id === "dashboard") },
+  { label: "People", items: navItems.filter((item) => ["employees", "departments", "organization-chart", "invitations"].includes(item.id)) },
+  { label: "Time & pay", items: navItems.filter((item) => ["attendance", "schedules", "leave", "pay-rates", "payroll", "reports"].includes(item.id)) },
+  { label: "Communication", items: navItems.filter((item) => ["communications", "support"].includes(item.id)) },
+  { label: "Account", items: navItems.filter((item) => ["profile", "settings", "license"].includes(item.id)) },
 ];
 
 function Icon({
@@ -265,28 +275,33 @@ export function OrganizationAdminSidebar({
       </Link>
 
       <nav
-        className="flex-1 space-y-1.5 overflow-y-auto px-4 py-4"
+        className="flex-1 space-y-5 overflow-y-auto px-4 py-4"
         aria-label="Organization Admin navigation"
       >
-        {navItems.map((item) => {
-          const active = item.id === activePage;
-
-          return (
-            <Link
-              key={item.id}
-              href={item.href}
-              aria-current={active ? "page" : undefined}
-              className={`flex h-[49px] items-center gap-3 rounded-lg px-3.5 text-[15px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#75c7ff] ${
-                active
-                  ? "border border-blue-300/10 border-l-2 border-l-[#75c7ff] bg-[#14283e] pl-[calc(0.875rem-2px)] font-semibold text-[#e3f2ff] shadow-sm shadow-black/10"
-                  : "border border-transparent font-medium text-slate-300 hover:border-white/[0.06] hover:bg-white/[0.035] hover:text-white"
-              }`}
-            >
-              <Icon name={item.icon} size={21} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+        {navGroups.map((group) => (
+          <section key={group.label} aria-label={group.label} className="space-y-1.5">
+            <h2 className="px-3.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{group.label}</h2>
+            {group.items.map((item) => {
+              const active = item.id === activePage;
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex min-h-[46px] items-center gap-3 rounded-lg px-3.5 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#75c7ff] ${
+                    active
+                      ? "border border-blue-300/10 border-l-2 border-l-[#75c7ff] bg-[#14283e] pl-[calc(0.875rem-2px)] font-semibold text-[#e3f2ff] shadow-sm shadow-black/10"
+                      : "border border-transparent font-medium text-slate-300 hover:border-white/[0.06] hover:bg-white/[0.035] hover:text-white"
+                  }`}
+                >
+                  <Icon name={item.icon} size={19} />
+                  <span>{item.label}</span>
+                  {active && <span className="ml-auto size-1.5 rounded-full bg-[#75c7ff]" aria-hidden="true" />}
+                </Link>
+              );
+            })}
+          </section>
+        ))}
       </nav>
     </aside>
   );
