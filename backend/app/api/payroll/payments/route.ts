@@ -105,7 +105,7 @@ export async function GET(request: Request) {
                AND md.id = e.department_id
                AND md.manager_id = $5::uuid
            )))
-           OR ($7::boolean AND e.id = $5::uuid)
+           OR (($7::boolean AND NOT $3::boolean) AND e.id = $5::uuid)
          )
        ORDER BY e.first_name, e.last_name, e.employee_code`,
       [actor.organizationId, start, actor.kind === "ORGANIZATION_ADMIN", isEmployee, actor.kind === "ORGANIZATION_USER" ? actor.employeeId : null, isDm, isHrManager],
