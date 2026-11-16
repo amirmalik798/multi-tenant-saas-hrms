@@ -55,7 +55,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     let scopePredicate = "";
     if (isWorkforceManager) {
       values.push(actor.employeeId);
-      scopePredicate = `AND e.id <> ${values.length}::uuid`;
+      scopePredicate = `AND e.id <> $${values.length}::uuid`;
     }
     if (isDepartmentManager) {
       scopePredicate += ` AND EXISTS (
