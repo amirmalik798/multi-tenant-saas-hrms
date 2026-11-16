@@ -251,8 +251,9 @@ export default function OrganizationAdminProfilePage() {
           </div>
 
           {error && (
-            <div role="alert" className="mb-5 rounded-xl border border-rose-400/25 bg-rose-500/10 p-3 text-sm text-rose-200">
-              {error}
+            <div role="alert" className="mb-5 flex flex-col gap-3 rounded-xl border border-rose-400/25 bg-rose-500/10 p-3 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between">
+              <span>{error}</span>
+              <button type="button" onClick={() => window.location.reload()} disabled={loading} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">Reload profile</button>
             </div>
           )}
           {message && (
