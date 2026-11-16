@@ -54,7 +54,7 @@ function isExcludedHrTarget(employee: Employee, allowHrManager = false) {
   const isHrManager = roleValues.some((role) =>
     ["HR_MANAGER", "HRMANAGER"].includes(role) || role.startsWith("HR_MANAGER_") || role.startsWith("HRMANAGER_"),
   );
-  return isOrganizationAdmin || (isHrManager && !allowHrManager);
+  return isOrganizationAdmin || (!allowHrManager && isHrManager);
 }
 const INPUT = "mt-1.5 w-full rounded-xl border border-slate-700 bg-[#0b111b] px-3.5 py-3 text-sm text-slate-100 outline-none focus:border-sky-400";
 const PRIMARY = "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50";
