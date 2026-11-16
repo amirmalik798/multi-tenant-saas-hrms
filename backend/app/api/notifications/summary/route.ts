@@ -101,8 +101,8 @@ export async function GET() {
     const overtime = Number(overtimeResult.rows[0]?.count ?? 0);
     const leave = Number(leaveResult.rows[0]?.count ?? 0);
     const alerts = [] as { id: string; title: string; count: number; href: string; tone: "warning" | "info" }[];
-    if (!isOrganizationAdmin && corrections > 0) alerts.push({ id: "corrections", title: isEmployee ? "Your correction requests awaiting review" : "Attendance corrections awaiting review", count: corrections, href: isEmployee ? "/employee/requests" : "/dm/reviews", tone: "warning" });
-    if (!isOrganizationAdmin && overtime > 0) alerts.push({ id: "overtime", title: isEmployee ? "Your overtime requests awaiting review" : "Overtime requests awaiting review", count: overtime, href: isEmployee ? "/employee/requests" : "/dm/reviews", tone: "warning" });
+    if (!isOrganizationAdmin && corrections > 0) alerts.push({ id: "corrections", title: isEmployee ? "Your correction requests awaiting review" : "Attendance corrections awaiting review", count: corrections, href: isEmployee ? "/employee/requests" : isHrManager ? "/hr/work-queue" : "/dm/reviews", tone: "warning" });
+    if (!isOrganizationAdmin && overtime > 0) alerts.push({ id: "overtime", title: isEmployee ? "Your overtime requests awaiting review" : "Overtime requests awaiting review", count: overtime, href: isEmployee ? "/employee/requests" : isHrManager ? "/hr/work-queue" : "/dm/reviews", tone: "warning" });
     if (leave > 0) {
       if (isOrganizationAdmin) alerts.push({ id: "leave", title: "Leave requests awaiting review", count: leave, href: "/org/leave", tone: "warning" });
       else if (isEmployee || isHrManager) alerts.push({ id: "leave", title: "Your leave requests awaiting review", count: leave, href: isEmployee ? "/employee/leave" : "/hr/modules/leave", tone: "warning" });
