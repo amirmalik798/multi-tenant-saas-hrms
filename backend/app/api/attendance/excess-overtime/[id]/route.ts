@@ -62,7 +62,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         SELECT 1 FROM public.departments md
         WHERE md.organization_id = e.organization_id
           AND md.id = e.department_id
-          AND md.manager_id = ${values.length}::uuid
+          AND md.manager_id = $${values.length}::uuid
       )`;
     }
 
