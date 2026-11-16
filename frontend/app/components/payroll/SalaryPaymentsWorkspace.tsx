@@ -121,7 +121,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   useWorkspaceAutoRefresh(() => load(true), {
     enabled: true,
     intervalMs: 60_000,
-    shouldRefresh: () => !loading && !saving && (!canEdit || !payments.some((payment) => {
+    shouldRefresh: () => !loading && !saving && !paymentConfirmation && (!canEdit || !payments.some((payment) => {
       const draft = drafts[payment.employeeId];
       return !draft ||
         draft.amount !== (payment.amount == null ? "" : String(payment.amount)) ||
