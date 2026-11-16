@@ -562,7 +562,7 @@ export default function AttendanceManagementWorkspace({ audience, initialSection
               <div className="rounded-xl border border-amber-300/15 bg-amber-300/[0.04] p-3"><p className="text-xs text-amber-200/80">Unapproved excess</p><p className="mt-1 text-lg font-bold text-amber-100">{num(row, "excessMinutes") ?? 0} min</p></div>
             </div>
             {str(row, "reviewerNote") && <p className="mt-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 text-sm leading-6 text-slate-300">Reviewer note: {str(row, "reviewerNote")}</p>}
-            {isOpen && <div className="mt-4 space-y-3">
+            {isOpen && !isOwnRecord(row) && <div className="mt-4 space-y-3">
               {noteField(`excess-follow-up`, id, "Required if follow-up is needed; explain what must be checked")}
               <div className="flex flex-wrap gap-2">
                 <button type="button" className={PRIMARY} disabled={Boolean(saving)} onClick={() => void runAction(`excess-reviewed:${id}`, `/attendance/excess-overtime/${encodeURIComponent(id)}`, { decision: "MARK_REVIEWED", reviewerNote: (notes[`excess-follow-up:${id}`] || "").trim() || null }, "Excess time reviewed — no extra pay authorized.")}><CheckCircle2 size={15} />Mark reviewed — no extra pay</button>
@@ -576,6 +576,7 @@ export default function AttendanceManagementWorkspace({ audience, initialSection
                 }}><FileClock size={15} />Request follow-up</button>
               </div>
             </div>}
+            {isOpen && isOwnRecord(row) && <p className="mt-3 text-xs leading-5 text-slate-500">This is your own attendance record. Another authorized reviewer must review the excess time.</p>}
           </article>;
         })}
       </div>
