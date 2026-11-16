@@ -38,10 +38,13 @@ const pool = new Pool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   connectionTimeoutMillis: 5000,
+  ssl: process.env.DB_SSL === "true"
+    ? { rejectUnauthorized: true }
+    : undefined,
 });
 
 async function main() {
-  const email = "amir.malik.798am@gmail.com";
+  const email = "ahsanagardezi512@gmail.com";
   const client = await pool.connect();
 
   let transactionStarted = false;
