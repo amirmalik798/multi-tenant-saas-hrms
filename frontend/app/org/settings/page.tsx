@@ -627,6 +627,7 @@ export default function OrganizationSettingsPage() {
             </div>
           )}
 
+          <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-2 text-xs font-medium text-slate-500"><span>Workspace</span><span aria-hidden="true">/</span><span aria-current="page" className="text-slate-300">Organization Profile &amp; Settings</span></nav>
           <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-[#29384b] bg-[#141f2e]/80 px-5 py-5 shadow-sm backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex min-w-0 items-center gap-3.5">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#75c7ff]/30 bg-[#75c7ff]/10 text-sm font-extrabold text-[#75c7ff]">
