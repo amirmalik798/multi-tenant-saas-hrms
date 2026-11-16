@@ -677,7 +677,13 @@ export default function OrganizationDashboardPage() {
             </div>
           )}
 
-          {/* Minimalist Header Info Bar with Quick Actions & Report Export */}
+          <section aria-labelledby="organization-dashboard-title" className="mb-5">
+            <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-2 text-xs font-medium text-slate-500"><span>Workspace</span><span aria-hidden="true">/</span><span aria-current="page" className="text-slate-300">Dashboard</span></nav>
+            <h1 id="organization-dashboard-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">Dashboard</h1>
+            <p className="mt-1.5 text-sm leading-6 text-slate-400">A live overview of your organization’s workforce and daily operations.</p>
+          </section>
+
+          {/* Organization context and quick actions */}
           <div id="organization-context" className="mb-6 flex flex-col gap-4 rounded-xl border border-[#29384b] bg-[#141f2e]/80 px-6 py-4 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between shadow-sm">
             <div className="flex items-center gap-3.5 min-w-0">
               <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#75c7ff]/30 bg-[#75c7ff]/10 text-[#75c7ff] font-extrabold text-sm">
@@ -691,7 +697,7 @@ export default function OrganizationDashboardPage() {
                 />
               </div>
               <div className="min-w-0">
-                <h1 className="text-base font-bold text-white truncate">{user.organizationName}</h1>
+                <h2 className="text-base font-bold text-white truncate">{user.organizationName}</h2>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2.5 shrink-0">
