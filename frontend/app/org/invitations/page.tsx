@@ -317,6 +317,12 @@ export default function OrganizationInvitationsPage() {
         <div className="mx-auto w-full max-w-[1600px] px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pt-8">
           {logoutError && <div role="alert" className="mb-5 rounded-xl border border-rose-400/30 bg-rose-500/15 p-4 text-sm font-medium text-rose-200">{logoutError}</div>}
 
+          <section aria-labelledby="invitations-page-title" className="mb-6">
+            <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-2 text-xs font-medium text-slate-500"><span>Workspace</span><span aria-hidden="true">/</span><span aria-current="page" className="text-slate-300">Invitations</span></nav>
+            <h1 id="invitations-page-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">Invitations</h1>
+            <p className="mt-1.5 text-sm leading-6 text-slate-400">Track workforce activation invitations, expiry, acceptance and resend history.</p>
+          </section>
+
           {/* Metrics follow the four-card layout used by the Departments directory. */}
           <section aria-label="Invitation metrics" className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {metricCards.map((metric) => (
