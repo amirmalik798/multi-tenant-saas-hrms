@@ -107,6 +107,7 @@ const navGroups: NavGroup[] = [
     label: "Pay & reporting",
     icon: BadgeDollarSign,
     items: [
+      { label: "My earnings", href: "/hr/my-earnings", icon: BadgeDollarSign },
       { label: "Salary payments", href: "/hr/modules/payroll", icon: BadgeDollarSign },
       { label: "Employee pay rates", href: "/hr/modules/pay-rates", icon: BadgeDollarSign },
       { label: "Daily attendance report", href: "/hr/reports", icon: FileBarChart },
