@@ -18,7 +18,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      const current = await client.query(`SELECT r.id, r.employee_id AS "employeeId", r.status, e.department_id AS "departmentId", d.manager_id AS "departmentManagerId" FROM public.leave_requests r JOIN public.employees e ON e.id = r.employee_id AND e.organization_id = r.organization_id LEFT JOIN public.departments d ON d.id = e.department_id AND d.organization_id = e.organization_id WHERE r.id = $1::uuid AND r.organization_id = $2::uuid FOR UPDATE OF r`, [id, actor.organizationId]);
+      const current = await client.query(`SELECT r.id, r.employee_id AS "employeeId", r.status, e.department_id AS "departmentId", d.manager_id AS "departmentManagerId", workforce_role.name AS "workforceRole" FROM public.leave_requests r JOIN public.employees e ON e.id = r.employee_id AND e.organization_id = r.organization_id LEFT JOIN public.departments d ON d.id = e.department_id AND d.organization_id = e.organization_id LEFT JOIN public.roles workforce_role ON workforce_role.id = e.workforce_role_id AND workforce_role.organization_id = e.organization_id WHERE r.id = $1::uuid AND r.organization_id = $2::uuid FOR UPDATE OF r`, [id, actor.organizationId]);
       const row = current.rows[0];
       if (!row) { await client.query("ROLLBACK"); return jsonResponse({ message: "Leave request not found" }, 404); }
       const isEmployee = actor.kind === "ORGANIZATION_USER" && actor.roleName === "EMPLOYEE";
@@ -30,6 +30,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       } else {
         if (!(actor.kind === "ORGANIZATION_ADMIN" || isManager)) { await client.query("ROLLBACK"); return jsonResponse({ message: "You do not have permission to decide leave requests" }, 403); }
         if (isEmployee || (actor.kind === "ORGANIZATION_USER" && row.employeeId === actor.employeeId)) { await client.query("ROLLBACK"); return jsonResponse({ message: "You cannot approve or reject your own leave request" }, 403); }
+        if (row.workforceRole === "HR_MANAGER" && actor.kind !== "ORGANIZATION_ADMIN") { await client.query("ROLLBACK"); return jsonResponse({ message: "HR Manager leave requests must be reviewed by the Organization Admin" }, 403); }
         if (isManager && row.departmentManagerId !== actor.employeeId) { await client.query("ROLLBACK"); return jsonResponse({ message: "You can decide requests only for employees in your managed departments" }, 403); }
         if (row.status !== "PENDING") { await client.query("ROLLBACK"); return jsonResponse({ message: "Only pending leave requests can be decided" }, 409); }
         if (status === "APPROVED") {
