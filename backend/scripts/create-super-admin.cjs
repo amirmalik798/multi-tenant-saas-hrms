@@ -41,7 +41,7 @@ const pool = new Pool({
 });
 
 async function main() {
-  const email = "amir.malik.798am@gmail.com";
+  const email = "ahsanagardezi512@gmail.com";
   const client = await pool.connect();
 
   let transactionStarted = false;
