@@ -45,7 +45,7 @@ const OVERTIME_SELECT = `
    AND d.organization_id = e.organization_id
 `;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const actor = await getTenantPermissionActor();
 
@@ -87,6 +87,13 @@ export async function GET() {
             AND managed_department.manager_id = $${values.length}::uuid
         )
       )`);
+    } else if (
+      actor.kind === "ORGANIZATION_USER" &&
+      actor.roleName === "HR_MANAGER" &&
+      new URL(request.url).searchParams.get("scope") === "self"
+    ) {
+      values.push(actor.employeeId);
+      conditions.push(`o.employee_id = $ ${values.length}::uuid`.replace("$ ", "$"));
     } else if (
       !(
         actor.kind === "ORGANIZATION_ADMIN" ||
@@ -224,12 +231,12 @@ export async function POST(request: Request) {
 
     if (
       actor.kind !== "ORGANIZATION_USER" ||
-      !(actor.roleName === "EMPLOYEE" || actor.roleName === "DEPARTMENT_MANAGER")
+      !(actor.roleName === "EMPLOYEE" || actor.roleName === "DEPARTMENT_MANAGER" || actor.roleName === "HR_MANAGER")
     ) {
       return jsonResponse(
         {
           message:
-            "Employees and Department Managers can submit overtime requests for their own record",
+            "Employees, Department Managers, and HR Managers can submit overtime requests for their own record",
         },
         403,
       );
