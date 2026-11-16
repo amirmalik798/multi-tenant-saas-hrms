@@ -27,17 +27,14 @@ function validDate(value: unknown): value is string {
 }
 
 function canManageRates(actor: Awaited<ReturnType<typeof getTenantPermissionActor>>) {
-  return Boolean(actor && (
-    actor.kind === "ORGANIZATION_ADMIN" ||
-    (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER")
-  ));
+  return Boolean(actor && actor.kind === "ORGANIZATION_ADMIN");
 }
 
 export async function GET(request: Request) {
   try {
     const actor = await getTenantPermissionActor();
     if (!actor) return json({ message: "Authentication required" }, 401);
-    if (!canManageRates(actor)) return json({ message: "Only an Organization Admin or HR Manager can manage employee pay rates" }, 403);
+    if (!canManageRates(actor)) return json({ message: "Only the Organization Admin can manage workforce pay rates" }, 403);
     if (!(await organizationIsActive(pool, actor.organizationId))) return json({ message: "This organization is not active" }, 403);
 
     const url = new URL(request.url);
@@ -65,7 +62,7 @@ export async function GET(request: Request) {
       [actor.organizationId, employeeId],
     );
     if (!target.rowCount) return json({ message: "Employee not found in this organization" }, 404);
-    if (isExcludedHrTargetRole(target.rows[0].workforce_role, { allowHrManager: actor.kind === "ORGANIZATION_ADMIN" }) || target.rows[0].is_organization_admin) {
+    if (isExcludedHrTargetRole(target.rows[0].workforce_role, { allowHrManager: true }) && !target.rows[0].is_organization_admin || target.rows[0].is_organization_admin) {
       return json({ message: "Organization Admin records are not eligible for employee pay rates" }, 403);
     }
 
@@ -160,7 +157,7 @@ export async function PUT(request: Request) {
       await client.query("ROLLBACK");
       return json({ message: "Employee not found in this organization" }, 404);
     }
-    if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: actor.kind === "ORGANIZATION_ADMIN" }) || employee.rows[0].is_organization_admin) {
+    if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: true }) && !employee.rows[0].is_organization_admin || employee.rows[0].is_organization_admin) {
       await client.query("ROLLBACK");
       return json({ message: "Organization Admin records are not eligible for employee pay rates" }, 403);
     }
