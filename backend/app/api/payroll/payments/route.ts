@@ -18,7 +18,7 @@ function validMonth(value: string | null): value is string {
   return year >= 2000 && year <= 2100 && month >= 1 && month <= 12;
 }
 function canManage(actor: NonNullable<Awaited<ReturnType<typeof getTenantPermissionActor>>>) {
-  return actor.kind === "ORGANIZATION_ADMIN" || (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER");
+  return actor.kind === "ORGANIZATION_ADMIN";
 }
 
 export async function GET(request: Request) {
@@ -163,7 +163,7 @@ export async function PUT(request: Request) {
   try {
     const actor = await getTenantPermissionActor();
     if (!actor) return json({ message: "Authentication required" }, 401);
-    if (!canManage(actor)) return json({ message: "Only an Organization Admin or HR Manager can record salary payments" }, 403);
+    if (!canManage(actor)) return json({ message: "Only the Organization Admin can record salary payments" }, 403);
     if (!(await organizationIsActive(pool, actor.organizationId))) return json({ message: "This organization is not active" }, 403);
     const parsedBody = await parseJsonRequestBody(request);
     if (!parsedBody.ok) return parsedBody.response;
@@ -199,7 +199,7 @@ export async function PUT(request: Request) {
       [employeeId, actor.organizationId],
     );
     if (!employee.rowCount) { await client.query("ROLLBACK"); return json({ message: "Employee not found in this organization" }, 404); }
-    if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: actor.kind === "ORGANIZATION_ADMIN" }) || employee.rows[0].is_organization_admin) {
+    if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: true }) && !employee.rows[0].is_organization_admin || employee.rows[0].is_organization_admin) {
       await client.query("ROLLBACK");
       return json({ message: "Organization Admin records are not eligible for salary payments" }, 403);
     }
