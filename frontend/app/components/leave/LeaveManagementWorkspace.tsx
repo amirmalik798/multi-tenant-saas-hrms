@@ -75,7 +75,7 @@ export default function LeaveManagementWorkspace({ audience }: { audience: Audie
   useWorkspaceAutoRefresh(() => load(true), {
     enabled: true,
     intervalMs: 60_000,
-    shouldRefresh: () => !loading && !saving,
+    shouldRefresh: () => !loading && !saving && !dialog,
   });
 
   const visibleRequests = useMemo(() => requests.filter((r) => (filter === "ALL" || r.status === filter) && `${r.firstName ?? ""} ${r.lastName ?? ""} ${r.employeeCode ?? ""} ${r.departmentName ?? ""} ${r.leaveType} ${r.reason}`.toLowerCase().includes(search.toLowerCase())), [requests, filter, search]);
