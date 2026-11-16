@@ -50,7 +50,7 @@ async function loadEligibleEmployeeIds(audience: Props["audience"]) {
 }
 
 export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeEmployeeId }: Props) {
-  const canEdit = audience === "organization-admin";
+  const canEdit = audience === "hr-manager" || audience === "organization-admin";
   const [month, setMonth] = useState(monthNow);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
