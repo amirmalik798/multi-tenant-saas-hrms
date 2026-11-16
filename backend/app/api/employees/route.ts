@@ -1097,7 +1097,6 @@ export async function POST(request: Request) {
                 city,
                 designation,
                 manager_id,
-                reporting_manager_user_id,
                 joining_date,
                 employment_status,
                 department_id,
