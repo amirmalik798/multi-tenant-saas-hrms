@@ -161,7 +161,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   async function save(employeeId: string, confirmed = false) {
     const draft = drafts[employeeId]; if (!draft) return;
     const currentPayment = payments.find((payment) => payment.employeeId === employeeId);
-    if (draft.status === "PAID" && currentPayment?.status !== "PAID" && !confirmed) {
+    const currentStatus = currentPayment?.status === "PAID" ? "PAID" : "UNPAID";
+    if (draft.status !== currentStatus && (draft.status === "PAID" || currentStatus === "PAID") && !confirmed) {
       setPaymentConfirmation(currentPayment || null);
       return;
     }
@@ -228,9 +229,9 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setPaymentConfirmation(null); }}>
         <section ref={paymentConfirmationRef} tabIndex={-1} role="alertdialog" aria-modal="true" aria-labelledby="payroll-confirm-title" aria-describedby="payroll-confirm-description" className="w-full max-w-md rounded-2xl border border-amber-300/20 bg-[#111a28] p-5 text-white shadow-2xl sm:p-6">
           <span className="flex size-11 items-center justify-center rounded-xl border border-amber-300/20 bg-amber-300/10 text-amber-200"><AlertTriangle size={20}/></span>
-          <h2 id="payroll-confirm-title" className="mt-4 text-lg font-bold">Confirm salary payment record</h2>
+          <h2 id="payroll-confirm-title" className="mt-4 text-lg font-bold">Confirm payment status change</h2>
           <p id="payroll-confirm-description" className="mt-2 text-sm leading-6 text-slate-300">
-            You are about to mark the calculated salary for {[paymentConfirmation.firstName, paymentConfirmation.lastName].filter(Boolean).join(" ") || paymentConfirmation.employeeCode || "this employee"} as paid for {month}. Confirm that the payment has actually been made before recording this status.
+            {drafts[paymentConfirmation.employeeId]?.status === "PAID" ? "You are about to mark the calculated salary for " + ([paymentConfirmation.firstName, paymentConfirmation.lastName].filter(Boolean).join(" ") || paymentConfirmation.employeeCode || "this employee") + " as paid for " + month + ". Confirm that the payment has actually been made before recording this status." : "You are about to change the payment record for " + ([paymentConfirmation.firstName, paymentConfirmation.lastName].filter(Boolean).join(" ") || paymentConfirmation.employeeCode || "this employee") + " to unpaid for " + month + ". Confirm that this correction is intentional."}
           </p>
           <div className="mt-4 rounded-xl border border-white/[0.08] bg-black/15 p-4">
             <p className="text-xs text-slate-500">Calculated amount</p>
@@ -243,7 +244,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             <button type="button" disabled={Boolean(saving)} onClick={() => setPaymentConfirmation(null)} className="min-h-10 rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/[0.05] disabled:opacity-50">Go back</button>
             <button type="button" disabled={Boolean(saving)} onClick={() => void save(paymentConfirmation.employeeId, true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-2 text-sm font-bold text-[#07111d] hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-50">
               {saving ? <RefreshCw size={15} className="animate-spin"/> : <CheckCircle2 size={15}/>}
-              {saving ? "Saving…" : "Confirm marked as paid"}
+              {saving ? "Saving…" : drafts[paymentConfirmation.employeeId]?.status === "PAID" ? "Confirm marked as paid" : "Confirm marked as unpaid"}
             </button>
           </div>
         </section>
