@@ -381,6 +381,8 @@ export default function DepartmentsPage() {
   const [drawerError, setDrawerError] = useState("");
   const [drawerNotice, setDrawerNotice] = useState("");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [actionConfirmation, setActionConfirmation] = useState<{ title: string; description: string; confirmLabel: string; onConfirm: () => void } | null>(null);
+  const confirmedDeactivationSaveRef = useRef(false);
   const [form, setForm] = useState<DepartmentForm>(initialForm);
   const [baselineForm, setBaselineForm] = useState<DepartmentForm>(initialForm);
   const [managerCandidates, setManagerCandidates] = useState<DepartmentManagerCandidate[]>([]);
@@ -743,14 +745,18 @@ export default function DepartmentsPage() {
     setSelectedDepartmentIds(next);
   };
 
-  const handleBulkStatusChange = async (targetStatus: "ACTIVE" | "INACTIVE") => {
+  const handleBulkStatusChange = async (targetStatus: "ACTIVE" | "INACTIVE", confirmed = false) => {
     if (selectedDepartmentIds.size === 0 || bulkUpdating) return;
-    if (
-      targetStatus === "INACTIVE" &&
-      !window.confirm(
-        `Deactivate ${selectedDepartmentIds.size} selected department(s)? All currently active employees assigned to those departments will also be marked inactive. Former employees will remain former.`,
-      )
-    ) return;
+    if (targetStatus === "INACTIVE" && !confirmed) {
+      const count = selectedDepartmentIds.size;
+      setActionConfirmation({
+        title: "Deactivate selected departments?",
+        description: "This will deactivate " + count + " selected department(s). All currently active employees assigned to those departments will also be marked inactive. Former employees will remain former.",
+        confirmLabel: "Deactivate departments",
+        onConfirm: () => { setActionConfirmation(null); void handleBulkStatusChange("INACTIVE", true); },
+      });
+      return;
+    }
 
     setBulkUpdating(true);
     setNotice("");
@@ -988,10 +994,18 @@ export default function DepartmentsPage() {
     }
   }
 
-  async function handleToggleDepartmentStatus(department: Department) {
+  async function handleToggleDepartmentStatus(department: Department, confirmed = false) {
     const currentStatus = normalizeStatus(department.status);
     const nextStatus = currentStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
-    if (nextStatus === "INACTIVE" && !window.confirm(`Deactivate "${department.name}"? All currently active employees assigned to this department will also be marked inactive. Former employees will remain former.`)) return;
+    if (nextStatus === "INACTIVE" && !confirmed) {
+      setActionConfirmation({
+        title: "Deactivate department?",
+        description: "Deactivate “" + department.name + "”? All currently active employees assigned to this department will also be marked inactive. Former employees will remain former.",
+        confirmLabel: "Deactivate department",
+        onConfirm: () => { setActionConfirmation(null); void handleToggleDepartmentStatus(department, true); },
+      });
+      return;
+    }
     try {
       const response = await fetch(`/api/backend/departments/${encodeURIComponent(department.id)}`, {
         method: "PATCH",
@@ -1024,6 +1038,8 @@ export default function DepartmentsPage() {
 
   async function handleSubmitDepartment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const confirmedDeactivation = confirmedDeactivationSaveRef.current;
+    confirmedDeactivationSaveRef.current = false;
     setDrawerError("");
     setDrawerNotice("");
     setSubmitAttempted(true);
@@ -1051,8 +1067,22 @@ export default function DepartmentsPage() {
       selectedDepartment &&
       normalizeStatus(selectedDepartment.status) === "ACTIVE" &&
       form.status === "INACTIVE" &&
-      !window.confirm(`Deactivate "${selectedDepartment.name}"? All currently active employees assigned to this department will also be marked inactive. Former employees will remain former.`)
-    ) return;
+      !confirmedDeactivation
+    ) {
+      setActionConfirmation({
+        title: "Deactivate department and workforce?",
+        description: "Deactivate “" + selectedDepartment.name + "”? All currently active employees assigned to this department will also be marked inactive. Former employees will remain former.",
+        confirmLabel: "Confirm deactivation and save",
+        onConfirm: () => {
+          confirmedDeactivationSaveRef.current = true;
+          setActionConfirmation(null);
+          window.requestAnimationFrame(() => {
+            (document.getElementById("department-drawer-form") as HTMLFormElement | null)?.requestSubmit();
+          });
+        },
+      });
+      return;
+    }
     setSaving(true);
     try {
       const editPayload: { name: string; status: "ACTIVE" | "INACTIVE"; manager_id?: string | null } = {
@@ -1781,6 +1811,20 @@ export default function DepartmentsPage() {
             )}
           </footer>
         </aside>
+
+        {actionConfirmation && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md" onMouseDown={(event) => { if (event.target === event.currentTarget && !bulkUpdating && !saving) setActionConfirmation(null); }}>
+            <section role="alertdialog" aria-modal="true" aria-labelledby="department-action-confirm-title" aria-describedby="department-action-confirm-description" className="w-full max-w-md rounded-2xl border border-rose-400/20 bg-[#111a28] p-6 text-white shadow-2xl">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-amber-400/25 bg-amber-400/10 text-amber-200"><Icon name="alert" size={20}/></span>
+              <h2 id="department-action-confirm-title" className="mt-4 text-lg font-bold">{actionConfirmation.title}</h2>
+              <p id="department-action-confirm-description" className="mt-2 text-sm leading-6 text-slate-300">{actionConfirmation.description}</p>
+              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button type="button" onClick={() => setActionConfirmation(null)} className="min-h-10 rounded-xl border border-[#29384b] px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/[0.06]">Cancel</button>
+                <button type="button" onClick={actionConfirmation.onConfirm} className="min-h-10 rounded-xl border border-rose-300/20 bg-rose-400/10 px-4 py-2 text-sm font-bold text-rose-100 hover:bg-rose-400/15">{actionConfirmation.confirmLabel}</button>
+              </div>
+            </section>
+          </div>
+        )}
 
         {confirmDiscard && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
