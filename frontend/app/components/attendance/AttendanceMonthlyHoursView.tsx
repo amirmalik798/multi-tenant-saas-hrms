@@ -33,7 +33,7 @@ type Entry = {
   leaveRequest?: { leaveType?: string; status?: string; isPaid?: boolean } | null;
   publicHoliday?: { name?: string; isPaid?: boolean } | null;
 };
-type Props = { audience: "employee" | "department-manager" | "hr-manager" | "organization-admin"; actorEmployeeId?: string };
+type Props = { audience: "employee" | "hr-manager-self" | "department-manager" | "hr-manager" | "organization-admin"; actorEmployeeId?: string };
 
 function monthInTimeZone(date: Date, timeZone: string): string {
   try {
@@ -88,7 +88,7 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
   const [payrollEstimateLoading, setPayrollEstimateLoading] = useState(false);
   const [payrollEstimateError, setPayrollEstimateError] = useState("");
   const loadRequestId = useRef(0);
-  const isEmployee = audience === "employee";
+  const isEmployee = audience === "employee" || audience === "hr-manager-self";
   const isHr = audience === "hr-manager" || audience === "organization-admin";
 
   const load = useCallback(async (silent = false) => {
@@ -103,7 +103,8 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
       // Retrieve every page so manager totals and employee selection are not
       // silently limited to the first 2,000 rows.
       while (true) {
-        const response = await fetch(`/api/backend/attendance/calendar?fromDate=${range.from}&toDate=${range.to}&offset=${offset}`, { credentials: "same-origin", cache: "no-store" });
+        const scopeQuery = audience === "hr-manager-self" ? "&scope=self" : "";
+        const response = await fetch(`/api/backend/attendance/calendar?fromDate=${range.from}&toDate=${range.to}&offset=${offset}${scopeQuery}`, { credentials: "same-origin", cache: "no-store" });
         const payload: unknown = await response.json().catch(() => null);
         if (requestId !== loadRequestId.current) return;
         if (!response.ok) {
@@ -140,7 +141,7 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
         setLoading(false);
       }
     }
-  }, [month]);
+  }, [month, audience]);
 
   useEffect(() => {
     void load();
