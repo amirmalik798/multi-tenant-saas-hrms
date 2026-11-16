@@ -414,10 +414,9 @@ export default function OrganizationLicensePage() {
           </div>
 
           {error && (
-            <div role="alert" className="mb-5 flex items-start gap-2 rounded-xl border border-rose-400/25 bg-rose-500/10 p-3.5 text-sm text-rose-200">
-              <AlertCircle size={17} className="mt-0.5 shrink-0" />
-              <span className="min-w-0 flex-1">{error}</span>
-
+            <div role="alert" className="mb-5 flex flex-col gap-3 rounded-xl border border-rose-400/25 bg-rose-500/10 p-3.5 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between">
+              <span className="flex min-w-0 items-start gap-2"><AlertCircle size={17} className="mt-0.5 shrink-0" />{error}</span>
+              <button type="button" onClick={() => void loadLicense()} disabled={loading || refreshing} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">Retry</button>
             </div>
           )}
 
