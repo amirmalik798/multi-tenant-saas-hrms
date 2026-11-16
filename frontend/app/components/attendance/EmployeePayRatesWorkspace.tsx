@@ -26,7 +26,7 @@ async function api(path: string, init: RequestInit = {}) {
 function name(employee: Employee) {
   return [employee.first_name, employee.last_name].filter(Boolean).join(" ") || employee.employee_code || "Employee";
 }
-function isExcludedHrTarget(employee: Employee) {
+function isExcludedHrTarget(employee: Employee, allowHrManager = false) {
   const normalizeRole = (value: unknown): string[] => {
     if (typeof value === "string") return [value.toUpperCase().trim().replace(/[^A-Z0-9]+/g, "_")];
     if (value && typeof value === "object") {
@@ -45,16 +45,21 @@ function isExcludedHrTarget(employee: Employee) {
     ...normalizeRole(employee.user_role),
     ...normalizeRole(employee.user?.role),
   ];
-  return roleValues.some((role) =>
-    ["ORGANIZATION_ADMIN", "ORG_ADMIN", "ORGANIZATIONADMIN", "ORGANIZATION_ADMINISTRATOR", "ORGANIZATION_OWNER", "ORG_OWNER", "TENANT_ADMIN", "ADMINISTRATOR", "HR_MANAGER", "HRMANAGER"].includes(role) ||
+  const isOrganizationAdmin = roleValues.some((role) =>
+    ["ORGANIZATION_ADMIN", "ORG_ADMIN", "ORGANIZATIONADMIN", "ORGANIZATION_ADMINISTRATOR", "ORGANIZATION_OWNER", "ORG_OWNER", "TENANT_ADMIN", "ADMINISTRATOR"].includes(role) ||
     role.startsWith("ORGANIZATION_ADMIN_") || role.startsWith("ORGANIZATIONADMIN_") ||
-    role.startsWith("ORG_ADMIN_") || role.startsWith("HR_MANAGER_") || role.startsWith("HRMANAGER_"),
+    role.startsWith("ORG_ADMIN_") || role.startsWith("ORGANIZATION_OWNER_") ||
+    role.startsWith("ORG_OWNER_") || role.startsWith("TENANT_ADMIN_"),
   );
+  const isHrManager = roleValues.some((role) =>
+    ["HR_MANAGER", "HRMANAGER"].includes(role) || role.startsWith("HR_MANAGER_") || role.startsWith("HRMANAGER_"),
+  );
+  return isOrganizationAdmin || (isHrManager && !allowHrManager);
 }
 const INPUT = "mt-1.5 w-full rounded-xl border border-slate-700 bg-[#0b111b] px-3.5 py-3 text-sm text-slate-100 outline-none focus:border-sky-400";
 const PRIMARY = "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50";
 
-export default function EmployeePayRatesWorkspace() {
+export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: { audience?: "hr-manager" | "organization-admin" }) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [employeeId, setEmployeeId] = useState("");
   const [rates, setRates] = useState<Rate[]>([]);
@@ -88,7 +93,7 @@ export default function EmployeePayRatesWorkspace() {
         if (!Array.isArray(next.employees)) throw new Error("The employee list response was incomplete. Try again in a moment.");
         responseRows.push(...next.employees as Employee[]);
       }
-      const rows = responseRows.filter((employee) => !isExcludedHrTarget(employee));
+      const rows = responseRows.filter((employee) => !isExcludedHrTarget(employee, audience === "organization-admin"));
       setEmployees(rows);
       setEmployeeId((current) => rows.some((employee) => employee.id === current) ? current : rows[0]?.id || "");
     } catch (caught) {
@@ -96,7 +101,7 @@ export default function EmployeePayRatesWorkspace() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [audience]);
 
   const loadRates = useCallback(async () => {
     const requestId = ++rateRequestId.current;
