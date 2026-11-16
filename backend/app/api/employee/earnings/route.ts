@@ -78,7 +78,7 @@ export async function GET(request: Request) {
     if (!actor) return json({ message: "Authentication required" }, 401);
     if (
       actor.kind !== "ORGANIZATION_USER" ||
-      (actor.roleName !== "EMPLOYEE" && actor.roleName !== "DEPARTMENT_MANAGER") ||
+      (actor.roleName !== "EMPLOYEE" && actor.roleName !== "DEPARTMENT_MANAGER" && actor.roleName !== "HR_MANAGER") ||
       !actor.employeeId
     ) {
       return json({ message: "This endpoint is only available to an authenticated workforce member" }, 403);
