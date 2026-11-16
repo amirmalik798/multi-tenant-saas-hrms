@@ -3,6 +3,12 @@ BEGIN;
 ALTER TABLE public.employees
   ADD COLUMN IF NOT EXISTS reporting_manager_user_id uuid;
 
+-- The composite foreign key below also needs a matching unique key on the
+-- tenant/user pair. users.id is globally unique, so this index is redundant
+-- for lookup but makes tenant ownership part of the FK contract.
+CREATE UNIQUE INDEX IF NOT EXISTS users_organization_id_id_uq
+  ON public.users (organization_id, id);
+
 DO $$
 BEGIN
   ALTER TABLE public.employees
