@@ -58,8 +58,16 @@ export async function GET(request: Request) {
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORG_OWNER%'
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'TENANT_ADMIN%'
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ADMINISTRATOR%'
-         AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'HR_MANAGER%'
-         AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'HRMANAGER%'
+         AND (
+           $7::boolean
+           OR (
+             (
+               COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'HR_MANAGER%'
+               AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'HRMANAGER%'
+             )
+             OR e.id = $5::uuid
+           )
+         )
          AND NOT EXISTS (
            SELECT 1
            FROM public.users AS target_account
@@ -105,7 +113,7 @@ export async function GET(request: Request) {
                   AND md.manager_id = $5::uuid
               ))))
        ORDER BY e.first_name, e.last_name, e.employee_code`,
-      [actor.organizationId, start, canManage(actor), isEmployee, actor.kind === "ORGANIZATION_USER" ? actor.employeeId : null, isDm],
+      [actor.organizationId, start, canManage(actor), isEmployee, actor.kind === "ORGANIZATION_USER" ? actor.employeeId : null, isDm, actor.kind === "ORGANIZATION_ADMIN"],
     );
     const calculated = await calculateOrganizationMonthlyPay(pool, actor.organizationId, month);
     const payments = result.rows.map((row) => {
@@ -191,9 +199,9 @@ export async function PUT(request: Request) {
       [employeeId, actor.organizationId],
     );
     if (!employee.rowCount) { await client.query("ROLLBACK"); return json({ message: "Employee not found in this organization" }, 404); }
-    if (isExcludedHrTargetRole(employee.rows[0].workforce_role) || employee.rows[0].is_organization_admin) {
+    if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: actor.kind === "ORGANIZATION_ADMIN" }) || employee.rows[0].is_organization_admin) {
       await client.query("ROLLBACK");
-      return json({ message: "Organization Admin and HR Manager records are not eligible for salary payments" }, 403);
+      return json({ message: "Organization Admin records are not eligible for salary payments" }, 403);
     }
     if (!calculatedEmployee || calculatedEmployee.payableMinutes <= 0) {
       await client.query("ROLLBACK");
