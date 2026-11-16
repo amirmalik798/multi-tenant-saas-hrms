@@ -10,7 +10,7 @@ export default function OrganizationCommunicationsPage() {
       title="Messages"
       description="Communicate with your workforce and manage organization conversations."
     >
-      <CommunicationWorkspace role="ORGANIZATION_ADMIN" />
+      <CommunicationWorkspace roleLabel="Organization Admin" />
     </OrganizationAdminHRModuleShell>
   );
 }
