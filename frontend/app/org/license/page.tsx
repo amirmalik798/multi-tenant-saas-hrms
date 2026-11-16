@@ -258,7 +258,7 @@ export default function OrganizationLicensePage() {
 
   useOrganizationAdminAutoRefresh(() => loadLicense(true), {
     enabled: Boolean(user),
-    shouldRefresh: () => !loading && !refreshing && !submittingPayment && !proofPayment,
+    shouldRefresh: () => !loading && !refreshing && !submittingPayment && !proofPayment && !confirmPaymentSubmission,
   });
 
   useEffect(() => {
