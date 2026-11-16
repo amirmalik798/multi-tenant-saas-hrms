@@ -75,7 +75,7 @@ export async function GET() {
       leaveValues,
     );
     let recentLeaveDecisions = 0;
-    if (isEmployee && actor.kind === "ORGANIZATION_USER") {
+    if ((isEmployee || isHrManager) && actor.kind === "ORGANIZATION_USER") {
       const decisions = await pool.query(
         `SELECT COUNT(*)::int AS count FROM public.leave_requests r WHERE r.organization_id = $1::uuid AND r.employee_id = $2::uuid AND r.status IN ('APPROVED', 'REJECTED') AND r.decision_at >= now() - interval '7 days'`,
         [actor.organizationId, actor.employeeId],
@@ -108,7 +108,7 @@ export async function GET() {
       else if (isEmployee || isHrManager) alerts.push({ id: "leave", title: "Your leave requests awaiting review", count: leave, href: isEmployee ? "/employee/leave" : "/hr/modules/leave", tone: "warning" });
       else if (isDepartmentManager) alerts.push({ id: "leave", title: "Leave requests awaiting review", count: leave, href: "/dm/leave", tone: "warning" });
     }
-    if (isEmployee && recentLeaveDecisions > 0) alerts.push({ id: "leave-decisions", title: "Leave requests recently approved or declined", count: recentLeaveDecisions, href: "/employee/leave", tone: "info" });
+    if (recentLeaveDecisions > 0 && (isEmployee || isHrManager)) alerts.push({ id: "leave-decisions", title: "Your leave requests recently approved or declined", count: recentLeaveDecisions, href: isEmployee ? "/employee/leave" : "/hr/modules/leave", tone: "info" });
     if (unpaidSalaryPayments > 0) alerts.push({ id: "salary", title: "Unpaid salary records for this month", count: unpaidSalaryPayments, href: isOrganizationAdmin ? "/org/payroll" : "/hr/modules/payroll", tone: "info" });
     if (unreadMessages > 0) alerts.push({ id: "messages", title: "Unread messages", count: unreadMessages, href: isEmployee ? "/employee/communications" : isDepartmentManager ? "/dm/communications" : isHrManager ? "/hr/communications" : "/org/communications", tone: "info" });
 
