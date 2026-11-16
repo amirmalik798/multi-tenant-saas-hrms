@@ -15,7 +15,7 @@ import {
   Send,
   type LucideIcon,
 } from "lucide-react";
-import { useEmployeeWorkspaceUser } from "../employee/EmployeeChrome";
+import { useEmployeeWorkspaceUser, type EmployeeWorkspaceUser } from "../employee/EmployeeChrome";
 import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 import AttendanceMonthlyHoursView from "./AttendanceMonthlyHoursView";
 import { formatDateTime, formatTime } from "../../../lib/attendance-format";
@@ -343,8 +343,10 @@ function SectionError({ message }: { message: string }) {
   return message ? <div role="alert" className="mb-4 break-words rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm leading-6 text-rose-200">{message}</div> : null;
 }
 
-export default function EmployeeAttendanceWorkspace() {
-  const user = useEmployeeWorkspaceUser();
+export default function EmployeeAttendanceWorkspace({ userOverride }: { userOverride?: EmployeeWorkspaceUser | null } = {}) {
+  const contextUser = useEmployeeWorkspaceUser();
+  const user = userOverride === undefined ? contextUser : userOverride;
+  const isHrManagerSelf = user?.role === "HR_MANAGER";
   const [today, setToday] = useState("");
   const [calendarTimeZoneFromServer, setCalendarTimeZoneFromServer] = useState("");
   const [calendarTodayFromServer, setCalendarTodayFromServer] = useState("");
@@ -428,12 +430,13 @@ export default function EmployeeAttendanceWorkspace() {
     if (!silent) setLoading(true);
     setServerClockStatus("");
     try {
-      const query = `?fromDate=${encodeURIComponent(loadedFromDate)}&toDate=${encodeURIComponent(loadedToDate)}`;
+      const scopeQuery = isHrManagerSelf ? "&scope=self" : "";
+      const query = `?fromDate=${encodeURIComponent(loadedFromDate)}&toDate=${encodeURIComponent(loadedToDate)}${scopeQuery}`;
       const [calendar, eventsResult, corrections, overtime, leaveRequests, holidays] = await Promise.all([
         section(`/attendance/calendar${query}`, "entries"),
         (async () => {
           try {
-            const payload = await api("/attendance/events");
+            const payload = await api(isHrManagerSelf ? "/attendance/events?scope=self" : "/attendance/events");
             const rawClockStatus = isRecord(payload)
               ? payload.clockStatus ?? (isRecord(payload.data) ? payload.data.clockStatus : undefined)
               : undefined;
@@ -486,7 +489,7 @@ export default function EmployeeAttendanceWorkspace() {
     } finally {
       setLoading(false);
     }
-  }, [loadedFromDate, loadedToDate]);
+  }, [loadedFromDate, loadedToDate, isHrManagerSelf]);
 
   useWorkspaceAutoRefresh(() => loadAttendance(true), {
     intervalMs: 60_000,
@@ -494,10 +497,10 @@ export default function EmployeeAttendanceWorkspace() {
   });
 
   useEffect(() => {
-    if (user?.role === "EMPLOYEE" && loadedFromDate && loadedToDate) {
+    if ((user?.role === "EMPLOYEE" || user?.role === "HR_MANAGER") && loadedFromDate && loadedToDate) {
       void loadAttendance();
     }
-  }, [user, loadedFromDate, loadedToDate, loadAttendance]);
+  }, [user?.role, loadedFromDate, loadedToDate, loadAttendance]);
 
   const calendarTimeZone = calendarTimeZoneFromServer || text(
     records.calendar.find((row) => text(row, "timeZone")) ?? {},
@@ -801,7 +804,7 @@ export default function EmployeeAttendanceWorkspace() {
     setActiveTab("calendar");
   }
 
-  if (!user || user.role !== "EMPLOYEE") return null;
+  if (!user || (user.role !== "EMPLOYEE" && user.role !== "HR_MANAGER")) return null;
 
   const tabLabel = TABS.find((tab) => tab.id === activeTab)?.label ?? "Attendance";
 
@@ -810,7 +813,7 @@ export default function EmployeeAttendanceWorkspace() {
       <header className="employee-attendance-page-header flex min-w-0 flex-col justify-between gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4 pb-5 sm:flex-row sm:items-end sm:p-5">
         <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-sky-300">
-            My work · Attendance
+            {isHrManagerSelf ? "HR Manager · My attendance" : "My work · Attendance"}
           </p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">
             Attendance &amp; time
@@ -1280,7 +1283,7 @@ export default function EmployeeAttendanceWorkspace() {
         )}
 
         {activeTab === "monthly" && (
-          <AttendanceMonthlyHoursView audience="employee" />
+          <AttendanceMonthlyHoursView audience={isHrManagerSelf ? "hr-manager-self" : "employee"} actorEmployeeId={user.employeeId} />
         )}
 
 
