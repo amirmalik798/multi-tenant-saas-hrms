@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { OrganizationAdminSidebar, OrganizationAdminHeader, useOrganizationAdminAutoRefresh } from "../../components/org-admin/OrganizationAdminChrome";
 import EmployeeProfilePhoto from "../../components/employee/EmployeeProfilePhoto";
 import Link from "next/link";
+import AttendanceAlerts from "../../components/notifications/AttendanceAlerts";
 
 type OrgAdminUser = {
   id: string;
@@ -713,6 +714,10 @@ export default function OrganizationDashboardPage() {
                 <Icon name="mail" size={14} /> Platform Support
               </Link>
             </div>
+          </div>
+
+          <div className="mb-6">
+            <AttendanceAlerts />
           </div>
 
           {/* Metrics Grid with Shimmer Skeleton Loaders */}
