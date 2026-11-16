@@ -22,10 +22,8 @@ CREATE INDEX IF NOT EXISTS idx_employees_reporting_manager_user
 -- their tenant. Keep manager_id reserved for the workforce hierarchy
 -- (Department Manager -> HR Manager -> Employee).
 UPDATE public.employees AS e
-SET reporting_manager_user_id = admin_account.id
-FROM public.roles AS workforce_role
-JOIN LATERAL (
-  SELECT u.id, u.organization_id
+SET reporting_manager_user_id = (
+  SELECT u.id
   FROM public.users AS u
   JOIN public.roles AS account_role
     ON account_role.id = u.role_id
@@ -38,11 +36,15 @@ JOIN LATERAL (
       IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR')
   ORDER BY u.created_at ASC, u.id ASC
   LIMIT 1
-) AS admin_account ON admin_account.organization_id = e.organization_id
-WHERE workforce_role.id = e.workforce_role_id
-  AND workforce_role.organization_id = e.organization_id
-  AND workforce_role.scope = 'ORGANIZATION'
-  AND workforce_role.name = 'HR_MANAGER'
-  AND e.reporting_manager_user_id IS NULL;
+)
+WHERE e.reporting_manager_user_id IS NULL
+  AND EXISTS (
+    SELECT 1
+    FROM public.roles AS workforce_role
+    WHERE workforce_role.id = e.workforce_role_id
+      AND workforce_role.organization_id = e.organization_id
+      AND workforce_role.scope = 'ORGANIZATION'
+      AND workforce_role.name = 'HR_MANAGER'
+  );
 
 COMMIT;
