@@ -592,7 +592,7 @@ export default function OrganizationChartPage() {
     >
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_bottom_right,rgba(35,91,130,0.06),transparent_42%)]" />
       <OrganizationAdminSidebar activePage="organization-chart" />
-      <main className="relative z-10 min-h-screen lg:ml-64">
+      <main id="org-admin-main-content" tabIndex={-1} className="relative z-10 min-h-screen lg:ml-64">
         <OrganizationAdminHeader
           activePage="organization-chart"
           organizationName={user?.organizationName || "Organization"}
