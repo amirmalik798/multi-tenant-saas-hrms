@@ -234,7 +234,7 @@ export default function OrganizationAdminProfilePage() {
   return (
     <div className="org-admin-workspace min-h-screen bg-[#0b0f17] font-sans text-slate-100">
       <OrganizationAdminSidebar activePage="profile" />
-      <main className="min-h-screen lg:ml-64">
+      <main id="org-admin-main-content" tabIndex={-1} className="min-h-screen lg:ml-64">
         <OrganizationAdminHeader
           activePage="profile"
           organizationName={user?.organizationName || "Organization"}
