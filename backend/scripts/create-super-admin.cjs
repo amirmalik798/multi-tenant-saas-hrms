@@ -6,11 +6,16 @@ const bcrypt = require("bcryptjs");
 
 try {
   process.loadEnvFile(".env.local");
-} catch {
-  console.error(
-    "Could not load .env.local. Run this script from the backend folder."
-  );
-  process.exit(1);
+} catch (error) {
+  // A local env file is optional. Render connection settings may already
+  // be supplied through the current PowerShell process environment.
+  if (error && error.code !== "ENOENT") {
+    console.error(
+      "Could not load .env.local:",
+      error.message || String(error)
+    );
+    process.exit(1);
+  }
 }
 
 const requiredVariables = [
