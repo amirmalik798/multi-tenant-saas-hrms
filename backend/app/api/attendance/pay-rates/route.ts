@@ -43,9 +43,6 @@ export async function GET(request: Request) {
       return json({ message: "Provide a valid employeeId" }, 400);
     }
 
-    if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER" && employeeId === actor.employeeId) {
-      return json({ message: "The current HR Manager is not eligible for employee pay-rate management" }, 403);
-    }
     const target = await pool.query(
       `SELECT e.id, r.name AS workforce_role,
               EXISTS (
@@ -62,7 +59,7 @@ export async function GET(request: Request) {
       [actor.organizationId, employeeId],
     );
     if (!target.rowCount) return json({ message: "Employee not found in this organization" }, 404);
-    if (isExcludedHrTargetRole(target.rows[0].workforce_role, { allowHrManager: true }) && !target.rows[0].is_organization_admin || target.rows[0].is_organization_admin) {
+    if (isExcludedHrTargetRole(target.rows[0].workforce_role, { allowHrManager: true }) || target.rows[0].is_organization_admin) {
       return json({ message: "Organization Admin records are not eligible for employee pay rates" }, 403);
     }
 
@@ -97,7 +94,7 @@ export async function PUT(request: Request) {
   try {
     const actor = await getTenantPermissionActor();
     if (!actor) return json({ message: "Authentication required" }, 401);
-    if (!canManageRates(actor)) return json({ message: "Only an Organization Admin or HR Manager can manage employee pay rates" }, 403);
+    if (!canManageRates(actor)) return json({ message: "Only the Organization Admin can manage workforce pay rates" }, 403);
     if (!(await organizationIsActive(pool, actor.organizationId))) return json({ message: "This organization is not active" }, 403);
 
     const parsedBody = await parseJsonRequestBody(request);
@@ -120,9 +117,6 @@ export async function PUT(request: Request) {
       return json({ message: "Provide an employee, valid non-negative rates, a three-letter currency code, and valid effective dates" }, 400);
     }
 
-    if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER" && employeeId === actor.employeeId) {
-      return json({ message: "The current HR Manager is not eligible for employee pay-rate management" }, 403);
-    }
 
     await client.query("BEGIN");
     const organizationSettings = await client.query<{ currency_code: string | null }>(
@@ -157,7 +151,7 @@ export async function PUT(request: Request) {
       await client.query("ROLLBACK");
       return json({ message: "Employee not found in this organization" }, 404);
     }
-    if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: true }) && !employee.rows[0].is_organization_admin || employee.rows[0].is_organization_admin) {
+    if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: true }) || employee.rows[0].is_organization_admin) {
       await client.query("ROLLBACK");
       return json({ message: "Organization Admin records are not eligible for employee pay rates" }, 403);
     }
