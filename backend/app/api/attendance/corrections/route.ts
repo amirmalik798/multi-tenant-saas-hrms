@@ -109,7 +109,7 @@ export async function GET(request: Request) {
       new URL(request.url).searchParams.get("scope") === "self"
     ) {
       values.push(actor.employeeId);
-      conditions.push(`r.employee_id = ${values.length}::uuid`);
+      conditions.push(`r.employee_id = $${values.length}::uuid`);
     } else if (
       !(
         actor.kind === "ORGANIZATION_ADMIN" ||
