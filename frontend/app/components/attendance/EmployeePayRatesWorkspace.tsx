@@ -74,6 +74,10 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [confirmRateSave, setConfirmRateSave] = useState(false);
+  const confirmedRateSaveRef = useRef(false);
+  const rateDialogRef = useRef<HTMLElement | null>(null);
+  const rateDialogPreviousFocusRef = useRef<HTMLElement | null>(null);
   const rateRequestId = useRef(0);
   const employeeIdRef = useRef(employeeId);
   employeeIdRef.current = employeeId;
@@ -168,8 +172,28 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
     return () => { rateRequestId.current += 1; };
   }, [loadRates]);
 
+  useEffect(() => {
+    if (!confirmRateSave) return;
+    rateDialogPreviousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    rateDialogRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !saving) { event.preventDefault(); setConfirmRateSave(false); }
+      if (event.key !== "Tab" || !rateDialogRef.current) return;
+      const items = Array.from(rateDialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!items.length) return;
+      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items[items.length - 1].focus(); }
+      else if (!event.shiftKey && document.activeElement === items[items.length - 1]) { event.preventDefault(); items[0].focus(); }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => { document.removeEventListener("keydown", handleKeyDown); rateDialogPreviousFocusRef.current?.focus(); };
+  }, [confirmRateSave, saving]);
+
   async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setSaving(true); setError(""); setSuccess("");
+    event.preventDefault();
+    const confirmed = confirmedRateSaveRef.current;
+    confirmedRateSaveRef.current = false;
+    if (audience === "organization-admin" && !confirmed) { setConfirmRateSave(true); return; }
+    setSaving(true); setError(""); setSuccess("");
     try {
       await api("/attendance/pay-rates", { method: "PUT", body: JSON.stringify({ employeeId, hourlyRate: Number(hourlyRate), overtimeRate: Number(overtimeRate), currencyCode: organizationCurrencyCode, effectiveFrom, effectiveTo: effectiveTo || null }) });
       setSuccess("Pay rates saved. The employee can now see their rates and estimated monthly earnings.");
@@ -184,7 +208,7 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
     {error && <div role="alert" className="rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200">{error}</div>}
     {success && <div role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/[0.06] p-3 text-sm text-emerald-100">{success}</div>}
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-      <form onSubmit={save} className="rounded-2xl border border-white/[0.08] bg-[#141c28] p-5 sm:p-6">
+      <form id="employee-pay-rates-form" onSubmit={save} className="rounded-2xl border border-white/[0.08] bg-[#141c28] p-5 sm:p-6">
         <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-400/10 text-sky-200"><BadgeDollarSign size={21} /></span><div><h3 className="font-semibold text-white">{editingRateId ? "Edit saved pay rates" : "Set pay rates"}</h3><p className="mt-1 text-xs text-slate-400">All amounts are hourly rates. {editingRateId ? "Saving updates the selected effective period." : "Choose Edit in rate history to revise an existing period."}</p></div></div>
         <div className="mt-5 space-y-4">
           <label className="block text-sm font-medium text-slate-300">Employee<select required disabled={saving} value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} className={INPUT}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{name(employee)}{employee.employee_code ? ` · ${employee.employee_code}` : ""}{employee.department_name ? ` · ${employee.department_name}` : ""}</option>)}</select></label>
@@ -200,6 +224,27 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
       </div>
     </div>
 
+    {confirmRateSave && audience === "organization-admin" && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setConfirmRateSave(false); }}>
+        <section ref={rateDialogRef} tabIndex={-1} role="alertdialog" aria-modal="true" aria-labelledby="pay-rate-confirm-title" aria-describedby="pay-rate-confirm-description" className="w-full max-w-md rounded-2xl border border-amber-300/20 bg-[#111a28] p-5 text-white shadow-2xl sm:p-6">
+          <span className="flex size-11 items-center justify-center rounded-xl border border-amber-300/20 bg-amber-300/10 text-amber-200"><BadgeDollarSign size={20}/></span>
+          <h2 id="pay-rate-confirm-title" className="mt-4 text-lg font-bold">Confirm pay-rate change</h2>
+          <p id="pay-rate-confirm-description" className="mt-2 text-sm leading-6 text-slate-300">These effective-dated rates affect earnings calculations for the selected employee from the effective date onward. Check the amounts and period before saving.</p>
+          <div className="mt-4 space-y-2 rounded-xl border border-white/[0.08] bg-black/15 p-4 text-sm">
+            <p className="font-semibold text-white">{name(employees.find((employee) => employee.id === employeeId) || {})}</p>
+            <p className="text-slate-300">Regular rate: {organizationCurrencyCode} {Number(hourlyRate).toLocaleString()} / hour</p>
+            <p className="text-slate-300">Overtime rate: {organizationCurrencyCode} {Number(overtimeRate).toLocaleString()} / hour</p>
+            <p className="text-slate-400">Effective from: {effectiveFrom}</p>
+            <p className="text-slate-400">Effective to: {effectiveTo || "Ongoing"}</p>
+            {editingRateId && <p className="text-amber-200">This will update the selected saved rate period.</p>}
+          </div>
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" disabled={saving} onClick={() => setConfirmRateSave(false)} className="min-h-10 rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/[0.05] disabled:opacity-50">Review rates</button>
+            <button type="button" disabled={saving} onClick={() => { confirmedRateSaveRef.current = true; setConfirmRateSave(false); window.requestAnimationFrame(() => (document.getElementById("employee-pay-rates-form") as HTMLFormElement | null)?.requestSubmit()); }} className="min-h-10 rounded-xl bg-amber-300 px-4 py-2 text-sm font-bold text-[#17120a] hover:bg-amber-200 disabled:opacity-50">Confirm and save rates</button>
+          </div>
+        </section>
+      </div>
+    )}
     <p className="text-xs leading-5 text-slate-500">This module configures rates and estimated earnings only. It does not calculate taxes, deductions, statutory contributions, or generate final payslips.</p>
   </section>;
 }
