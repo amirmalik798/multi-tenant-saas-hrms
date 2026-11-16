@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     } else if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER") {
       // HR Managers can view and track only their own leave requests.
       // Organization Admins receive the organization-wide review queue.
-      values.push(actor.employeeId); conditions.push(`r.employee_id = ${values.length}::uuid`);
+      values.push(actor.employeeId); conditions.push(`r.employee_id = $${values.length}::uuid`);
     } else if (!(actor.kind === "ORGANIZATION_ADMIN")) {
       return jsonResponse({ message: "You do not have permission to view leave requests" }, 403);
     }
