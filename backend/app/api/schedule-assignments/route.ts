@@ -138,8 +138,8 @@ export async function GET() {
             OR regexp_replace(UPPER(target_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_OWNER%'
             OR regexp_replace(UPPER(target_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'TENANT_ADMIN%'
             OR regexp_replace(UPPER(target_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ADMINISTRATOR%'
-            OR (regexp_replace(UPPER(target_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'HR_MANAGER%' AND e.id <> $\${values.length}::uuid)
-            OR (regexp_replace(UPPER(target_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'HRMANAGER%' AND e.id <> $\${values.length}::uuid)
+            OR (regexp_replace(UPPER(target_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'HR_MANAGER%' AND e.id <> ${values.length}::uuid)
+            OR (regexp_replace(UPPER(target_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'HRMANAGER%' AND e.id <> ${values.length}::uuid)
           )
       ) AND NOT EXISTS (
         SELECT 1
