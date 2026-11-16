@@ -63,6 +63,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   const [nameSortOrder, setNameSortOrder] = useState<"asc" | "desc">("asc");
   const [drafts, setDrafts] = useState<Record<string, { amount: string; currencyCode: string; status: "PAID" | "UNPAID"; paymentReference: string; notes: string }>>({});
   const loadRequestId = useRef(0);
+  const paymentConfirmationRef = useRef<HTMLElement | null>(null);
+  const paymentDialogPreviousFocusRef = useRef<HTMLElement | null>(null);
   const load = useCallback(async (silent = false) => {
     const requestId = ++loadRequestId.current;
     if (!silent) setLoading(true); setError("");
@@ -99,6 +101,22 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     void load();
     return () => { loadRequestId.current += 1; };
   }, [load]);
+
+  useEffect(() => {
+    if (!paymentConfirmation) return;
+    paymentDialogPreviousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    paymentConfirmationRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !saving) { event.preventDefault(); setPaymentConfirmation(null); }
+      if (event.key !== "Tab" || !paymentConfirmationRef.current) return;
+      const items = Array.from(paymentConfirmationRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!items.length) return;
+      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items[items.length - 1].focus(); }
+      else if (!event.shiftKey && document.activeElement === items[items.length - 1]) { event.preventDefault(); items[0].focus(); }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => { document.removeEventListener("keydown", handleKeyDown); paymentDialogPreviousFocusRef.current?.focus(); };
+  }, [paymentConfirmation, saving]);
 
   useWorkspaceAutoRefresh(() => load(true), {
     enabled: true,
@@ -208,7 +226,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     })}</div>}
     {paymentConfirmation && (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setPaymentConfirmation(null); }}>
-        <section role="alertdialog" aria-modal="true" aria-labelledby="payroll-confirm-title" aria-describedby="payroll-confirm-description" className="w-full max-w-md rounded-2xl border border-amber-300/20 bg-[#111a28] p-5 text-white shadow-2xl sm:p-6">
+        <section ref={paymentConfirmationRef} tabIndex={-1} role="alertdialog" aria-modal="true" aria-labelledby="payroll-confirm-title" aria-describedby="payroll-confirm-description" className="w-full max-w-md rounded-2xl border border-amber-300/20 bg-[#111a28] p-5 text-white shadow-2xl sm:p-6">
           <span className="flex size-11 items-center justify-center rounded-xl border border-amber-300/20 bg-amber-300/10 text-amber-200"><AlertTriangle size={20}/></span>
           <h2 id="payroll-confirm-title" className="mt-4 text-lg font-bold">Confirm salary payment record</h2>
           <p id="payroll-confirm-description" className="mt-2 text-sm leading-6 text-slate-300">
