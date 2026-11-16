@@ -166,7 +166,7 @@ export async function GET(request: Request) {
            ON account_role.id = workforce_account.role_id
          WHERE e.organization_id = $1::uuid
            AND e.employment_status = 'ACTIVE'
-           AND regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g') IN ('EMPLOYEE', 'DEPARTMENT_MANAGER')
+           AND regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g') IN ('EMPLOYEE', 'DEPARTMENT_MANAGER', 'HR_MANAGER')
            -- Exclude organization administrators independently of the
            -- workforce role, which may be stale or incorrectly assigned.
            AND NOT EXISTS (
