@@ -57,6 +57,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   const [saving, setSaving] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [paymentConfirmation, setPaymentConfirmation] = useState<Payment | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<"ALL" | "UNPAID" | "PAID" | "REVIEW" | "NO_HOURS">("ALL");
   const [nameSortOrder, setNameSortOrder] = useState<"asc" | "desc">("asc");
@@ -139,8 +140,14 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     });
   }, [payments, searchQuery, paymentFilter, nameSortOrder]);
 
-  async function save(employeeId: string) {
+  async function save(employeeId: string, confirmed = false) {
     const draft = drafts[employeeId]; if (!draft) return;
+    const currentPayment = payments.find((payment) => payment.employeeId === employeeId);
+    if (draft.status === "PAID" && currentPayment?.status !== "PAID" && !confirmed) {
+      setPaymentConfirmation(currentPayment || null);
+      return;
+    }
+    if (confirmed) setPaymentConfirmation(null);
     setSaving(employeeId); setError(""); setNotice("");
     try {
       const response = await fetch("/api/backend/payroll/payments", { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ employeeId, month, ...draft }) });
@@ -199,6 +206,31 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         </div> : <div className="grid gap-3 p-4 sm:grid-cols-3 sm:p-5"><div className="rounded-xl border border-white/[0.06] bg-black/10 p-3"><p className="text-xs text-slate-500">{p.status === "PAID" ? "Paid amount" : "Calculated amount"}</p><p className="mt-1 break-words font-semibold text-white">{money(p.amount, p.currencyCode)}</p></div><div className="rounded-xl border border-white/[0.06] bg-black/10 p-3"><p className="text-xs text-slate-500">Payment date</p><p className="mt-1 text-sm text-slate-200">{p.paidAt ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(p.paidAt)) : "Not paid yet"}</p></div><div className="rounded-xl border border-white/[0.06] bg-black/10 p-3"><p className="text-xs text-slate-500">Reference</p><p className="mt-1 break-words text-sm text-slate-200">{p.paymentReference || "—"}</p></div>{p.notes && <p className="text-sm text-slate-400 sm:col-span-3">{p.notes}</p>}</div>}
       </article>;
     })}</div>}
+    {paymentConfirmation && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setPaymentConfirmation(null); }}>
+        <section role="alertdialog" aria-modal="true" aria-labelledby="payroll-confirm-title" aria-describedby="payroll-confirm-description" className="w-full max-w-md rounded-2xl border border-amber-300/20 bg-[#111a28] p-5 text-white shadow-2xl sm:p-6">
+          <span className="flex size-11 items-center justify-center rounded-xl border border-amber-300/20 bg-amber-300/10 text-amber-200"><AlertTriangle size={20}/></span>
+          <h2 id="payroll-confirm-title" className="mt-4 text-lg font-bold">Confirm salary payment record</h2>
+          <p id="payroll-confirm-description" className="mt-2 text-sm leading-6 text-slate-300">
+            You are about to mark the calculated salary for {[paymentConfirmation.firstName, paymentConfirmation.lastName].filter(Boolean).join(" ") || paymentConfirmation.employeeCode || "this employee"} as paid for {month}. Confirm that the payment has actually been made before recording this status.
+          </p>
+          <div className="mt-4 rounded-xl border border-white/[0.08] bg-black/15 p-4">
+            <p className="text-xs text-slate-500">Calculated amount</p>
+            <p className="mt-1 text-2xl font-bold text-white">{money(paymentConfirmation.calculatedAmount == null ? null : String(paymentConfirmation.calculatedAmount), paymentConfirmation.currencyCode)}</p>
+            <p className="mt-2 text-xs text-slate-400">Employee: {[paymentConfirmation.firstName, paymentConfirmation.lastName].filter(Boolean).join(" ") || paymentConfirmation.employeeCode || "Employee"}</p>
+            <p className="mt-1 text-xs text-slate-400">Period: {month}</p>
+            {drafts[paymentConfirmation.employeeId]?.paymentReference && <p className="mt-1 break-all text-xs text-slate-400">Reference: {drafts[paymentConfirmation.employeeId].paymentReference}</p>}
+          </div>
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" disabled={Boolean(saving)} onClick={() => setPaymentConfirmation(null)} className="min-h-10 rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/[0.05] disabled:opacity-50">Go back</button>
+            <button type="button" disabled={Boolean(saving)} onClick={() => void save(paymentConfirmation.employeeId, true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-2 text-sm font-bold text-[#07111d] hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-50">
+              {saving ? <RefreshCw size={15} className="animate-spin"/> : <CheckCircle2 size={15}/>}
+              {saving ? "Saving…" : "Confirm marked as paid"}
+            </button>
+          </div>
+        </section>
+      </div>
+    )}
     {canEdit && <p className="mt-4 text-xs leading-5 text-slate-500">Salary amounts and currency are calculated from recorded working time, approved paid leave, paid public holidays, and effective pay rates. Only the payment status and reference/notes are editable here. Employees with no payable hours cannot be marked paid.</p>}
   </section>;
 }
