@@ -87,7 +87,12 @@ export async function GET() {
     if (isHrManager || isOrganizationAdmin) {
       try {
         const salaryResult = await pool.query(
-          `SELECT COUNT(*)::int AS count FROM public.monthly_salary_payments WHERE organization_id = $1::uuid AND status = 'UNPAID' AND pay_month = date_trunc('month', CURRENT_DATE)::date`,
+          `SELECT COUNT(*)::int AS count
+           FROM public.monthly_salary_payments p
+           LEFT JOIN public.organization_settings os ON os.organization_id = p.organization_id
+           WHERE p.organization_id = $1::uuid
+             AND p.status = 'UNPAID'
+             AND p.pay_month = date_trunc('month', (now() AT TIME ZONE COALESCE(NULLIF(os.time_zone, ''), 'Africa/Kigali'))::date)::date`,
           [actor.organizationId],
         );
         unpaidSalaryPayments = Number(salaryResult.rows[0]?.count ?? 0);
