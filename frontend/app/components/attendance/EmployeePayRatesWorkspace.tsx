@@ -205,7 +205,7 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
 
   return <section className="space-y-5 text-slate-100">
     <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-300">Compensation settings</p><h2 className="mt-1 text-xl font-bold text-white sm:text-2xl">Employee pay rates</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Set the hourly and overtime rates that drive each employee's minute-based earnings estimate. Rate changes are effective-dated so previous work keeps the rate that applied on that date.</p></div>
-    {error && <div role="alert" className="rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200">{error}</div>}
+    {error && <div role="alert" className="flex flex-col gap-3 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span>{error}</span><button type="button" disabled={loading || saving} onClick={() => { void loadEmployees(); void loadRates(); }} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">{loading ? "Retrying…" : "Retry"}</button></div>}
     {success && <div role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/[0.06] p-3 text-sm text-emerald-100">{success}</div>}
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <form id="employee-pay-rates-form" onSubmit={save} className="rounded-2xl border border-white/[0.08] bg-[#141c28] p-5 sm:p-6">
