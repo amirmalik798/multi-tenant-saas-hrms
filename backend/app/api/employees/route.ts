@@ -391,6 +391,7 @@ if (
         e.city,
         e.designation,
         e.manager_id,
+        e.reporting_manager_user_id,
         e.is_primary_hr_manager,
         workforce_role.name AS workforce_role,
         e.joining_date::text AS joining_date,
@@ -406,13 +407,19 @@ if (
         manager.employee_code AS manager_employee_code,
         manager.first_name AS manager_first_name,
         manager.last_name AS manager_last_name,
-        NULLIF(
-          TRIM(CONCAT_WS(' ', manager.first_name, manager.last_name)),
-          ''
-        ) AS manager_name,
+        CASE
+          WHEN e.reporting_manager_user_id IS NOT NULL THEN 'Organization Admin'
+          ELSE NULLIF(
+            TRIM(CONCAT_WS(' ', manager.first_name, manager.last_name)),
+            ''
+          )
+        END AS manager_name,
         manager.email AS manager_email,
         manager.employment_status AS manager_employment_status,
-        manager_role.name AS manager_workforce_role,
+        CASE
+          WHEN e.reporting_manager_user_id IS NOT NULL THEN 'ORGANIZATION_ADMIN'
+          ELSE manager_role.name
+        END AS manager_workforce_role,
         manager_account.status AS manager_account_status,
         latest_invitation.id AS invitation_id,
         CASE
@@ -1090,14 +1097,16 @@ export async function POST(request: Request) {
                 city,
                 designation,
                 manager_id,
+                reporting_manager_user_id,
                 joining_date,
                 employment_status,
                 department_id,
-                workforce_role_id
+                workforce_role_id,
+                reporting_manager_user_id
               )
               VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9,
-                $10, $11, $12, $13, $14, 'INACTIVE', $15, $16
+                $10, $11, $12, $13, $14, 'INACTIVE', $15, $16, $17
               )
               RETURNING
                 id,
@@ -1114,6 +1123,7 @@ export async function POST(request: Request) {
                 city,
                 designation,
                 manager_id,
+                reporting_manager_user_id,
                 joining_date,
                 employment_status,
                 department_id,
@@ -1136,6 +1146,15 @@ export async function POST(request: Request) {
               i.city,
               i.designation,
               i.manager_id,
+              i.reporting_manager_user_id,
+              CASE
+                WHEN i.reporting_manager_user_id IS NOT NULL THEN 'Organization Admin'
+                ELSE NULL
+              END AS manager_name,
+              CASE
+                WHEN i.reporting_manager_user_id IS NOT NULL THEN 'ORGANIZATION_ADMIN'
+                ELSE NULL
+              END AS manager_workforce_role,
               i.joining_date,
               i.employment_status,
               i.department_id,
@@ -1168,6 +1187,9 @@ export async function POST(request: Request) {
             joiningDate,
             resolvedDepartmentId,
             role.id,
+            actor.kind === "ORGANIZATION_ADMIN" && workforceRole === "HR_MANAGER"
+              ? actor.userId
+              : null,
           ],
         );
 
@@ -1194,6 +1216,7 @@ export async function POST(request: Request) {
             account_status: "NONE",
             department_id: employee.department_id,
             manager_id: employee.manager_id,
+            reporting_manager_user_id: employee.reporting_manager_user_id,
           },
           metadata: {
             workflow: "workforce_profile_creation",
