@@ -84,7 +84,7 @@ export async function GET() {
     }
 
     let unpaidSalaryPayments = 0;
-    if (isHrManager) {
+    if (isHrManager || isOrganizationAdmin) {
       try {
         const salaryResult = await pool.query(
           `SELECT COUNT(*)::int AS count FROM public.monthly_salary_payments WHERE organization_id = $1::uuid AND status = 'UNPAID' AND pay_month = date_trunc('month', CURRENT_DATE)::date`,
@@ -101,15 +101,15 @@ export async function GET() {
     const overtime = Number(overtimeResult.rows[0]?.count ?? 0);
     const leave = Number(leaveResult.rows[0]?.count ?? 0);
     const alerts = [] as { id: string; title: string; count: number; href: string; tone: "warning" | "info" }[];
-    if (!isOrganizationAdmin && corrections > 0) alerts.push({ id: "corrections", title: isEmployee ? "Your correction requests awaiting review" : "Attendance corrections awaiting review", count: corrections, href: isEmployee ? "/employee/requests" : isHrManager ? "/hr/work-queue" : "/dm/reviews", tone: "warning" });
-    if (!isOrganizationAdmin && overtime > 0) alerts.push({ id: "overtime", title: isEmployee ? "Your overtime requests awaiting review" : "Overtime requests awaiting review", count: overtime, href: isEmployee ? "/employee/requests" : isHrManager ? "/hr/work-queue" : "/dm/reviews", tone: "warning" });
+    if (corrections > 0) alerts.push({ id: "corrections", title: isEmployee ? "Your correction requests awaiting review" : "Attendance corrections awaiting review", count: corrections, href: isEmployee ? "/employee/requests" : isOrganizationAdmin ? "/org/attendance" : isHrManager ? "/hr/work-queue" : "/dm/reviews", tone: "warning" });
+    if (overtime > 0) alerts.push({ id: "overtime", title: isEmployee ? "Your overtime requests awaiting review" : "Overtime requests awaiting review", count: overtime, href: isEmployee ? "/employee/requests" : isOrganizationAdmin ? "/org/attendance" : isHrManager ? "/hr/work-queue" : "/dm/reviews", tone: "warning" });
     if (leave > 0) {
       if (isOrganizationAdmin) alerts.push({ id: "leave", title: "Leave requests awaiting review", count: leave, href: "/org/leave", tone: "warning" });
       else if (isEmployee || isHrManager) alerts.push({ id: "leave", title: "Your leave requests awaiting review", count: leave, href: isEmployee ? "/employee/leave" : "/hr/modules/leave", tone: "warning" });
       else if (isDepartmentManager) alerts.push({ id: "leave", title: "Leave requests awaiting review", count: leave, href: "/dm/leave", tone: "warning" });
     }
     if (isEmployee && recentLeaveDecisions > 0) alerts.push({ id: "leave-decisions", title: "Leave requests recently approved or declined", count: recentLeaveDecisions, href: "/employee/leave", tone: "info" });
-    if (unpaidSalaryPayments > 0) alerts.push({ id: "salary", title: "Unpaid salary records for this month", count: unpaidSalaryPayments, href: "/hr/modules/payroll", tone: "info" });
+    if (unpaidSalaryPayments > 0) alerts.push({ id: "salary", title: "Unpaid salary records for this month", count: unpaidSalaryPayments, href: isOrganizationAdmin ? "/org/payroll" : "/hr/modules/payroll", tone: "info" });
     if (unreadMessages > 0) alerts.push({ id: "messages", title: "Unread messages", count: unreadMessages, href: isEmployee ? "/employee/communications" : isDepartmentManager ? "/dm/communications" : isHrManager ? "/hr/communications" : "/org/communications", tone: "info" });
 
     return json({ status: "ok", alerts, total: alerts.reduce((sum, item) => sum + item.count, 0), unreadMessages, checkedAt: new Date().toISOString() });
