@@ -656,7 +656,7 @@ export default function EmployeesPage() {
     () => setReloadKey((value) => value + 1),
     {
       enabled: Boolean(user),
-      shouldRefresh: () => !loading && !saving && !drawerMode && !formIsDirty && !bulkStatusProcessing,
+      shouldRefresh: () => !loading && !saving && !drawerMode && !formIsDirty && !bulkStatusProcessing && !bulkStatusConfirmOpen && !revokeConfirmationEmployee && !confirmDiscard && !confirmWorkflowChanges,
     },
   );
   const eligibleDepartmentOptions = useMemo(
