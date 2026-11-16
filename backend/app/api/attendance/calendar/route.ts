@@ -86,7 +86,9 @@ export async function GET(request: Request) {
       scope = "ALL";
     } else if (actor.kind === "ORGANIZATION_USER") {
       if (actor.roleName === "HR_MANAGER") {
-        scope = "ALL";
+        const requestedScope = url.searchParams.get("scope");
+        scope = requestedScope === "self" ? "SELF" : "ALL";
+        if (scope === "SELF") scopeEmployeeId = actor.employeeId;
       } else if (actor.roleName === "DEPARTMENT_MANAGER") {
         scope = "DEPARTMENT";
         scopeEmployeeId = actor.employeeId;
@@ -148,7 +150,7 @@ export async function GET(request: Request) {
          LEFT JOIN public.roles AS account_role
            ON account_role.id = workforce_account.role_id
          WHERE e.organization_id = $1
-           AND regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g') IN ('EMPLOYEE', 'DEPARTMENT_MANAGER')
+           AND regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g') IN ('EMPLOYEE', 'DEPARTMENT_MANAGER', 'HR_MANAGER')
            -- A linked organization account with an admin role must never be
            -- treated as a workforce attendance row, even if the employee
            -- record's workforce_role_id is stale or says EMPLOYEE.
