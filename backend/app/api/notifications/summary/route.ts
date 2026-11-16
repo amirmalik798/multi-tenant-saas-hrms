@@ -63,9 +63,9 @@ export async function GET() {
 
     const leaveValues: unknown[] = [actor.organizationId];
     let leaveScope = "";
-    if (actor.kind === "ORGANIZATION_USER" && isEmployee) {
+    if (actor.kind === "ORGANIZATION_USER" && (isEmployee || isHrManager)) {
       leaveValues.push(actor.employeeId);
-      leaveScope = ` AND r.employee_id = $${leaveValues.length}::uuid`;
+      leaveScope = ` AND r.employee_id = ${leaveValues.length}::uuid`;
     } else if (actor.kind === "ORGANIZATION_USER" && isDepartmentManager) {
       leaveValues.push(actor.employeeId);
       leaveScope = ` AND EXISTS (SELECT 1 FROM public.employees le JOIN public.departments ld ON ld.id = le.department_id AND ld.organization_id = le.organization_id WHERE le.id = r.employee_id AND le.organization_id = r.organization_id AND ld.manager_id = $${leaveValues.length}::uuid)`;
@@ -103,7 +103,11 @@ export async function GET() {
     const alerts = [] as { id: string; title: string; count: number; href: string; tone: "warning" | "info" }[];
     if (!isOrganizationAdmin && corrections > 0) alerts.push({ id: "corrections", title: isEmployee ? "Your correction requests awaiting review" : "Attendance corrections awaiting review", count: corrections, href: isEmployee ? "/employee/requests" : "/dm/reviews", tone: "warning" });
     if (!isOrganizationAdmin && overtime > 0) alerts.push({ id: "overtime", title: isEmployee ? "Your overtime requests awaiting review" : "Overtime requests awaiting review", count: overtime, href: isEmployee ? "/employee/requests" : "/dm/reviews", tone: "warning" });
-    if (!isOrganizationAdmin && leave > 0) alerts.push({ id: "leave", title: isEmployee ? "Your leave requests awaiting review" : "Leave requests awaiting review", count: leave, href: isEmployee ? "/employee/leave" : isDepartmentManager ? "/dm/leave" : "/hr/modules/leave", tone: "warning" });
+    if (leave > 0) {
+      if (isOrganizationAdmin) alerts.push({ id: "leave", title: "Leave requests awaiting review", count: leave, href: "/org/leave", tone: "warning" });
+      else if (isEmployee || isHrManager) alerts.push({ id: "leave", title: "Your leave requests awaiting review", count: leave, href: isEmployee ? "/employee/leave" : "/hr/modules/leave", tone: "warning" });
+      else if (isDepartmentManager) alerts.push({ id: "leave", title: "Leave requests awaiting review", count: leave, href: "/dm/leave", tone: "warning" });
+    }
     if (isEmployee && recentLeaveDecisions > 0) alerts.push({ id: "leave-decisions", title: "Leave requests recently approved or declined", count: recentLeaveDecisions, href: "/employee/leave", tone: "info" });
     if (unpaidSalaryPayments > 0) alerts.push({ id: "salary", title: "Unpaid salary records for this month", count: unpaidSalaryPayments, href: "/hr/modules/payroll", tone: "info" });
     if (unreadMessages > 0) alerts.push({ id: "messages", title: "Unread messages", count: unreadMessages, href: isEmployee ? "/employee/communications" : isDepartmentManager ? "/dm/communications" : isHrManager ? "/hr/communications" : "/org/communications", tone: "info" });
