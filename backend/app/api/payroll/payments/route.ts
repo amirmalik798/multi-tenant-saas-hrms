@@ -98,13 +98,14 @@ export async function GET(request: Request) {
          )
          AND (
            $3::boolean
-           OR ((($4::boolean OR $7::boolean) AND NOT $3::boolean) AND e.id = $5::uuid)
+           OR ($4::boolean AND e.id = $5::uuid)
            OR ($6::boolean AND (e.id = $5::uuid OR EXISTS (
              SELECT 1 FROM public.departments md
              WHERE md.organization_id = e.organization_id
                AND md.id = e.department_id
                AND md.manager_id = $5::uuid
            )))
+           OR ($7::boolean AND e.id = $5::uuid)
          )
        ORDER BY e.first_name, e.last_name, e.employee_code`,
       [actor.organizationId, start, actor.kind === "ORGANIZATION_ADMIN", isEmployee, actor.kind === "ORGANIZATION_USER" ? actor.employeeId : null, isDm, isHrManager],
