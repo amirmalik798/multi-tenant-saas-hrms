@@ -68,7 +68,7 @@ export async function GET() {
       leaveScope = ` AND r.employee_id = ${leaveValues.length}::uuid`;
     } else if (actor.kind === "ORGANIZATION_USER" && isDepartmentManager) {
       leaveValues.push(actor.employeeId);
-      leaveScope = ` AND EXISTS (SELECT 1 FROM public.employees le JOIN public.departments ld ON ld.id = le.department_id AND ld.organization_id = le.organization_id WHERE le.id = r.employee_id AND le.organization_id = r.organization_id AND ld.manager_id = $${leaveValues.length}::uuid)`;
+      leaveScope = ` AND EXISTS (SELECT 1 FROM public.employees le JOIN public.departments ld ON ld.id = le.department_id AND ld.organization_id = le.organization_id JOIN public.roles lr ON lr.id = le.workforce_role_id AND lr.organization_id = le.organization_id WHERE le.id = r.employee_id AND le.organization_id = r.organization_id AND ld.manager_id = ${leaveValues.length}::uuid AND lr.name <> 'HR_MANAGER')`;
     }
     const leaveResult = await pool.query(
       `SELECT COUNT(*)::int AS count FROM public.leave_requests r WHERE r.organization_id = $1::uuid AND r.status = 'PENDING'${leaveScope}`,
