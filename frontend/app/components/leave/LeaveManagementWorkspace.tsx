@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { CalendarDays, Check, Clock3, Plus, RefreshCw, ShieldCheck, Trash2, X } from "lucide-react";
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
 import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
@@ -37,6 +37,9 @@ export default function LeaveManagementWorkspace({ audience }: { audience: Audie
   const [holidayPaid, setHolidayPaid] = useState(true);
   const [filter, setFilter] = useState("ALL");
   const [search, setSearch] = useState("");
+  const [dialog, setDialog] = useState<{ kind: "leave"; request: LeaveRequest; status: "APPROVED" | "REJECTED" | "CANCELLED"; note: string } | { kind: "holiday"; holiday: Holiday } | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true); setError("");
     try {
@@ -54,6 +57,21 @@ export default function LeaveManagementWorkspace({ audience }: { audience: Audie
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!dialog) return;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !saving) { event.preventDefault(); setDialog(null); }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const items = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!items.length) return;
+      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items[items.length - 1].focus(); }
+      else if (!event.shiftKey && document.activeElement === items[items.length - 1]) { event.preventDefault(); items[0].focus(); }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => { document.removeEventListener("keydown", handleKeyDown); previousFocusRef.current?.focus(); };
+  }, [dialog, saving]);
   useWorkspaceAutoRefresh(() => load(true), {
     enabled: true,
     intervalMs: 60_000,
@@ -76,22 +94,23 @@ export default function LeaveManagementWorkspace({ audience }: { audience: Audie
     catch (err) { setError(err instanceof Error ? err.message : "Unable to submit request."); }
     finally { setSaving(false); }
   }
-  async function decide(request: LeaveRequest, status: "APPROVED" | "REJECTED" | "CANCELLED") {
-    const promptNote = status === "REJECTED" ? window.prompt("Enter a reason for rejecting this request (required):", "") : "";
-    if (status === "REJECTED" && promptNote === null) return;
-    if (status === "REJECTED" && !(promptNote ?? "").trim()) {
-      setError("A reason is required when rejecting a leave request.");
-      setNotice("");
-      return;
-    }
-    if (status === "REJECTED" && (promptNote ?? "").trim().length > 500) {
-      setError("The rejection reason cannot exceed 500 characters.");
-      setNotice("");
-      return;
-    }
+  function decide(request: LeaveRequest, status: "APPROVED" | "REJECTED" | "CANCELLED") {
+    setError(""); setNotice("");
+    setDialog({ kind: "leave", request, status, note: "" });
+  }
+  async function confirmLeaveDecision() {
+    if (!dialog || dialog.kind !== "leave" || saving) return;
+    const { request, status, note } = dialog;
+    const reviewerNote = note.trim();
+    if (status === "REJECTED" && !reviewerNote) { setError("A reason is required when rejecting a leave request."); return; }
+    if (reviewerNote.length > 500) { setError("The review note cannot exceed 500 characters."); return; }
     setSaving(true); setError(""); setNotice("");
-    try { await post(`/api/backend/leave/requests/${request.id}`, "PATCH", { status, reviewerNote: promptNote ?? "" }); setNotice(status === "CANCELLED" ? "Pending request cancelled." : `Leave request ${status.toLowerCase()}.`); await load(); }
-    catch (err) { setError(err instanceof Error ? err.message : "Unable to update request."); }
+    try {
+      await post("/api/backend/leave/requests/" + request.id, "PATCH", { status, reviewerNote });
+      setDialog(null);
+      setNotice(status === "CANCELLED" ? "Pending request cancelled." : "Leave request " + status.toLowerCase() + ".");
+      await load();
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to update request."); }
     finally { setSaving(false); }
   }
   async function addHoliday(event: FormEvent) {
@@ -100,11 +119,15 @@ export default function LeaveManagementWorkspace({ audience }: { audience: Audie
     catch (err) { setError(err instanceof Error ? err.message : "Unable to save public holiday."); }
     finally { setSaving(false); }
   }
-  async function removeHoliday(holiday: Holiday) {
-    if (!window.confirm(`Remove ${holiday.name} from the public holiday calendar?`)) return;
+  function removeHoliday(holiday: Holiday) { setError(""); setNotice(""); setDialog({ kind: "holiday", holiday }); }
+  async function confirmHolidayRemoval() {
+    if (!dialog || dialog.kind !== "holiday" || saving) return;
+    const holiday = dialog.holiday;
     setSaving(true); setError(""); setNotice("");
-    try { await post(`/api/backend/leave/holidays/${holiday.id}`, "DELETE"); setNotice("Public holiday removed."); await load(); }
-    catch (err) { setError(err instanceof Error ? err.message : "Unable to remove holiday."); }
+    try {
+      await post("/api/backend/leave/holidays/" + holiday.id, "DELETE");
+      setDialog(null); setNotice("Public holiday removed."); await load();
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to remove holiday."); }
     finally { setSaving(false); }
   }
 
@@ -123,7 +146,7 @@ export default function LeaveManagementWorkspace({ audience }: { audience: Audie
     {tab === "requests" ? <div className={`grid gap-5 ${isHr ? "grid-cols-1" : "xl:grid-cols-[minmax(0,1fr)_340px]"}`}>
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#111a28]">
 
-        <div className="flex flex-wrap items-center gap-3 border-b border-white/10 p-4"><div className="min-w-[180px] flex-1"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employee, type, reason…" className="w-full rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2.5 text-sm outline-none focus:border-sky-400/40"/></div><select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2.5 text-sm"><option value="ALL">All statuses</option><option value="PENDING">Pending</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option><option value="CANCELLED">Cancelled</option></select></div>
+        <div className="flex flex-wrap items-center gap-3 border-b border-white/10 p-4"><div className="min-w-[180px] flex-1"><input aria-label="Search leave requests" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employee, type, reason…" className="w-full rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2.5 text-sm outline-none focus:border-sky-400/40"/></div><select aria-label="Filter leave requests by status" value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2.5 text-sm"><option value="ALL">All statuses</option><option value="PENDING">Pending</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option><option value="CANCELLED">Cancelled</option></select></div>
         {loading ? <div className="p-10 text-center text-sm text-slate-400">Loading leave requests…</div> : visibleRequests.length === 0 ? <div className="p-10 text-center"><CalendarDays className="mx-auto text-slate-600"/><p className="mt-3 text-sm font-medium text-slate-300">No leave requests found</p><p className="mt-1 text-xs text-slate-500">Requests will appear here when submitted.</p></div> : <div className="divide-y divide-white/[.07]">{visibleRequests.map((r) => <article key={r.id} className="p-4 sm:p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div className="flex min-w-0 items-start gap-3"><EmployeeProfilePhoto employeeId={r.isOwnRequest ? undefined : r.employeeId} name={[r.firstName, r.lastName].filter(Boolean).join(" ") || "Employee"} className="size-11 rounded-xl border border-sky-300/20 bg-slate-900 text-sm" textClassName="text-sm font-bold text-sky-100" /><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{TYPES.find((t) => t.value === r.leaveType)?.label ?? r.leaveType}</h3><span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusStyle(r.status)}`}>{r.status.replaceAll("_", " ")}</span><span className="rounded-full bg-white/5 px-2.5 py-1 text-[11px] text-slate-400">{r.isPaid ? "Paid leave" : "Unpaid leave"}</span></div><p className="mt-2 text-sm text-slate-300">{dateLabel(r.startDate)} – {dateLabel(r.endDate)}</p><p className="mt-2 text-sm leading-6 text-slate-400">{r.reason}</p>{!isEmployee && <p className="mt-2 text-xs text-slate-500">{[r.firstName, r.lastName].filter(Boolean).join(" ") || "Employee"}{r.employeeCode ? ` · ${r.employeeCode}` : ""}{r.departmentName ? ` · ${r.departmentName}` : ""}</p>}{r.reviewerNote && <p className="mt-3 rounded-lg bg-white/[.04] px-3 py-2 text-xs text-slate-400">Reviewer note: {r.reviewerNote}</p>}</div></div></div>
           {r.status === "PENDING" && <div className="mt-4 flex flex-wrap gap-2">{canReview && !r.isOwnRequest ? <><button type="button" disabled={saving} onClick={() => void decide(r, "APPROVED")} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-400/15 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-400/25 disabled:opacity-50"><Check size={14}/> Approve</button><button type="button" disabled={saving} onClick={() => void decide(r, "REJECTED")} className="inline-flex items-center gap-1.5 rounded-lg border border-rose-300/15 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-400/10 disabled:opacity-50"><X size={14}/> Reject</button></> : <button type="button" disabled={saving} onClick={() => void decide(r, "CANCELLED")} className="rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-50">Cancel request</button>}</div>}
         </article>)}</div>}
