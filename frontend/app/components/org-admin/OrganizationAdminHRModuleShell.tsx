@@ -130,7 +130,7 @@ export default function OrganizationAdminHRModuleShell({
   }
 
   return (
-    <div className="organization-admin-workspace min-h-screen bg-[#0b1220] text-slate-100">
+    <div className="org-admin-workspace organization-admin-workspace min-h-screen bg-[#0b1220] text-slate-100">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_bottom_right,rgba(35,91,130,0.07),transparent_42%)]" />
       <OrganizationAdminSidebar activePage={activePage} />
       <main className="relative z-10 min-h-screen lg:ml-64">
@@ -144,14 +144,37 @@ export default function OrganizationAdminHRModuleShell({
         />
         <div className="mx-auto w-full max-w-[1600px] px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pt-8">
           {error && (
-            <div role="alert" className="mb-5 rounded-xl border border-rose-400/25 bg-rose-500/10 p-3 text-sm text-rose-200">
-              {error}
+            <div role="alert" aria-live="assertive" className="mb-5 flex flex-col gap-3 rounded-xl border border-rose-400/25 bg-rose-500/10 p-3.5 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between">
+              <p className="min-w-0">{error}</p>
+              {!user && (
+                <button
+                  type="button"
+                  onClick={() => void verifySession()}
+                  disabled={checking}
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-rose-300/25 bg-rose-300/10 px-3.5 text-xs font-bold text-rose-100 transition hover:bg-rose-300/15 disabled:cursor-wait disabled:opacity-60"
+                >
+                  {checking ? "Checking…" : "Try again"}
+                </button>
+              )}
             </div>
           )}
-          <div className="mb-5">
-            <h1 className="text-xl font-bold tracking-tight text-white sm:text-2xl">{title}</h1>
-            <p className="mt-1 text-sm leading-6 text-slate-400">{description}</p>
-          </div>
+          <section aria-labelledby="org-module-page-title" className="mb-6">
+            <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-2 text-xs font-medium text-slate-500">
+              <span>Workspace</span>
+              <span aria-hidden="true" className="text-slate-600">/</span>
+              <span aria-current="page" className="text-slate-300">{title}</span>
+            </nav>
+            <div className="flex flex-col gap-2 border-b border-white/[0.07] pb-5 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0">
+                <h1 id="org-module-page-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">{title}</h1>
+                <p className="mt-1.5 max-w-3xl text-sm leading-6 text-slate-400">{description}</p>
+              </div>
+              <span className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-sky-300/15 bg-sky-300/[0.06] px-3 py-1.5 text-[11px] font-semibold text-sky-200">
+                <span aria-hidden="true" className="size-1.5 rounded-full bg-emerald-300" />
+                Organization workspace
+              </span>
+            </div>
+          </section>
           {children}
         </div>
       </main>
