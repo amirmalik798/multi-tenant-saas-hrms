@@ -27,6 +27,13 @@ export async function GET(request: Request) {
             AND md.manager_id = $${values.length}::uuid
         )
       )`);
+      // HR Manager leave is routed to the Organization Admin, not a Department Manager.
+      conditions.push(`NOT EXISTS (
+        SELECT 1 FROM public.roles scoped_role
+        WHERE scoped_role.id = e.workforce_role_id
+          AND scoped_role.organization_id = e.organization_id
+          AND scoped_role.name = 'HR_MANAGER'
+      )`);
     } else if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER") {
       // HR Managers can view and track only their own leave requests.
       // Organization Admins receive the organization-wide review queue.
