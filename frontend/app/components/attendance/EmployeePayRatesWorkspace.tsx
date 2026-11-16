@@ -75,6 +75,11 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [confirmRateSave, setConfirmRateSave] = useState(false);
+  const [rateFormTouched, setRateFormTouched] = useState(false);
+  const [pendingEmployeeId, setPendingEmployeeId] = useState("");
+  const [confirmDiscardRateChanges, setConfirmDiscardRateChanges] = useState(false);
+  const switchDialogRef = useRef<HTMLElement | null>(null);
+  const switchDialogPreviousFocusRef = useRef<HTMLElement | null>(null);
   const confirmedRateSaveRef = useRef(false);
   const rateDialogRef = useRef<HTMLElement | null>(null);
   const rateDialogPreviousFocusRef = useRef<HTMLElement | null>(null);
@@ -111,6 +116,7 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
     const requestId = ++rateRequestId.current;
     if (!employeeId) {
       setRates([]); setEditingRateId(null); setHourlyRate(""); setOvertimeRate(""); setCurrencyCode("");
+      setRateFormTouched(false);
       return;
     }
     // Never leave another employee's rates visible while this employee is loading.
@@ -125,6 +131,7 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
       setRates(rows);
       const latest = rows[0];
       setEditingRateId(null);
+      setRateFormTouched(false);
       if (latest) {
         setHourlyRate(latest.hourlyRate);
         setOvertimeRate(latest.overtimeRate);
@@ -165,12 +172,28 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
   useWorkspaceAutoRefresh(refreshWorkspace, {
     enabled: true,
     intervalMs: 60_000,
-    shouldRefresh: () => !loading && !saving && !editingRateId,
+    shouldRefresh: () => !loading && !saving && !editingRateId && !rateFormTouched && !confirmRateSave && !confirmDiscardRateChanges,
   });
   useEffect(() => {
     void loadRates();
     return () => { rateRequestId.current += 1; };
   }, [loadRates]);
+
+  useEffect(() => {
+    if (!confirmDiscardRateChanges) return;
+    switchDialogPreviousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    switchDialogRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); setConfirmDiscardRateChanges(false); setPendingEmployeeId(""); }
+      if (event.key !== "Tab" || !switchDialogRef.current) return;
+      const items = Array.from(switchDialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!items.length) return;
+      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items[items.length - 1].focus(); }
+      else if (!event.shiftKey && document.activeElement === items[items.length - 1]) { event.preventDefault(); items[0].focus(); }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => { document.removeEventListener("keydown", handleKeyDown); switchDialogPreviousFocusRef.current?.focus(); };
+  }, [confirmDiscardRateChanges]);
 
   useEffect(() => {
     if (!confirmRateSave) return;
@@ -197,6 +220,7 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
     try {
       await api("/attendance/pay-rates", { method: "PUT", body: JSON.stringify({ employeeId, hourlyRate: Number(hourlyRate), overtimeRate: Number(overtimeRate), currencyCode: organizationCurrencyCode, effectiveFrom, effectiveTo: effectiveTo || null }) });
       setSuccess("Pay rates saved. The employee can now see their rates and estimated monthly earnings.");
+      setRateFormTouched(false);
       await loadRates();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to save pay rates.");
@@ -211,19 +235,31 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
       <form id="employee-pay-rates-form" onSubmit={save} className="rounded-2xl border border-white/[0.08] bg-[#141c28] p-5 sm:p-6">
         <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-400/10 text-sky-200"><BadgeDollarSign size={21} /></span><div><h3 className="font-semibold text-white">{editingRateId ? "Edit saved pay rates" : "Set pay rates"}</h3><p className="mt-1 text-xs text-slate-400">All amounts are hourly rates. {editingRateId ? "Saving updates the selected effective period." : "Choose Edit in rate history to revise an existing period."}</p></div></div>
         <div className="mt-5 space-y-4">
-          <label className="block text-sm font-medium text-slate-300">Employee<select required disabled={saving} value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} className={INPUT}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{name(employee)}{employee.employee_code ? ` · ${employee.employee_code}` : ""}{employee.department_name ? ` · ${employee.department_name}` : ""}</option>)}</select></label>
-          <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-medium text-slate-300">Hourly rate<input required disabled={saving} type="number" min="0" max="99999999" step="0.0001" value={hourlyRate} onChange={(event) => setHourlyRate(event.target.value)} className={INPUT} placeholder="e.g. 2500" /><span className="mt-1 block text-xs font-normal text-slate-500">Per hour · per minute is calculated automatically.</span></label><label className="block text-sm font-medium text-slate-300">Overtime rate<input required disabled={saving} type="number" min="0" max="99999999" step="0.0001" value={overtimeRate} onChange={(event) => setOvertimeRate(event.target.value)} className={INPUT} placeholder="e.g. 3750" /><span className="mt-1 block text-xs font-normal text-slate-500">Per overtime hour · only approved overtime is payable.</span></label></div>
+          <label className="block text-sm font-medium text-slate-300">Employee<select required disabled={saving} value={employeeId} onChange={(event) => { const nextId = event.target.value; if (nextId === employeeId) return; if (rateFormTouched) { setPendingEmployeeId(nextId); setConfirmDiscardRateChanges(true); } else setEmployeeId(nextId); }} className={INPUT}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{name(employee)}{employee.employee_code ? ` · ${employee.employee_code}` : ""}{employee.department_name ? ` · ${employee.department_name}` : ""}</option>)}</select></label>
+          <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-medium text-slate-300">Hourly rate<input required disabled={saving} type="number" min="0" max="99999999" step="0.0001" value={hourlyRate} onChange={(event) => { setHourlyRate(event.target.value); setRateFormTouched(true); }} className={INPUT} placeholder="e.g. 2500" /><span className="mt-1 block text-xs font-normal text-slate-500">Per hour · per minute is calculated automatically.</span></label><label className="block text-sm font-medium text-slate-300">Overtime rate<input required disabled={saving} type="number" min="0" max="99999999" step="0.0001" value={overtimeRate} onChange={(event) => { setOvertimeRate(event.target.value); setRateFormTouched(true); }} className={INPUT} placeholder="e.g. 3750" /><span className="mt-1 block text-xs font-normal text-slate-500">Per overtime hour · only approved overtime is payable.</span></label></div>
           <label className="block text-sm font-medium text-slate-300">Organization currency<input required readOnly disabled={saving || !organizationCurrencyCode} value={organizationCurrencyCode} className={`${INPUT} cursor-not-allowed opacity-80`} placeholder="Configure currency in Organization Profile & Settings" /><span className="mt-1 block text-xs font-normal text-slate-500">Set centrally in Organization Profile & Settings. Employee pay rates always use this currency.</span></label>
-          <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-medium text-slate-300">Effective from<input required type="date" disabled={saving || Boolean(editingRateId)} value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} className={INPUT} /></label><label className="block text-sm font-medium text-slate-300">Effective to (optional)<input type="date" disabled={saving} min={effectiveFrom} value={effectiveTo} onChange={(event) => setEffectiveTo(event.target.value)} className={INPUT} /><span className="mt-1 block text-xs font-normal text-slate-500">Leave blank for an ongoing rate.</span></label></div>
+          <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-medium text-slate-300">Effective from<input required type="date" disabled={saving || Boolean(editingRateId)} value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} className={INPUT} /></label><label className="block text-sm font-medium text-slate-300">Effective to (optional)<input type="date" disabled={saving} min={effectiveFrom} value={effectiveTo} onChange={(event) => { setEffectiveTo(event.target.value); setRateFormTouched(true); }} className={INPUT} /><span className="mt-1 block text-xs font-normal text-slate-500">Leave blank for an ongoing rate.</span></label></div>
           <div className="rounded-xl border border-sky-300/10 bg-sky-300/[0.04] p-3 text-sm text-slate-300"><p>Per-minute regular rate: <strong>{hourlyRate !== "" && Number.isFinite(Number(hourlyRate)) ? `${currencyCode || "Currency"} ${(Number(hourlyRate) / 60).toFixed(4)}` : "—"}</strong></p><p className="mt-1">Per-minute overtime rate: <strong>{overtimeRate !== "" && Number.isFinite(Number(overtimeRate)) ? `${currencyCode || "Currency"} ${(Number(overtimeRate) / 60).toFixed(4)}` : "—"}</strong></p></div>
-          <div className="flex flex-wrap gap-2"><button type="submit" disabled={saving || loading || !employeeId || !organizationCurrencyCode} className={PRIMARY}>{saving ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}{editingRateId ? "Save rate changes" : "Save effective-dated rates"}</button>{editingRateId && <button type="button" disabled={saving} onClick={() => { setEditingRateId(null); setEffectiveFrom(localDate()); setEffectiveTo(""); const latest = rates[0]; if (latest) { setHourlyRate(latest.hourlyRate); setOvertimeRate(latest.overtimeRate); setCurrencyCode(organizationCurrencyCode || latest.currencyCode); } }} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/[0.04] disabled:opacity-50">Cancel edit</button>}</div>
+          <div className="flex flex-wrap gap-2"><button type="submit" disabled={saving || loading || !employeeId || !organizationCurrencyCode} className={PRIMARY}>{saving ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}{editingRateId ? "Save rate changes" : "Save effective-dated rates"}</button>{editingRateId && <button type="button" disabled={saving} onClick={() => { setRateFormTouched(false); setEditingRateId(null); setEffectiveFrom(localDate()); setEffectiveTo(""); const latest = rates[0]; if (latest) { setHourlyRate(latest.hourlyRate); setOvertimeRate(latest.overtimeRate); setCurrencyCode(organizationCurrencyCode || latest.currencyCode); } }} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/[0.04] disabled:opacity-50">Cancel edit</button>}</div>
         </div>
       </form>
       <div className="rounded-2xl border border-white/[0.08] bg-[#141c28] p-5 sm:p-6"><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3">{employees.find((item) => item.id === employeeId) && <EmployeeProfilePhoto employeeId={employeeId} name={name(employees.find((item) => item.id === employeeId)!)} className="size-10 rounded-xl border border-slate-700 bg-slate-800" textClassName="text-xs font-bold text-slate-200" />}<div className="min-w-0"><h3 className="font-semibold text-white">Rate history</h3><p className="mt-1 truncate text-sm text-slate-400">{employees.find((item) => item.id === employeeId) ? name(employees.find((item) => item.id === employeeId)!) : "Choose an employee"}</p></div></div></div>
-        {loading ? <p className="mt-5 text-sm text-slate-400">Loading employees…</p> : rates.length === 0 ? <p className="mt-5 rounded-xl border border-dashed border-slate-700 p-5 text-sm leading-6 text-slate-400">No rates have been saved for this employee yet.</p> : <div className="mt-5 space-y-3">{rates.map((rate) => <article key={rate.id} className="rounded-xl border border-white/[0.07] bg-black/10 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-semibold text-white">{rate.currencyCode} {Number(rate.hourlyRate).toLocaleString()} / hour</p><p className="mt-1 text-sm text-violet-200">{rate.currencyCode} {Number(rate.overtimeRate).toLocaleString()} overtime / hour</p></div><div className="flex items-center gap-2"><span className="rounded-full border border-white/[0.08] px-2.5 py-1 text-xs text-slate-300">{rate.effectiveTo ? "Fixed period" : "Ongoing"}</span><button type="button" disabled={saving} className="rounded-lg border border-sky-400/30 px-3 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-400/10 disabled:opacity-50" onClick={() => { setEditingRateId(rate.id); setHourlyRate(rate.hourlyRate); setOvertimeRate(rate.overtimeRate); setCurrencyCode(organizationCurrencyCode || rate.currencyCode); setEffectiveFrom(rate.effectiveFrom); setEffectiveTo(rate.effectiveTo || ""); setError(""); setSuccess(""); }}>Edit</button></div></div><p className="mt-3 text-xs leading-5 text-slate-400">Effective {rate.effectiveFrom}{rate.effectiveTo ? ` through ${rate.effectiveTo}` : " onward"}</p></article>)}</div>}
+        {loading ? <p className="mt-5 text-sm text-slate-400">Loading employees…</p> : rates.length === 0 ? <p className="mt-5 rounded-xl border border-dashed border-slate-700 p-5 text-sm leading-6 text-slate-400">No rates have been saved for this employee yet.</p> : <div className="mt-5 space-y-3">{rates.map((rate) => <article key={rate.id} className="rounded-xl border border-white/[0.07] bg-black/10 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-semibold text-white">{rate.currencyCode} {Number(rate.hourlyRate).toLocaleString()} / hour</p><p className="mt-1 text-sm text-violet-200">{rate.currencyCode} {Number(rate.overtimeRate).toLocaleString()} overtime / hour</p></div><div className="flex items-center gap-2"><span className="rounded-full border border-white/[0.08] px-2.5 py-1 text-xs text-slate-300">{rate.effectiveTo ? "Fixed period" : "Ongoing"}</span><button type="button" disabled={saving} className="rounded-lg border border-sky-400/30 px-3 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-400/10 disabled:opacity-50" onClick={() => { setRateFormTouched(false); setEditingRateId(rate.id); setHourlyRate(rate.hourlyRate); setOvertimeRate(rate.overtimeRate); setCurrencyCode(organizationCurrencyCode || rate.currencyCode); setEffectiveFrom(rate.effectiveFrom); setEffectiveTo(rate.effectiveTo || ""); setError(""); setSuccess(""); }}>Edit</button></div></div><p className="mt-3 text-xs leading-5 text-slate-400">Effective {rate.effectiveFrom}{rate.effectiveTo ? ` through ${rate.effectiveTo}` : " onward"}</p></article>)}</div>}
       </div>
     </div>
 
+    {confirmDiscardRateChanges && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) { setConfirmDiscardRateChanges(false); setPendingEmployeeId(""); } }}>
+        <section ref={switchDialogRef} tabIndex={-1} role="alertdialog" aria-modal="true" aria-labelledby="rate-switch-title" aria-describedby="rate-switch-description" className="w-full max-w-md rounded-2xl border border-amber-300/20 bg-[#111a28] p-5 text-white shadow-2xl sm:p-6">
+          <h2 id="rate-switch-title" className="text-lg font-bold">Discard unsaved rate changes?</h2>
+          <p id="rate-switch-description" className="mt-2 text-sm leading-6 text-slate-300">You have changed the rate form for the current employee. Switching employees will discard those unsaved values.</p>
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" onClick={() => { setConfirmDiscardRateChanges(false); setPendingEmployeeId(""); }} className="min-h-10 rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/[0.05]">Keep editing</button>
+            <button type="button" onClick={() => { const nextId = pendingEmployeeId; setConfirmDiscardRateChanges(false); setPendingEmployeeId(""); setRateFormTouched(false); setEmployeeId(nextId); }} className="min-h-10 rounded-xl border border-rose-300/20 bg-rose-400/10 px-4 py-2 text-sm font-bold text-rose-100 hover:bg-rose-400/15">Discard and switch</button>
+          </div>
+        </section>
+      </div>
+    )}
     {confirmRateSave && audience === "organization-admin" && (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setConfirmRateSave(false); }}>
         <section ref={rateDialogRef} tabIndex={-1} role="alertdialog" aria-modal="true" aria-labelledby="pay-rate-confirm-title" aria-describedby="pay-rate-confirm-description" className="w-full max-w-md rounded-2xl border border-amber-300/20 bg-[#111a28] p-5 text-white shadow-2xl sm:p-6">
