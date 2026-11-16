@@ -246,6 +246,7 @@ export default function OrganizationAdminProfilePage() {
 
         <div className="mx-auto w-full max-w-6xl px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pt-8">
           <div className="mb-6">
+            <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-2 text-xs font-medium text-slate-500"><span>Workspace</span><span aria-hidden="true">/</span><span aria-current="page" className="text-slate-300">My Profile</span></nav>
             <h1 className="text-2xl font-bold tracking-tight text-white">My Profile</h1>
           </div>
 
