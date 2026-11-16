@@ -59,7 +59,6 @@ export async function GET(request: Request) {
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'TENANT_ADMIN%'
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ADMINISTRATOR%'
          AND (
-         AND (
            $7::boolean
            OR (
              (
