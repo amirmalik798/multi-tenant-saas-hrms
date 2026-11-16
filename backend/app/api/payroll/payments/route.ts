@@ -98,7 +98,7 @@ export async function GET(request: Request) {
          )
          AND (
            $3::boolean
-           OR (($4::boolean OR ($7::boolean AND NOT $3::boolean)) AND e.id = $5::uuid)
+           OR ((($4::boolean OR $7::boolean) AND NOT $3::boolean) AND e.id = $5::uuid)
            OR ($6::boolean AND (e.id = $5::uuid OR EXISTS (
              SELECT 1 FROM public.departments md
              WHERE md.organization_id = e.organization_id
