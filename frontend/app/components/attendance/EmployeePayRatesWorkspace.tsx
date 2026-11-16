@@ -231,7 +231,7 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
           <h2 id="pay-rate-confirm-title" className="mt-4 text-lg font-bold">Confirm pay-rate change</h2>
           <p id="pay-rate-confirm-description" className="mt-2 text-sm leading-6 text-slate-300">These effective-dated rates affect earnings calculations for the selected employee from the effective date onward. Check the amounts and period before saving.</p>
           <div className="mt-4 space-y-2 rounded-xl border border-white/[0.08] bg-black/15 p-4 text-sm">
-            <p className="font-semibold text-white">{name(employees.find((employee) => employee.id === employeeId) || {})}</p>
+            <p className="font-semibold text-white">{employees.find((employee) => employee.id === employeeId) ? name(employees.find((employee) => employee.id === employeeId)!) : "Selected employee"}</p>
             <p className="text-slate-300">Regular rate: {organizationCurrencyCode} {Number(hourlyRate).toLocaleString()} / hour</p>
             <p className="text-slate-300">Overtime rate: {organizationCurrencyCode} {Number(overtimeRate).toLocaleString()} / hour</p>
             <p className="text-slate-400">Effective from: {effectiveFrom}</p>
