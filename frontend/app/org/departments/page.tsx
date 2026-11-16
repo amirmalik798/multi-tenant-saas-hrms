@@ -398,9 +398,27 @@ export default function DepartmentsPage() {
   const drawerRef = useRef<HTMLElement | null>(null);
   const drawerCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const discardDialogRef = useRef<HTMLElement | null>(null);
+  const actionDialogRef = useRef<HTMLElement | null>(null);
+  const actionDialogPreviousFocusRef = useRef<HTMLElement | null>(null);
   const discardKeepEditingRef = useRef<HTMLButtonElement | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
   const drawerRequestIdRef = useRef(0);
+  useEffect(() => {
+    if (!actionConfirmation) return;
+    actionDialogPreviousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    actionDialogRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !bulkUpdating && !saving) { event.preventDefault(); setActionConfirmation(null); }
+      if (event.key !== "Tab" || !actionDialogRef.current) return;
+      const items = Array.from(actionDialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!items.length) return;
+      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items[items.length - 1].focus(); }
+      else if (!event.shiftKey && document.activeElement === items[items.length - 1]) { event.preventDefault(); items[0].focus(); }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => { document.removeEventListener("keydown", handleKeyDown); actionDialogPreviousFocusRef.current?.focus(); };
+  }, [actionConfirmation, bulkUpdating, saving]);
+
   const formIsDirty = isDirty(drawerMode, form, baselineForm);
   const isDrawerOpen = drawerMode !== null;
 
@@ -1814,7 +1832,7 @@ export default function DepartmentsPage() {
 
         {actionConfirmation && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md" onMouseDown={(event) => { if (event.target === event.currentTarget && !bulkUpdating && !saving) setActionConfirmation(null); }}>
-            <section role="alertdialog" aria-modal="true" aria-labelledby="department-action-confirm-title" aria-describedby="department-action-confirm-description" className="w-full max-w-md rounded-2xl border border-rose-400/20 bg-[#111a28] p-6 text-white shadow-2xl">
+            <section ref={actionDialogRef} tabIndex={-1} role="alertdialog" aria-modal="true" aria-labelledby="department-action-confirm-title" aria-describedby="department-action-confirm-description" className="w-full max-w-md rounded-2xl border border-rose-400/20 bg-[#111a28] p-6 text-white shadow-2xl">
               <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-amber-400/25 bg-amber-400/10 text-amber-200"><Icon name="alert" size={20}/></span>
               <h2 id="department-action-confirm-title" className="mt-4 text-lg font-bold">{actionConfirmation.title}</h2>
               <p id="department-action-confirm-description" className="mt-2 text-sm leading-6 text-slate-300">{actionConfirmation.description}</p>
