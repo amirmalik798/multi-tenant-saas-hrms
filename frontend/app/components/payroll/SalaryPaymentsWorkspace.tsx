@@ -7,12 +7,12 @@ import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
 type Payment = { id?: string | null; employeeId: string; employeeCode?: string | null; firstName?: string | null; lastName?: string | null; departmentName?: string | null; payMonth: string; amount: string | number | null; calculatedAmount?: string | number | null; workedMinutes?: number; payableMinutes?: number; paidLeaveMinutes?: number; paidHolidayMinutes?: number; currencyCode: string; status: "PAID" | "UNPAID" | "NO_RECORDED_HOURS" | "RATE_REQUIRED" | "CURRENCY_MISMATCH"; currencyMismatch?: boolean; paidAt?: string | null; paymentReference?: string | null; notes?: string | null };
 type EmployeeRoleRecord = { id?: string; workforce_role?: unknown; workforceRole?: unknown; roleName?: unknown; role_name?: unknown; role?: unknown; userRole?: unknown; user_role?: unknown; user?: { role?: unknown } };
-type Props = { audience: "hr-manager" | "department-manager" | "employee"; employeeId?: string; excludeEmployeeId?: string };
+type Props = { audience: "hr-manager" | "organization-admin" | "department-manager" | "employee"; employeeId?: string; excludeEmployeeId?: string };
 const INPUT = "mt-1.5 w-full rounded-xl border border-slate-700 bg-[#0b111b] px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-sky-400";
 const BUTTON = "inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold !text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 [&>svg]:!text-white";
 function monthNow() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
 function money(value: string | number | null, currency: string) { if (value === null || value === "") return "Not recorded"; const n = Number(value); if (!Number.isFinite(n)) return "—"; try { return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n); } catch { return `${currency} ${n.toFixed(2)}`; } }
-function isExcludedHrTarget(employee: EmployeeRoleRecord) {
+function isExcludedHrTarget(employee: EmployeeRoleRecord, allowHrManager = false) {
   const normalize = (value: unknown): string[] => {
     if (typeof value === "string") return [value.toUpperCase().trim().replace(/[^A-Z0-9]+/g, "_")];
     if (value && typeof value === "object") {
@@ -27,9 +27,11 @@ function isExcludedHrTarget(employee: EmployeeRoleRecord) {
     ...normalize(employee.role), ...normalize(employee.userRole),
     ...normalize(employee.user_role), ...normalize(employee.user?.role),
   ];
-  return roles.some((role) => ["ORGANIZATION_ADMIN", "ORG_ADMIN", "ORGANIZATIONADMIN", "ORGANIZATION_ADMINISTRATOR", "ORGANIZATION_OWNER", "ORG_OWNER", "TENANT_ADMIN", "ADMINISTRATOR", "HR_MANAGER", "HRMANAGER"].includes(role) || role.startsWith("ORGANIZATION_ADMIN_") || role.startsWith("ORGANIZATIONADMIN_") || role.startsWith("ORG_ADMIN_") || role.startsWith("ORGANIZATION_OWNER_") || role.startsWith("ORG_OWNER_") || role.startsWith("TENANT_ADMIN_") || role.startsWith("HR_MANAGER_") || role.startsWith("HRMANAGER_"));
+  const isOrganizationAdmin = roles.some((role) => ["ORGANIZATION_ADMIN", "ORG_ADMIN", "ORGANIZATIONADMIN", "ORGANIZATION_ADMINISTRATOR", "ORGANIZATION_OWNER", "ORG_OWNER", "TENANT_ADMIN", "ADMINISTRATOR"].includes(role) || role.startsWith("ORGANIZATION_ADMIN_") || role.startsWith("ORGANIZATIONADMIN_") || role.startsWith("ORG_ADMIN_") || role.startsWith("ORGANIZATION_OWNER_") || role.startsWith("ORG_OWNER_") || role.startsWith("TENANT_ADMIN_"));
+  const isHrManager = roles.some((role) => ["HR_MANAGER", "HRMANAGER"].includes(role) || role.startsWith("HR_MANAGER_") || role.startsWith("HRMANAGER_"));
+  return isOrganizationAdmin || (isHrManager && !allowHrManager);
 }
-async function loadEligibleEmployeeIds() {
+async function loadEligibleEmployeeIds(audience: Props["audience"]) {
   const fetchPage = async (page: number) => {
     const response = await fetch(`/api/backend/employees?page=${page}&limit=100&sortBy=name&sortOrder=asc`, { credentials: "same-origin", cache: "no-store" });
     const payload = await response.json().catch(() => null);
@@ -44,11 +46,11 @@ async function loadEligibleEmployeeIds() {
     const result = await fetchPage(page);
     allRows.push(...result.rows);
   }
-  return new Set(allRows.filter((employee) => typeof employee.id === "string" && !isExcludedHrTarget(employee)).map((employee) => employee.id as string));
+  return new Set(allRows.filter((employee) => typeof employee.id === "string" && !isExcludedHrTarget(employee, audience === "organization-admin")).map((employee) => employee.id as string));
 }
 
 export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeEmployeeId }: Props) {
-  const canEdit = audience === "hr-manager";
+  const canEdit = audience === "hr-manager" || audience === "organization-admin";
   const [month, setMonth] = useState(monthNow);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,14 +67,14 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     if (!silent) setLoading(true); setError("");
     try {
       const paymentRequest = fetch(`/api/backend/payroll/payments?month=${encodeURIComponent(month)}`, { credentials: "same-origin", cache: "no-store" });
-      const eligibleIdsRequest = canEdit ? loadEligibleEmployeeIds() : Promise.resolve(null);
+      const eligibleIdsRequest = canEdit ? loadEligibleEmployeeIds(audience) : Promise.resolve(null);
       const [response, eligibleIds] = await Promise.all([paymentRequest, eligibleIdsRequest]);
       const payload = await response.json().catch(() => null);
       if (requestId !== loadRequestId.current) return;
       if (!response.ok) throw new Error(payload?.message || `Request failed (${response.status})`);
       const responseRows = Array.isArray(payload?.payments) ? payload.payments as Payment[] : [];
-      // HR Manager payroll views must never include Organization Admin or HR Manager records.
-      // Verify roles against the tenant-scoped employee API before displaying or editing payments.
+      // Verify target roles against the tenant-scoped employee API before displaying or editing payments.
+      // Organization Admin can include HR Manager records; HR Manager cannot manage its own role record.
       const eligibleRows = eligibleIds ? responseRows.filter((payment) => eligibleIds.has(payment.employeeId)) : responseRows;
       // Department Managers may view team payroll on the team page, but their
       // personal earnings page must show only their own payment record.
