@@ -153,7 +153,7 @@ type RollCallFilter =
   | "ALL_ACTIVITY";
 
 type Props = {
-  audience: "employee" | "department-manager" | "hr-manager";
+  audience: "employee" | "department-manager" | "hr-manager" | "organization-admin";
   compact?: boolean;
   actorEmployeeId?: string;
 };
@@ -864,7 +864,7 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
                         <tr key={entry.employeeId} className="align-top transition hover:bg-white/[0.02]">
                           <td className="px-4 py-3.5">
                             <div className="flex min-w-0 items-center gap-2.5">
-                              {(audience === "department-manager" || audience === "hr-manager") && <EmployeeProfilePhoto employeeId={actorEmployeeId && entry.employeeId === actorEmployeeId ? undefined : entry.employeeId} name={dailyEmployeeLabel(entry)} className="size-9 rounded-lg border border-white/10 bg-slate-800" textClassName="text-[10px] font-bold text-slate-300" />}
+                              {(audience === "department-manager" || audience === "hr-manager" || audience === "organization-admin") && <EmployeeProfilePhoto employeeId={actorEmployeeId && entry.employeeId === actorEmployeeId ? undefined : entry.employeeId} name={dailyEmployeeLabel(entry)} className="size-9 rounded-lg border border-white/10 bg-slate-800" textClassName="text-[10px] font-bold text-slate-300" />}
                               <div className="min-w-0">
                                 <button type="button" onClick={() => { setPendingModalSelection(null); setSelectedEmployee(entry); }} className="text-left text-sm font-semibold text-sky-100 underline decoration-sky-300/30 underline-offset-2 transition hover:text-white hover:decoration-sky-200" aria-label={`View attendance details for ${dailyEmployeeLabel(entry)}`}>{dailyEmployeeLabel(entry)}</button>
                                 <p className="mt-1 text-[10px] text-slate-500">{entry.employeeCode || "No employee code"}</p>
