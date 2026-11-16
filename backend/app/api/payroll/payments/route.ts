@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     const result = await pool.query(
       `SELECT p.id, e.id AS "employeeId", e.employee_code AS "employeeCode",
               e.first_name AS "firstName", e.last_name AS "lastName", e.department_id AS "departmentId",
-              d.name AS "departmentName", $2::date::text AS "payMonth", p.amount::text AS amount,
+              d.name AS "departmentName", workforce_role.name AS "workforceRole", $2::date::text AS "payMonth", p.amount::text AS amount,
               COALESCE(p.currency_code, rate.currency_code, 'RWF') AS "currencyCode",
               COALESCE(p.status, 'UNPAID') AS status, p.paid_at AS "paidAt",
               p.payment_reference AS "paymentReference", p.notes, p.updated_at AS "updatedAt"
