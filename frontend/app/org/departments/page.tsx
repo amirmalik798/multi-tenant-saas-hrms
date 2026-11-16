@@ -426,7 +426,7 @@ export default function DepartmentsPage() {
     () => setReloadKey((key) => key + 1),
     {
       enabled: Boolean(user),
-      shouldRefresh: () => !loading && !saving && !drawerMode && !formIsDirty,
+      shouldRefresh: () => !loading && !saving && !drawerMode && !formIsDirty && !actionConfirmation,
     },
   );
   const departmentFieldErrors = useMemo(() => validateDepartmentForm(form, drawerMode), [form, drawerMode]);
