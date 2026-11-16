@@ -31,7 +31,8 @@ export async function GET(request: Request) {
     const start = `${month}-01`;
     const isEmployee = actor.kind === "ORGANIZATION_USER" && actor.roleName === "EMPLOYEE";
     const isDm = actor.kind === "ORGANIZATION_USER" && actor.roleName === "DEPARTMENT_MANAGER";
-    if (!canManage(actor) && !isEmployee && !isDm) return json({ message: "You do not have permission to view salary payments" }, 403);
+    const isHrManager = actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER";
+    if (!canManage(actor) && !isEmployee && !isDm && !isHrManager) return json({ message: "You do not have permission to view salary payments" }, 403);
     const result = await pool.query(
       `SELECT p.id, e.id AS "employeeId", e.employee_code AS "employeeCode",
               e.first_name AS "firstName", e.last_name AS "lastName", e.department_id AS "departmentId",
@@ -95,15 +96,18 @@ export async function GET(request: Request) {
                AND lr.end_date >= $2::date
            )
          )
-         AND ($3::boolean OR ($4::boolean AND e.id = $5::uuid) OR
-              ($6::boolean AND (e.id = $5::uuid OR EXISTS (
-                SELECT 1 FROM public.departments md
-                WHERE md.organization_id = e.organization_id
-                  AND md.id = e.department_id
-                  AND md.manager_id = $5::uuid
-              ))))
+         AND (
+           $3::boolean
+           OR (($4::boolean OR $7::boolean) AND e.id = $5::uuid)
+           OR ($6::boolean AND (e.id = $5::uuid OR EXISTS (
+             SELECT 1 FROM public.departments md
+             WHERE md.organization_id = e.organization_id
+               AND md.id = e.department_id
+               AND md.manager_id = $5::uuid
+           )))
+         )
        ORDER BY e.first_name, e.last_name, e.employee_code`,
-      [actor.organizationId, start, canManage(actor), isEmployee, actor.kind === "ORGANIZATION_USER" ? actor.employeeId : null, isDm],
+      [actor.organizationId, start, canManage(actor), isEmployee, actor.kind === "ORGANIZATION_USER" ? actor.employeeId : null, isDm, isHrManager],
     );
     const calculated = await calculateOrganizationMonthlyPay(pool, actor.organizationId, month);
     const payments = result.rows.map((row) => {
