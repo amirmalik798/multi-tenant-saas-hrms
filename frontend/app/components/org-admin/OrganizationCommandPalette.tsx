@@ -11,7 +11,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 
-type PaletteContext = "dashboard" | "employees" | "departments" | "organization-chart" | "invitations" | "communications" | "support" | "settings" | "profile";
+type PaletteContext = "dashboard" | "employees" | "departments" | "organization-chart" | "invitations" | "attendance" | "schedules" | "leave" | "pay-rates" | "payroll" | "reports" | "communications" | "support" | "settings" | "profile";
 
 type IconName =
   | "dashboard"
@@ -195,6 +195,60 @@ const workspaceCommands: Command[] = [
     href: "/org/invitations",
   },
   {
+    id: "attendance",
+    label: "Attendance & Time",
+    description: "Review organization attendance, clock events and monthly hours",
+    keywords: "attendance calendar clock in clock out working hours overtime",
+    icon: "dashboard",
+    section: "Workspace",
+    href: "/org/attendance",
+  },
+  {
+    id: "schedules",
+    label: "Schedules",
+    description: "Create work schedules and assign employees and Department Managers",
+    keywords: "schedule shifts work calendar assign employee department manager",
+    icon: "layers",
+    section: "Workspace",
+    href: "/org/schedules",
+  },
+  {
+    id: "leave",
+    label: "Leave & public holidays",
+    description: "Review leave requests and manage the public holiday calendar",
+    keywords: "leave holidays time off approve reject",
+    icon: "layers",
+    section: "Workspace",
+    href: "/org/leave",
+  },
+  {
+    id: "pay-rates",
+    label: "Employee pay rates",
+    description: "Configure hourly and overtime rates, including the HR Manager",
+    keywords: "salary compensation hourly overtime rate pay",
+    icon: "credit-card",
+    section: "Workspace",
+    href: "/org/pay-rates",
+  },
+  {
+    id: "payroll",
+    label: "Salary payments",
+    description: "Review monthly salary calculations and record payment status",
+    keywords: "salary payroll payment paid unpaid monthly earnings",
+    icon: "credit-card",
+    section: "Workspace",
+    href: "/org/payroll",
+  },
+  {
+    id: "reports",
+    label: "Attendance reports",
+    description: "Review and export daily organization attendance reports",
+    keywords: "attendance report daily export hours overtime",
+    icon: "dashboard",
+    section: "Workspace",
+    href: "/org/reports",
+  },
+  {
     id: "communications",
     label: "Messages",
     description: "Reply to conversations from your HR Manager",
@@ -272,7 +326,19 @@ export function OrganizationCommandPalette({
                   ? "/org/support"
                   : context === "profile"
                     ? "/org/profile"
-                    : "/org/settings";
+                    : context === "attendance"
+                      ? "/org/attendance"
+                      : context === "schedules"
+                        ? "/org/schedules"
+                        : context === "leave"
+                          ? "/org/leave"
+                          : context === "pay-rates"
+                            ? "/org/pay-rates"
+                            : context === "payroll"
+                              ? "/org/payroll"
+                              : context === "reports"
+                                ? "/org/reports"
+                                : "/org/settings";
 
   const commands = useMemo(() => {
     const actions: Command[] = [];
