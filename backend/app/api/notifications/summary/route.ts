@@ -49,7 +49,7 @@ export async function GET() {
       const idParam = `$${values.length}::uuid`;
       employeeScope = isEmployee
         ? ` AND r.employee_id = ${idParam}`
-        : ` AND EXISTS (SELECT 1 FROM public.employees scoped_employee JOIN public.departments scoped_department ON scoped_department.id = scoped_employee.department_id AND scoped_department.organization_id = scoped_employee.organization_id WHERE scoped_employee.id = r.employee_id AND scoped_employee.organization_id = r.organization_id AND scoped_department.manager_id = ${idParam})`;
+        : ` AND r.employee_id <> ${idParam} AND EXISTS (SELECT 1 FROM public.employees scoped_employee JOIN public.departments scoped_department ON scoped_department.id = scoped_employee.department_id AND scoped_department.organization_id = scoped_employee.organization_id WHERE scoped_employee.id = r.employee_id AND scoped_employee.organization_id = r.organization_id AND scoped_department.manager_id = ${idParam})`;
     }
 
     const correctionResult = await pool.query(
