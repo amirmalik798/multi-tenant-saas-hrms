@@ -363,6 +363,9 @@ export function OrganizationAdminHeader({
   }, []);
   return (
     <>
+      <a href="#org-admin-main-content" className="sr-only fixed left-4 top-4 z-[200] rounded-lg bg-sky-300 px-4 py-3 text-sm font-bold text-slate-950 shadow-xl focus:not-sr-only focus:outline-none focus:ring-2 focus:ring-white">
+        Skip to main content
+      </a>
       <style jsx global>{`
         @keyframes organizationAdminDrawerIn {
           from {
