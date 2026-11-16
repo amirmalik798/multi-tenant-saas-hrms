@@ -1411,7 +1411,7 @@ export default function DashboardPage() {
               aria-describedby="dashboard-organization-delete-description"
               tabIndex={-1}
               onMouseDown={(event) => event.stopPropagation()}
-              className="w-full max-w-xl rounded-2xl border border-rose-400/30 bg-[#182232] p-5 text-white shadow-[0_28px_80px_rgba(0,0,0,0.65)] sm:p-6"
+              className="w-full max-w-md rounded-2xl border border-rose-400/30 bg-[#182232] p-5 text-white shadow-[0_28px_80px_rgba(0,0,0,0.65)] sm:p-6"
             >
               <div className="flex items-start gap-3">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-300">
@@ -1419,10 +1419,10 @@ export default function DashboardPage() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-rose-300">
-                    Irreversible platform action
+                    Permanent deletion
                   </p>
                   <h2 id="dashboard-organization-delete-title" className="mt-1 text-xl font-bold tracking-tight text-white">
-                    Permanently delete organization?
+                    Delete organization?
                   </h2>
                   <p className="mt-1 break-words text-sm font-semibold text-slate-200">
                     {deleteActionOrganization.name}
@@ -1430,20 +1430,13 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div id="dashboard-organization-delete-description" className="mt-5 space-y-3 text-sm leading-6 text-slate-300">
-                <p>
-                  This permanently removes the organization and its tenant-owned
-                  records, including user accounts, employees, departments,
-                  attendance, leave, salary records, documents, invitations,
-                  schedules, communications, licenses, and payment submissions.
-                </p>
-                <p className="rounded-lg border border-rose-400/20 bg-rose-500/[0.07] px-3 py-2.5 text-xs leading-5 text-rose-100/90">
-                  This cannot be undone. Organization users will lose access.
-                  Platform audit history is retained with tenant references anonymized.
-                  Deletion is blocked while contracts or documents are under legal hold.
+              <div id="dashboard-organization-delete-description" className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
+                <p>All tenant data and user access will be permanently removed.</p>
+                <p className="rounded-lg border border-rose-400/20 bg-rose-500/[0.07] px-3 py-2 text-xs leading-5 text-rose-100/90">
+                  Cannot be undone. Audit history is anonymized and retained. Legal holds block deletion.
                 </p>
                 <label htmlFor="dashboard-confirm-organization-delete-slug" className="block pt-1 text-xs font-semibold text-slate-200">
-                  Type this organization&apos;s slug to confirm:
+                  Enter this slug to confirm:
                   <span className="ml-1 font-bold text-rose-200">{deleteActionOrganization.slug}</span>
                 </label>
                 <input
@@ -1489,7 +1482,7 @@ export default function DashboardPage() {
                   <Icon name="trash" size={15} />
                   {deletingOrganizationId === deleteActionOrganization.id
                     ? "Deleting organization…"
-                    : "Permanently delete"}
+                    : "Delete organization"}
                 </button>
               </div>
             </div>
