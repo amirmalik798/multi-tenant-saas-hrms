@@ -2004,6 +2004,12 @@ export default function EmployeesPage() {
           {(logoutError || noticeError) && <div role="alert" className="mb-5 rounded-xl border border-rose-400/30 bg-rose-500/15 p-4 text-sm font-medium text-rose-200">{logoutError || noticeError}</div>}
           {notice && <div role="status" aria-live="polite" className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-emerald-400/30 bg-emerald-500/15 p-4 text-sm font-medium text-emerald-200"><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Dismiss success message"><Icon name="close" size={16} /></button></div>}
 
+          <section aria-labelledby="employees-page-title" className="mb-6">
+            <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-2 text-xs font-medium text-slate-500"><span>Workspace</span><span aria-hidden="true">/</span><span aria-current="page" className="text-slate-300">Employees</span></nav>
+            <h1 id="employees-page-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">Employees</h1>
+            <p className="mt-1.5 text-sm leading-6 text-slate-400">Manage workforce records, roles, reporting lines and employee access.</p>
+          </section>
+
           {/* Metrics Grid */}
           <section aria-label="Employee metrics" className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <article className="relative flex flex-col justify-between overflow-hidden rounded-xl border border-[#29384b] bg-[#141f2e]/90 p-4 shadow-sm transition-colors hover:border-[#3b536d]">
