@@ -29,6 +29,7 @@ type EmployeeRecord = {
   designation: string | null;
   manager_id: string | null;
   manager_name: string | null;
+  reporting_manager_user_id?: string | null;
   department_id: string | null;
   department_name: string | null;
   workforce_role: WorkforceRole | null;
@@ -619,7 +620,7 @@ export default function OrganizationChartPage() {
             <div className="flex flex-col gap-4 border-b border-[#32445e] px-4 py-4 lg:flex-row lg:items-center lg:justify-between sm:px-6">
               <div>
                 <h2 className="text-sm font-bold text-white">Reporting hierarchy</h2>
-                <p className="mt-0.5 text-xs font-medium text-slate-300">HR Manager → Department Manager → Employee</p>
+                <p className="mt-0.5 text-xs font-medium text-slate-300">Organization Admin → HR Manager → Department Manager → Employee</p>
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2">
@@ -685,7 +686,20 @@ export default function OrganizationChartPage() {
             ) : (
               <div className="space-y-4 px-4 py-5 sm:px-6 sm:py-6">
                 {visibleRoots.length > 0 && (
-                  <ul className="space-y-3">
+                  <div className="rounded-xl border border-[#75c7ff]/35 bg-[#75c7ff]/[0.07] p-3.5 sm:p-4">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#d4efff]">Organization Admin · Reporting manager</p>
+                        <p className="mt-1 text-xs font-medium text-slate-200">{user?.email || "Organization Admin"}</p>
+                      </div>
+                      <span className="rounded-full border border-[#75c7ff]/30 bg-[#75c7ff]/10 px-2.5 py-1 text-[10px] font-semibold text-[#d4efff]">
+                        {employees.filter((employee) => employee.workforce_role === "HR_MANAGER" && employee.reporting_manager_user_id === user?.id).length} direct HR Manager reports
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {visibleRoots.length > 0 && (
+                  <ul className="ml-3 space-y-3 border-l border-[#75c7ff]/35 pl-4 sm:ml-5 sm:pl-5">
                     {visibleRoots.map((rootId) => (
                       <EmployeeTreeNode
                         key={rootId}
