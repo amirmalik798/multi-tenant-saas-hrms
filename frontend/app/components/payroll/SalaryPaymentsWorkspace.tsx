@@ -29,7 +29,7 @@ function isExcludedHrTarget(employee: EmployeeRoleRecord, allowHrManager = false
   ];
   const isOrganizationAdmin = roles.some((role) => ["ORGANIZATION_ADMIN", "ORG_ADMIN", "ORGANIZATIONADMIN", "ORGANIZATION_ADMINISTRATOR", "ORGANIZATION_OWNER", "ORG_OWNER", "TENANT_ADMIN", "ADMINISTRATOR"].includes(role) || role.startsWith("ORGANIZATION_ADMIN_") || role.startsWith("ORGANIZATIONADMIN_") || role.startsWith("ORG_ADMIN_") || role.startsWith("ORGANIZATION_OWNER_") || role.startsWith("ORG_OWNER_") || role.startsWith("TENANT_ADMIN_"));
   const isHrManager = roles.some((role) => ["HR_MANAGER", "HRMANAGER"].includes(role) || role.startsWith("HR_MANAGER_") || role.startsWith("HRMANAGER_"));
-  return isOrganizationAdmin || (isHrManager && !allowHrManager);
+  return isOrganizationAdmin || (!allowHrManager && isHrManager);
 }
 async function loadEligibleEmployeeIds(audience: Props["audience"]) {
   const fetchPage = async (page: number) => {
@@ -50,7 +50,7 @@ async function loadEligibleEmployeeIds(audience: Props["audience"]) {
 }
 
 export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeEmployeeId }: Props) {
-  const canEdit = audience === "hr-manager" || audience === "organization-admin";
+  const canEdit = audience === "organization-admin";
   const [month, setMonth] = useState(monthNow);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
