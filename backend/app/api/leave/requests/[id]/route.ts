@@ -28,7 +28,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         if (!isOwnRequest || row.status !== "PENDING") { await client.query("ROLLBACK"); return jsonResponse({ message: "Only the requesting workforce member can cancel their own pending request" }, 403); }
         await client.query(`UPDATE public.leave_requests SET status='CANCELLED', updated_at=now() WHERE id=$1::uuid`, [id]);
       } else {
-        if (!(actor.kind === "ORGANIZATION_ADMIN" || (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER") || isManager)) { await client.query("ROLLBACK"); return jsonResponse({ message: "You do not have permission to decide leave requests" }, 403); }
+        if (!(actor.kind === "ORGANIZATION_ADMIN" || isManager)) { await client.query("ROLLBACK"); return jsonResponse({ message: "You do not have permission to decide leave requests" }, 403); }
         if (isEmployee || (actor.kind === "ORGANIZATION_USER" && row.employeeId === actor.employeeId)) { await client.query("ROLLBACK"); return jsonResponse({ message: "You cannot approve or reject your own leave request" }, 403); }
         if (isManager && row.departmentManagerId !== actor.employeeId) { await client.query("ROLLBACK"); return jsonResponse({ message: "You can decide requests only for employees in your managed departments" }, 403); }
         if (row.status !== "PENDING") { await client.query("ROLLBACK"); return jsonResponse({ message: "Only pending leave requests can be decided" }, 409); }
