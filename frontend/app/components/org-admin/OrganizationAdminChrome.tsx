@@ -72,7 +72,7 @@ export function useOrganizationAdminAutoRefresh(
   }, [enabled, intervalMs]);
 }
 
-type OrganizationPage = "dashboard" | "employees" | "departments" | "organization-chart" | "invitations" | "communications" | "support" | "settings" | "profile" | "license";
+type OrganizationPage = "dashboard" | "employees" | "departments" | "organization-chart" | "invitations" | "attendance" | "schedules" | "leave" | "pay-rates" | "payroll" | "reports" | "communications" | "support" | "settings" | "profile" | "license";
 type PaletteContext = Exclude<OrganizationPage, "license">;
 
 type OrganizationAdminSidebarProps = { activePage: OrganizationPage };
@@ -100,6 +100,12 @@ const navItems: Array<{
   { id: "departments", label: "Departments", href: "/org/departments", icon: "layers" },
   { id: "organization-chart", label: "Organization Chart", href: "/org/organization-chart", icon: "hierarchy" },
   { id: "invitations", label: "Invitations", href: "/org/invitations", icon: "mail" },
+  { id: "attendance", label: "Attendance & Time", href: "/org/attendance", icon: "dashboard" },
+  { id: "schedules", label: "Schedules", href: "/org/schedules", icon: "layers" },
+  { id: "leave", label: "Leave & Public Holidays", href: "/org/leave", icon: "layers" },
+  { id: "pay-rates", label: "Employee Pay Rates", href: "/org/pay-rates", icon: "credit-card" },
+  { id: "payroll", label: "Salary Payments", href: "/org/payroll", icon: "credit-card" },
+  { id: "reports", label: "Attendance Reports", href: "/org/reports", icon: "dashboard" },
   { id: "communications", label: "Messages", href: "/org/communications", icon: "mail" },
   { id: "support", label: "Platform Support", href: "/org/support", icon: "mail" },
   { id: "settings", label: "Organization Profile & Settings", href: "/org/settings", icon: "settings" },
