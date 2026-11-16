@@ -166,7 +166,7 @@ export default function OrganizationAdminReportsPage() {
           </div>
           {organizationTimeZone && <p className="mt-3 text-xs text-[#9AA8BA]">Organization time zone: {organizationTimeZone}</p>}
           {dateSourceWarning && <div role="status" className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/[0.05] p-3.5 text-xs leading-5 text-amber-200">{dateSourceWarning}</div>}
-          {error && <div role="alert" className="mt-4 flex items-start gap-2 rounded-xl border border-rose-400/20 bg-rose-400/[0.05] p-3.5 text-sm leading-6 text-rose-200"><Info size={16} className="mt-1 shrink-0" />{error}</div>}
+          {error && <div role="alert" className="mt-4 flex flex-col gap-3 rounded-xl border border-rose-400/20 bg-rose-400/[0.05] p-3.5 text-sm leading-6 text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span className="flex min-w-0 items-start gap-2"><Info size={16} className="mt-1 shrink-0" />{error}</span><button type="button" disabled={loadingReport || loadingDate || !reportDate} onClick={() => void generateReport()} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">Try again</button></div>
           {success && <div role="status" className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] p-3.5 text-sm leading-6 text-emerald-200"><CheckCircle2 size={16} className="mt-1 shrink-0" />{success}</div>}
         </section>
 
