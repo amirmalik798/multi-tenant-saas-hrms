@@ -13,7 +13,9 @@ type Page =
   | "leave"
   | "pay-rates"
   | "payroll"
-  | "reports";
+  | "reports"
+  | "communications"
+  | "support";
 
 type OrganizationAdminUser = {
   id: string;
