@@ -65,10 +65,13 @@ The gateway requires a secret of at least 32 characters.
 1. Click **Deploy → New deployment**.
 2. Select deployment type **Web app**.
 3. Set **Execute as** to **Me** (the deploying Google account).
-4. Set **Who has access** to **Anyone** (including unauthenticated callers).
-   Render cannot complete an interactive Google sign-in. Access is protected
-   by the shared secret in the POST body. If your Google Workspace administrator
-   blocks anonymous web apps, use an account/policy that permits this setting.
+4. Set **Who has access** to the option that permits anonymous callers
+   (Apps Script access level `ANYONE_ANONYMOUS`; commonly shown as **Anyone**).
+   Do not choose an option that requires callers to sign in with a Google
+   account. Render cannot complete an interactive Google sign-in. Access is
+   protected by the shared secret in the POST body. If your Google Workspace
+   administrator blocks anonymous web apps, use an account/policy that permits
+   this setting.
 5. Deploy and copy the web-app URL ending in `/exec`.
 
 Do not use the `/dev` test URL. The backend validates the deployed
