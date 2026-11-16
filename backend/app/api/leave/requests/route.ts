@@ -20,27 +20,24 @@ export async function GET(request: Request) {
       conditions.push(`(
         r.employee_id = $${values.length}::uuid
         OR EXISTS (
-          SELECT 1
-          FROM public.departments md
+          SELECT 1 FROM public.departments md
           WHERE md.organization_id = e.organization_id
             AND md.id = e.department_id
             AND md.manager_id = $${values.length}::uuid
         )
       )`);
-      // HR Manager leave is routed to the Organization Admin, not a Department Manager.
       conditions.push(`NOT EXISTS (
         SELECT 1 FROM public.roles scoped_role
         WHERE scoped_role.id = e.workforce_role_id
           AND scoped_role.organization_id = e.organization_id
-          AND scoped_role.name = 'HR_MANAGER'
+          AND regexp_replace(UPPER(scoped_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'HR_MANAGER%'
       )`);
     } else if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER") {
-      // HR Managers can view and track only their own leave requests.
-      // Organization Admins receive the organization-wide review queue.
       values.push(actor.employeeId); conditions.push(`r.employee_id = $${values.length}::uuid`);
-    } else if (!(actor.kind === "ORGANIZATION_ADMIN")) {
+    } else if (actor.kind !== "ORGANIZATION_ADMIN") {
       return jsonResponse({ message: "You do not have permission to view leave requests" }, 403);
     }
+
     const result = await pool.query(`${SELECT} WHERE ${conditions.join(" AND ")} ORDER BY CASE r.status WHEN 'PENDING' THEN 0 WHEN 'APPROVED' THEN 1 ELSE 2 END, r.start_date DESC, r.created_at DESC LIMIT 500`, values);
     const requests = result.rows.map((row) => ({ ...row, isOwnRequest: actor.kind === "ORGANIZATION_USER" && row.employeeId === actor.employeeId }));
     return jsonResponse({ status: "ok", requests });
