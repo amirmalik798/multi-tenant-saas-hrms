@@ -392,7 +392,7 @@ export default function OrganizationLicensePage() {
         />
 
         <div className="mx-auto w-full max-w-7xl px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pt-8">
-          <div className="mb-3 flex items-center gap-2 text-xs font-medium text-slate-500" aria-label="Breadcrumb"><span>Workspace</span><span aria-hidden="true">/</span><span aria-current="page" className="text-slate-300">License &amp; Payments</span></div>
+          <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-2 text-xs font-medium text-slate-500"><span>Workspace</span><span aria-hidden="true">/</span><span aria-current="page" className="text-slate-300">License &amp; Payments</span></nav>
           <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-300">
