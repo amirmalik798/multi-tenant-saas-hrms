@@ -611,6 +611,12 @@ export default function OrganizationChartPage() {
             </div>
           )}
 
+          <section aria-labelledby="organization-chart-page-title" className="mb-6">
+            <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-2 text-xs font-medium text-slate-500"><span>Workspace</span><span aria-hidden="true">/</span><span aria-current="page" className="text-slate-300">Organization Chart</span></nav>
+            <h1 id="organization-chart-page-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">Organization Chart</h1>
+            <p className="mt-1.5 text-sm leading-6 text-slate-400">Explore reporting relationships and identify workforce records that need assignment review.</p>
+          </section>
+
           <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-5">
             <StatCard label="Employee records" value={counts.total} detail="Across this organization" />
             <StatCard label="Active workforce" value={counts.active} detail="Employment status: Active" />
