@@ -157,6 +157,42 @@ export default function LeaveManagementWorkspace({ audience }: { audience: Audie
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#111a28]"><div className="border-b border-white/10 p-4"><h2 className="font-semibold">Organization holiday calendar</h2><p className="mt-1 text-sm text-slate-400">Paid public holidays credit scheduled hours when no work is recorded.</p></div>{loading ? <div className="p-10 text-center text-sm text-slate-400">Loading holidays…</div> : upcomingHolidays.length === 0 ? <div className="p-10 text-center text-sm text-slate-400">No public holidays have been added yet.</div> : <div className="divide-y divide-white/[.07]">{upcomingHolidays.map((h) => <div key={h.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div className="flex items-start gap-3"><div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-400/10 text-violet-200"><CalendarDays size={18}/></div><div><p className="font-medium">{h.name}</p><p className="mt-1 text-sm text-slate-400">{dateLabel(h.holidayDate)} · {h.isPaid ? "Paid holiday" : "Unpaid holiday"}</p>{h.notes && <p className="mt-1 text-xs text-slate-500">{h.notes}</p>}</div></div>{canManageHolidays && <button type="button" disabled={saving} title="Remove holiday" onClick={() => void removeHoliday(h)} className="rounded-lg border border-white/10 p-2 text-slate-400 hover:border-rose-300/20 hover:text-rose-200 disabled:opacity-50"><Trash2 size={15}/></button>}</div>)}</div>}</div>
       {canManageHolidays ? <form onSubmit={addHoliday} className="h-fit space-y-4 rounded-2xl border border-white/10 bg-[#111a28] p-5"><h2 className="text-lg font-semibold">Add public holiday</h2><p className="text-sm text-slate-400">Keep the organization calendar accurate for all employees.</p><label className="block text-xs font-medium text-slate-400">Holiday name<input required minLength={2} maxLength={160} value={holidayName} onChange={(e) => setHolidayName(e.target.value)} placeholder="e.g. National holiday" className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2.5 text-sm"/></label><label className="block text-xs font-medium text-slate-400">Date<input required type="date" value={holidayDate} onChange={(e) => setHolidayDate(e.target.value)} className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2.5 text-sm"/></label><label className="block text-xs font-medium text-slate-400">Notes (optional)<textarea maxLength={500} rows={2} value={holidayNotes} onChange={(e) => setHolidayNotes(e.target.value)} className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2.5 text-sm"/></label><label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={holidayPaid} onChange={(e) => setHolidayPaid(e.target.checked)} className="accent-sky-400"/> Paid public holiday</label><button type="submit" disabled={saving || !holidayDate || holidayName.trim().length < 2} className="w-full rounded-xl bg-sky-400 px-4 py-3 text-sm font-semibold text-[#07111d] hover:bg-sky-300 disabled:opacity-50">{saving ? "Saving…" : "Save holiday"}</button></form> : <div className="rounded-2xl border border-white/10 bg-[#111a28] p-5"><h2 className="font-semibold">Holiday pay</h2><p className="mt-2 text-sm leading-6 text-slate-400">Your organization’s public holidays appear here. Paid holidays may be included in calculated monthly pay for scheduled workdays with no recorded work.</p></div>}
     </div>}
+    {dialog && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setDialog(null); }}>
+        <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="leave-confirmation-title" aria-describedby="leave-confirmation-description" tabIndex={-1} className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#111a28] p-5 shadow-2xl shadow-black/50 outline-none sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky-300">Confirm action</p>
+              <h2 id="leave-confirmation-title" className="mt-2 text-lg font-bold text-white">
+                {dialog.kind === "holiday" ? "Remove public holiday?" : dialog.status === "APPROVED" ? "Approve leave request?" : dialog.status === "REJECTED" ? "Reject leave request?" : "Cancel leave request?"}
+              </h2>
+            </div>
+            <button type="button" disabled={saving} onClick={() => setDialog(null)} aria-label="Close confirmation" className="rounded-lg border border-white/10 p-2 text-slate-300 transition hover:bg-white/5 disabled:opacity-50"><X size={17}/></button>
+          </div>
+          <p id="leave-confirmation-description" className="mt-3 text-sm leading-6 text-slate-300">
+            {dialog.kind === "holiday"
+              ? "This removes “" + dialog.holiday.name + "” (" + dateLabel(dialog.holiday.holidayDate) + ") from the organization holiday calendar. This may affect future scheduled-hours and payroll calculations."
+              : ([dialog.request.firstName, dialog.request.lastName].filter(Boolean).join(" ") || "This employee") + " · " + (TYPES.find((type) => type.value === dialog.request.leaveType)?.label ?? dialog.request.leaveType) + " · " + dateLabel(dialog.request.startDate) + " – " + dateLabel(dialog.request.endDate) + "."}
+          </p>
+          {dialog.kind === "leave" && (
+            <div className="mt-4">
+              <label htmlFor="leave-review-note" className="mb-1.5 block text-sm font-semibold text-slate-200">
+                {dialog.status === "REJECTED" ? "Reason for rejection (required)" : "Review note (optional)"}
+              </label>
+              <textarea id="leave-review-note" rows={3} maxLength={500} value={dialog.note} onChange={(event) => setDialog((current) => current?.kind === "leave" ? { ...current, note: event.target.value } : current)} placeholder={dialog.status === "REJECTED" ? "Explain why this request is being rejected…" : "Add a note for the employee…"} className="w-full resize-y rounded-xl border border-white/10 bg-[#0b1220] px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-sky-400/50 focus:ring-2 focus:ring-sky-400/10" autoFocus />
+              <p className="mt-1 text-right text-xs text-slate-500">{dialog.note.length}/500</p>
+            </div>
+          )}
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" disabled={saving} onClick={() => setDialog(null)} className="min-h-10 rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-white/5 disabled:opacity-50">Keep as is</button>
+            <button type="button" disabled={saving || (dialog.kind === "leave" && dialog.status === "REJECTED" && !dialog.note.trim())} onClick={() => void (dialog.kind === "holiday" ? confirmHolidayRemoval() : confirmLeaveDecision())} className={"inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition disabled:cursor-wait disabled:opacity-50 " + (dialog.kind === "holiday" || (dialog.kind === "leave" && (dialog.status === "REJECTED" || dialog.status === "CANCELLED")) ? "border border-rose-300/20 bg-rose-400/10 text-rose-100 hover:bg-rose-400/15" : "bg-emerald-400 text-[#07111d] hover:bg-emerald-300")}>
+              {saving ? <RefreshCw size={15} className="animate-spin"/> : null}
+              {saving ? "Saving…" : dialog.kind === "holiday" ? "Remove holiday" : dialog.status === "APPROVED" ? "Approve request" : dialog.status === "REJECTED" ? "Reject request" : "Cancel request"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     <p className="text-xs leading-5 text-slate-500"><Clock3 className="mr-1 inline" size={13}/>Leave approvals and holiday entries affect salary estimates after the migration is applied. The system preserves attendance events and never treats leave as a clock-in or clock-out event.</p>
   </section>;
 }
