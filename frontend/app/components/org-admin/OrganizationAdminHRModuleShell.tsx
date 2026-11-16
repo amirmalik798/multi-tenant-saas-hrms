@@ -135,7 +135,7 @@ export default function OrganizationAdminHRModuleShell({
     <div className="org-admin-workspace organization-admin-workspace min-h-screen bg-[#0b1220] text-slate-100">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_bottom_right,rgba(35,91,130,0.07),transparent_42%)]" />
       <OrganizationAdminSidebar activePage={activePage} />
-      <main className="relative z-10 min-h-screen lg:ml-64">
+      <main id="org-admin-main-content" tabIndex={-1} className="relative z-10 min-h-screen lg:ml-64">
         <OrganizationAdminHeader
           activePage={activePage}
           organizationName={user.organizationName}
