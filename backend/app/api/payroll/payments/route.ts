@@ -18,7 +18,7 @@ function validMonth(value: string | null): value is string {
   return year >= 2000 && year <= 2100 && month >= 1 && month <= 12;
 }
 function canManage(actor: NonNullable<Awaited<ReturnType<typeof getTenantPermissionActor>>>) {
-  return actor.kind === "ORGANIZATION_ADMIN";
+  return actor.kind === "ORGANIZATION_ADMIN" || (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER");
 }
 
 export async function GET(request: Request) {
@@ -58,6 +58,16 @@ export async function GET(request: Request) {
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORG_OWNER%'
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'TENANT_ADMIN%'
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ADMINISTRATOR%'
+         AND (
+           $7::boolean
+           OR (
+             (
+               COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'HR_MANAGER%'
+               AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'HRMANAGER%'
+             )
+             OR e.id = $5::uuid
+           )
+         )
          AND NOT EXISTS (
            SELECT 1
            FROM public.users AS target_account
@@ -189,7 +199,7 @@ export async function PUT(request: Request) {
       [employeeId, actor.organizationId],
     );
     if (!employee.rowCount) { await client.query("ROLLBACK"); return json({ message: "Employee not found in this organization" }, 404); }
-    if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: true }) || employee.rows[0].is_organization_admin) {
+    if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: actor.kind === "ORGANIZATION_ADMIN" }) || employee.rows[0].is_organization_admin) {
       await client.query("ROLLBACK");
       return json({ message: "Organization Admin records are not eligible for salary payments" }, 403);
     }
