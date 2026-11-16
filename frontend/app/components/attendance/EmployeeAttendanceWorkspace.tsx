@@ -463,7 +463,7 @@ export default function EmployeeAttendanceWorkspace({ userOverride }: { userOver
         })(),
         section(`/attendance/corrections${scopeQuery ? "?scope=self" : ""}`, "requests"),
         section(`/attendance/overtime${scopeQuery ? "?scope=self" : ""}`, "requests"),
-        section("/leave/requests", "requests"),
+        section(`/leave/requests${scopeQuery ? "?scope=self" : ""}`, "requests"),
         section(`/leave/holidays${query}`, "holidays"),
       ]);
 
