@@ -412,6 +412,7 @@ export default function OrganizationsPage() {
   const [deletingOrganizationId, setDeletingOrganizationId] =
     useState<string | null>(null);
   const deleteDialogRef = useRef<HTMLDivElement | null>(null);
+  const deleteConfirmationInputRef = useRef<HTMLInputElement | null>(null);
   const statusDialogRef = useRef<HTMLDivElement | null>(null);
   const statusConfirmationInputRef = useRef<HTMLInputElement | null>(null);
   const statusConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -1317,7 +1318,7 @@ export default function OrganizationsPage() {
     const organization = deleteActionOrganization;
     if (!organization || deletingOrganizationId) return;
 
-    if (deleteConfirmationSlug.trim() !== organization.slug) {
+    if (deleteConfirmationSlug.trim() !== organization.slug.trim()) {
       setDeleteActionError("Type the organization's slug exactly to confirm deletion.");
       return;
     }
@@ -1384,6 +1385,45 @@ export default function OrganizationsPage() {
       setDeletingOrganizationId(null);
     }
   }
+
+  useEffect(() => {
+    if (!deleteActionOrganization) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    deleteConfirmationInputRef.current?.focus();
+
+    function handleDeleteDialogKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDeleteOrganizationDialog();
+        return;
+      }
+      if (event.key !== "Tab" || !deleteDialogRef.current) return;
+      const focusable = Array.from(deleteDialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleDeleteDialogKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleDeleteDialogKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [deleteActionOrganization, deletingOrganizationId]);
 
   function handleToggleOrganizationStatus(organization: Organization) {
     if (organization.status === "PENDING_SETUP") return;
@@ -3421,19 +3461,16 @@ export default function OrganizationsPage() {
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeDeleteOrganizationDialog();
           }}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") closeDeleteOrganizationDialog();
-          }}
         >
           <div
             ref={deleteDialogRef}
             role="alertdialog"
             aria-modal="true"
-            aria-labelledby="organization-delete-title"
-            aria-describedby="organization-delete-description"
+            aria-labelledby="organizations-page-delete-title"
+            aria-describedby="organizations-page-delete-description"
             tabIndex={-1}
             onMouseDown={(event) => event.stopPropagation()}
-            className="w-full max-w-xl rounded-2xl border border-rose-400/30 bg-[#182232] p-5 text-white shadow-[0_28px_80px_rgba(0,0,0,0.65)] sm:p-6"
+            className="w-full max-w-md rounded-2xl border border-rose-400/30 bg-[#182232] p-5 text-white shadow-[0_28px_80px_rgba(0,0,0,0.65)] sm:p-6"
           >
             <div className="flex items-start gap-3">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-300">
@@ -3441,10 +3478,10 @@ export default function OrganizationsPage() {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-rose-300">
-                  Irreversible platform action
+                  Permanent deletion
                 </p>
-                <h2 id="organization-delete-title" className="mt-1 text-xl font-bold tracking-tight text-white">
-                  Permanently delete organization?
+                <h2 id="organizations-page-delete-title" className="mt-1 text-xl font-bold tracking-tight text-white">
+                  Delete organization?
                 </h2>
                 <p className="mt-1 break-words text-sm font-semibold text-slate-200">
                   {deleteActionOrganization.name}
@@ -3452,33 +3489,20 @@ export default function OrganizationsPage() {
               </div>
             </div>
 
-            <div id="organization-delete-description" className="mt-5 space-y-3 text-sm leading-6 text-slate-300">
-              <p>
-                This permanently removes the organization and its tenant-owned
-                records, including user accounts, employees, departments,
-                attendance, leave, salary records, documents, invitations,
-                schedules, onboarding, communications, licenses, and payment
-                submissions with their proof images.
+            <div id="organizations-page-delete-description" className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
+              <p>All tenant data and user access will be permanently removed.</p>
+              <p className="rounded-lg border border-rose-400/20 bg-rose-500/[0.07] px-3 py-2 text-xs leading-5 text-rose-100/90">
+                Cannot be undone. Audit history is anonymized and retained. Legal holds block deletion.
               </p>
-              <p className="rounded-lg border border-rose-400/20 bg-rose-500/[0.07] px-3 py-2.5 text-xs leading-5 text-rose-100/90">
-                This cannot be undone. Users from this organization will no
-                longer be able to sign in, and existing sessions will be
-                rejected by the database-backed authentication checks.
-              </p>
-              <p className="rounded-lg border border-sky-400/15 bg-sky-500/[0.05] px-3 py-2.5 text-xs leading-5 text-sky-100/85">
-                Platform audit history is retained with tenant references
-                anonymized. Deletion is blocked while contracts or documents
-                are under a legal hold.
-              </p>
-              <label htmlFor="confirm-organization-delete-slug" className="block pt-1 text-xs font-semibold text-slate-200">
-                Type this organization&apos;s slug to confirm:
+              <label htmlFor="organizations-page-confirm-delete-slug" className="block pt-1 text-xs font-semibold text-slate-200">
+                Enter this slug to confirm:
                 <span className="ml-1 font-bold text-rose-200">{deleteActionOrganization.slug}</span>
               </label>
               <input
-                id="confirm-organization-delete-slug"
+                ref={deleteConfirmationInputRef}
+                id="organizations-page-confirm-delete-slug"
                 type="text"
                 autoComplete="off"
-                autoFocus
                 value={deleteConfirmationSlug}
                 onChange={(event) => {
                   setDeleteConfirmationSlug(event.target.value);
@@ -3501,7 +3525,7 @@ export default function OrganizationsPage() {
                 type="button"
                 onClick={closeDeleteOrganizationDialog}
                 disabled={Boolean(deletingOrganizationId)}
-                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-[#29384b] bg-white/[0.04] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -3510,14 +3534,14 @@ export default function OrganizationsPage() {
                 onClick={() => void handleConfirmOrganizationDeletion()}
                 disabled={
                   Boolean(deletingOrganizationId) ||
-                  deleteConfirmationSlug.trim() !== deleteActionOrganization.slug
+                  deleteConfirmationSlug.trim() !== deleteActionOrganization.slug.trim()
                 }
                 className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-rose-500/35 bg-rose-600/90 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 <Icon name="trash" size={15} />
                 {deletingOrganizationId === deleteActionOrganization.id
                   ? "Deleting organization…"
-                  : "Permanently delete"}
+                  : "Delete organization"}
               </button>
             </div>
           </div>
