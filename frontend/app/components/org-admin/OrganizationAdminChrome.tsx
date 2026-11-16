@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Moon, Sun } from "lucide-react";
+import { Menu, Moon, Sun, X } from "lucide-react";
 import { OrganizationCommandPalette } from "./OrganizationCommandPalette";
 import WorkspaceClock from "../WorkspaceClock";
 
@@ -322,6 +322,7 @@ export function OrganizationAdminHeader({
   const [adminPhotoVersion, setAdminPhotoVersion] = useState(0);
   const [organizationLogoVersion, setOrganizationLogoVersion] = useState(0);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
 
   useEffect(() => {
     let initial: "dark" | "light" = "dark";
@@ -338,6 +339,10 @@ export function OrganizationAdminHeader({
       delete document.documentElement.dataset.orgAdminTheme;
     };
   }, []);
+
+  useEffect(() => {
+    setMobileNavigationOpen(false);
+  }, [activePage]);
 
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
@@ -384,7 +389,7 @@ export function OrganizationAdminHeader({
         }
 
         /* A visible, high-contrast keyboard focus treatment across all org-admin pages. */
-        :where(button, a, input, select, textarea, [role="button"], [tabindex]):focus-visible {
+        .org-admin-workspace :where(button, a, input, select, textarea, [role="button"], [tabindex]):focus-visible {
           outline: 2px solid #75c7ff !important;
           outline-offset: 2px;
         }
@@ -394,9 +399,9 @@ export function OrganizationAdminHeader({
             animation: none !important;
           }
 
-          *,
-          *::before,
-          *::after {
+          .org-admin-workspace *,
+          .org-admin-workspace *::before,
+          .org-admin-workspace *::after {
             scroll-behavior: auto !important;
             animation-duration: 0.01ms !important;
             animation-iteration-count: 1 !important;
@@ -492,29 +497,53 @@ export function OrganizationAdminHeader({
           </div>
         </div>
 
+        <div className="mt-2 flex items-center justify-between gap-3 pb-2 lg:hidden">
+          <span className="truncate text-sm font-semibold text-slate-200">
+            {navItems.find((item) => item.id === activePage)?.label || "Organization"}
+          </span>
+          <button
+            type="button"
+            aria-controls="org-admin-mobile-navigation"
+            aria-expanded={mobileNavigationOpen}
+            aria-label={mobileNavigationOpen ? "Close navigation menu" : "Open navigation menu"}
+            onClick={() => setMobileNavigationOpen((open) => !open)}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-3 text-sm font-semibold text-slate-100 hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-sky-300"
+          >
+            {mobileNavigationOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
+            {mobileNavigationOpen ? "Close" : "Menu"}
+          </button>
+        </div>
         <nav
-          className="mt-3 flex gap-2 overflow-x-auto pb-3 lg:hidden"
+          id="org-admin-mobile-navigation"
+          className={`${mobileNavigationOpen ? "grid" : "hidden"} max-h-[min(65vh,600px)] grid-cols-1 gap-4 overflow-y-auto border-t border-white/10 py-4 sm:grid-cols-2 lg:hidden`}
           aria-label="Organization Admin mobile navigation"
         >
-          {navItems.map((item) => {
-            const active = item.id === activePage;
-
-            return (
-              <Link
-                key={item.id}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-medium transition ${
-                  active
-                    ? "border-[#75c7ff]/25 bg-[#18314a] font-semibold text-[#e3f2ff]"
-                    : "border-white/10 bg-[#182232]/90 text-slate-300 hover:border-white/20 hover:bg-white/[0.05]"
-                }`}
-              >
-                <Icon name={item.icon} size={14} />
-                {item.label}
-              </Link>
-            );
-          })}
+          {navGroups.map((group) => (
+            <section key={group.label} aria-label={group.label}>
+              <h2 className="mb-2 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">{group.label}</h2>
+              <div className="grid gap-1">
+                {group.items.map((item) => {
+                  const active = item.id === activePage;
+                  return (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      onClick={() => setMobileNavigationOpen(false)}
+                      aria-current={active ? "page" : undefined}
+                      className={`flex min-h-11 items-center gap-3 rounded-lg border px-3 text-sm font-medium transition ${
+                        active
+                          ? "border-sky-300/30 bg-[#18314a] text-white"
+                          : "border-transparent text-slate-300 hover:border-white/10 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <Icon name={item.icon} size={17} />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
         </nav>
       </header>
     </>
