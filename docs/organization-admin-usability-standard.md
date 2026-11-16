@@ -73,11 +73,11 @@ The following safeguards were implemented after reviewing the Organization Admin
 
 - **Departments:** replaced native browser confirmation dialogs for single deactivation, bulk deactivation, and deactivation during an edit-save with themed confirmation dialogs. The dialogs explain that active employees assigned to the department are also marked inactive. Added Escape handling and keyboard focus containment/restoration.
 - **Leave:** replaced browser prompts/confirms for approve, reject, cancel, and public-holiday removal with themed dialogs. Rejection requires a reason; the dialogs identify the affected request or holiday and explain downstream calendar/payroll impact. Added keyboard focus handling, accessible search/filter names, empty-vs-filtered-empty messaging, clear-filters action, and retry/loading states.
-- **Pay Rates:** Organization Admin rate changes now require a review confirmation showing employee, regular/overtime hourly rates, currency, and effective period. The dialog supports keyboard focus handling.
+- **Pay Rates:** Organization Admin rate changes now require a review confirmation showing employee, regular/overtime hourly rates, currency, and effective period. Unsaved rate edits are protected from automatic refresh and employee switching; leaving the page triggers the browser unsaved-change warning. The dialogs support keyboard focus handling.
 - **Payroll:** changing a payment status to Paid or reversing a Paid status now requires confirmation. The dialog shows employee, calculated amount, month, and available payment reference, and explicitly asks the admin to confirm the underlying payment/correction.
 - **License & Payments:** submitting payment proof now requires a final review of amount, currency, transaction reference, receipt filename and size. The dialog clarifies that proof submission is for verification and does not itself activate the license or make a payment.
 - **Error recovery:** added explicit retry actions to Leave, Pay Rates, Payroll, Reports, Invitations, Profile, and License error states. Existing dashboard, department, settings, and organization-chart recovery paths were retained.
-- **Status visibility:** exposed the organization date/timezone loading state in Attendance Reports and made Leave loading states announce themselves to assistive technology.
+- **Status visibility:** exposed the organization date/timezone loading state in Attendance Reports and made Leave loading states announce themselves to assistive technology. Background refresh is paused while the admin is reviewing a confirmation or unsaved pay-rate values, avoiding stale dialogs and overwritten inputs.
 
 ### Route review status
 
