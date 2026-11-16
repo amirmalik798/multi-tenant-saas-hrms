@@ -344,6 +344,15 @@ export function OrganizationAdminHeader({
     setMobileNavigationOpen(false);
   }, [activePage]);
 
+  useEffect(() => {
+    if (!mobileNavigationOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileNavigationOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [mobileNavigationOpen]);
+
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
