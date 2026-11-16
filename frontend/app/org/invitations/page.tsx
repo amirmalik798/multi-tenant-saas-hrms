@@ -303,7 +303,7 @@ export default function OrganizationInvitationsPage() {
   return (
     <div className="org-admin-workspace relative min-h-screen bg-[#0b0f17] font-sans text-[#f8fafc] scheme-dark selection:bg-[#75c7ff]/20 selection:text-white">
       <OrganizationAdminSidebar activePage="invitations" />
-      <main className="relative z-10 min-h-screen lg:ml-64">
+      <main id="org-admin-main-content" tabIndex={-1} className="relative z-10 min-h-screen lg:ml-64">
         <OrganizationAdminHeader
           activePage="invitations"
           organizationName={user.organizationName}
