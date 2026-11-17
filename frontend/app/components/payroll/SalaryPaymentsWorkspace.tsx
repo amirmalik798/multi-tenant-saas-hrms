@@ -259,6 +259,23 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       printWindow.document.open();
       printWindow.document.write(buildSalarySlipDocument(payload));
       printWindow.document.close();
+
+      const printWhenReady = () => {
+        if (printWindow.closed) return;
+        printWindow.focus();
+        printWindow.document.getElementById("salary-slip-print")?.addEventListener("click", () => {
+          if (!printWindow.closed) {
+            printWindow.focus();
+            printWindow.print();
+          }
+        });
+        printWindow.print();
+      };
+      if (printWindow.document.readyState === "complete") {
+        window.setTimeout(printWhenReady, 250);
+      } else {
+        printWindow.addEventListener("load", () => window.setTimeout(printWhenReady, 250), { once: true });
+      }
       setNotice("Salary slip prepared. Use the print dialog to print or save the monthly pages as a PDF.");
     } catch (caught) {
       if (!printWindow.closed) {
