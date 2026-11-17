@@ -217,25 +217,6 @@ function recordedAt(row: Row): string {
   return text(row, "recordedAt", "recorded_at", "requestedAt", "requested_at", "createdAt", "created_at", "timestamp");
 }
 
-function minutesLabel(value: number): string {
-  const minutes = Math.max(0, Math.floor(value / 60000));
-  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`;
-}
-function formatLiveDuration(milliseconds: number): string {
-  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
-  return `${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-}
-function getWorkedMilliseconds(events: Row[], isLive: boolean, now: number): number {
-  let open: number | null = null; let total = 0;
-  for (const event of [...events].sort((a, b) => new Date(recordedAt(a)).getTime() - new Date(recordedAt(b)).getTime())) {
-    const at = new Date(recordedAt(event)).getTime(); if (!Number.isFinite(at)) continue;
-    const kind = text(event, "eventType", "event_type").toUpperCase();
-    if (kind === "CLOCK_IN" && open === null) open = at;
-    else if (kind === "CLOCK_OUT" && open !== null && at >= open) { total += at - open; open = null; }
-  }
-  if (isLive && open !== null) total += Math.max(0, now - open);
-  return total;
-}
 function dateLabel(value: string, timeZone?: string): string {
   if (!value) return "—";
 
@@ -362,7 +343,7 @@ function SectionError({ message }: { message: string }) {
   return message ? <div role="alert" className="mb-4 break-words rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm leading-6 text-rose-200">{message}</div> : null;
 }
 
-export default function EmployeeAttendanceWorkspace({ userOverride, dashboardMode = false }: { userOverride?: EmployeeWorkspaceUser | null; dashboardMode?: boolean } = {}) {
+export default function EmployeeAttendanceWorkspace({ userOverride }: { userOverride?: EmployeeWorkspaceUser | null } = {}) {
   const contextUser = useEmployeeWorkspaceUser();
   const user = userOverride === undefined ? contextUser : userOverride;
   const isHrManagerSelf = user?.role === "HR_MANAGER";
@@ -374,7 +355,6 @@ export default function EmployeeAttendanceWorkspace({ userOverride, dashboardMod
   const [loadedFromDate, setLoadedFromDate] = useState("");
   const [loadedToDate, setLoadedToDate] = useState("");
   const [activeTab, setActiveTab] = useState<TabKey>("today");
-  const [clockNow, setClockNow] = useState(0);
   const [historySearch, setHistorySearch] = useState("");
   const [historyFilter, setHistoryFilter] = useState<"all" | "recorded" | "no-records" | "leave" | "holiday">("all");
   const [loading, setLoading] = useState(false);
@@ -511,19 +491,6 @@ export default function EmployeeAttendanceWorkspace({ userOverride, dashboardMod
     }
   }, [loadedFromDate, loadedToDate, isHrManagerSelf]);
 
-  useEffect(() => {
-    if (serverClockStatus !== "CLOCKED_IN") { setClockNow(0); return; }
-    setClockNow(Date.now());
-    const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [serverClockStatus]);
-
-  useEffect(() => {
-    if (serverClockStatus !== "CLOCKED_IN") { setClockNow(0); return; }
-    setClockNow(Date.now());
-    const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [serverClockStatus]);
   useWorkspaceAutoRefresh(() => loadAttendance(true), {
     intervalMs: 60_000,
     shouldRefresh: () => !loading && !saving && !correctionEventId && !correctionReason.trim() && !overtimeReason.trim(),
@@ -843,50 +810,160 @@ export default function EmployeeAttendanceWorkspace({ userOverride, dashboardMod
 
   return (
     <div className="employee-attendance-workspace min-w-0 space-y-5 text-slate-100">
-      {dashboardMode ? (
-        <>
-          <header className="relative isolate overflow-hidden rounded-2xl border border-sky-300/20 bg-gradient-to-br from-[#14283C] via-[#111D2B] to-[#0D1723] p-5 shadow-xl shadow-black/15 sm:p-6">
-            <div className="pointer-events-none absolute -right-10 -top-16 size-60 rounded-full bg-sky-400/10 blur-3xl" />
-            <div className="relative flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.14em] ${!clockStatusVerified ? "border-amber-300/25 bg-amber-300/10 text-amber-200" : clockedIn ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-200" : "border-slate-400/20 bg-white/[.05] text-slate-300"}`}>
-                    <span className={`size-1.5 rounded-full ${!clockStatusVerified ? "bg-amber-300" : clockedIn ? "animate-pulse bg-emerald-300" : "bg-slate-400"}`} />
-                    {!clockStatusVerified ? "Verifying attendance" : clockedIn ? "Clocked in" : latestEvent ? "Clocked out" : "Not clocked in"}
-                  </span>
-                  <span className="text-xs text-slate-400">{dateLabel(tenantToday, calendarTimeZone)} · {calendarTimeZone || "Organization time"}</span>
-                </div>
-                <h2 className="mt-3 text-xl font-bold tracking-tight text-white sm:text-2xl">{clockedIn ? "Your workday is in progress" : "Ready when you are"}</h2>
-                <p className="mt-1 max-w-xl text-sm leading-6 text-slate-300">{clockedIn ? "Your attendance is being recorded. Clock out when your workday is complete." : "Start your work session with one tap. Your hours and earnings are calculated from verified attendance."}</p>
-                <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-300">
-                  <span className="rounded-lg border border-white/10 bg-white/[.04] px-3 py-2">Shift: {text(todayEntry ?? {}, "scheduleName") || "No shift assigned"}</span>
-                  {todayEntry && <span className="rounded-lg border border-white/10 bg-white/[.04] px-3 py-2">{timeLabel(text(todayEntry, "expectedStart"), calendarTimeZone)} – {timeLabel(text(todayEntry, "expectedEnd"), calendarTimeZone)}</span>}
-                </div>
-              </div>
-              <div className="flex min-w-0 flex-col items-start gap-3 lg:min-w-[235px] lg:items-end">
-                <div className="text-left lg:text-right">
-                  <p className="text-[10px] font-bold uppercase tracking-[.15em] text-sky-200/80">{clockedIn ? "Live session" : "Latest activity"}</p>
-                  <p className="mt-1 font-mono text-3xl font-bold tabular-nums tracking-tight text-white sm:text-4xl">{clockedIn && latestEvent ? formatLiveDuration(clockNow - new Date(recordedAt(latestEvent)).getTime()) : latestEvent ? timeLabel(recordedAt(latestEvent), calendarTimeZone) : "—"}</p>
-                  <p className="mt-1 text-xs text-slate-400">{latestEvent ? `${humanize(text(latestEvent, "eventType", "event_type"))} · ${dateTimeLabel(recordedAt(latestEvent), calendarTimeZone)}` : "No attendance events recorded today"}</p>
-                </div>
-                <button type="button" onClick={() => void recordClockAction()} disabled={Boolean(saving) || loading || !clockStatusVerified || (!clockedIn && clockInBlocked)} className={`inline-flex min-h-14 w-full items-center justify-center gap-2.5 rounded-2xl px-6 py-3 text-base font-bold shadow-lg transition duration-200 hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 lg:w-auto ${clockedIn ? "bg-rose-500 text-white shadow-rose-950/30 hover:bg-rose-400" : "bg-emerald-400 text-[#062318] shadow-emerald-950/30 hover:bg-emerald-300"}`}>
-                  {saving ? <RefreshCw size={19} className="animate-spin" /> : clockedIn ? <ArrowDownRight size={19} /> : <ArrowUpRight size={19} />}
-                  {saving === "CLOCK_IN" ? "Clocking in…" : saving === "CLOCK_OUT" ? "Clocking out…" : !clockStatusVerified ? "Verifying…" : clockedIn ? "Clock out" : clockInBlocked ? "Clock-in unavailable" : "Clock in"}
-                </button>
-              </div>
-            </div>
-            {notice && <div role={notice.type === "error" ? "alert" : "status"} className={`relative mt-4 rounded-xl border px-3 py-2 text-sm ${notice.type === "error" ? "border-rose-300/25 bg-rose-300/10 text-rose-200" : "border-emerald-300/25 bg-emerald-300/10 text-emerald-200"}`}>{notice.message}</div>}
-            {(!leaveAndHolidayStatusVerified || attendanceBlock) && <div className="relative mt-3 rounded-xl border border-amber-300/20 bg-amber-300/[.07] px-3 py-2 text-xs leading-5 text-amber-100">{attendanceBlock?.detail || "Leave and holiday status could not be verified. Clock-in remains disabled until it can be confirmed."}</div>}
-            {errors.events && <div role="alert" className="relative mt-3 rounded-xl border border-rose-300/20 bg-rose-300/[.06] px-3 py-2 text-xs text-rose-200">{errors.events}</div>}
-          </header>
-          <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <div className={`${PANEL} p-4`}><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Today’s hours</p><p className="mt-2 text-2xl font-bold tabular-nums text-white">{minutesLabel(getWorkedMilliseconds(todayEvents, clockedIn, clockNow))}</p><p className="mt-1 text-xs text-slate-500">Elapsed from recorded punches</p></div>
-            <div className={`${PANEL} p-4`}><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Shift</p><p className="mt-2 truncate text-base font-bold text-white">{text(todayEntry ?? {}, "scheduleName") || "Not assigned"}</p><p className="mt-1 text-xs text-slate-500">{todayEntry ? `${timeLabel(text(todayEntry, "expectedStart"), calendarTimeZone)} – ${timeLabel(text(todayEntry, "expectedEnd"), calendarTimeZone)}` : "No shift returned for today"}</p></div>
-            <div className={`${PANEL} p-4`}><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Monthly hours</p><p className="mt-2 text-base font-bold text-white">Attendance-based</p><p className="mt-1 text-xs text-slate-500">Open My attendance for the monthly total</p></div>
-            <div className={`${PANEL} p-4`}><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Monthly earnings</p><Link href="/hr/my-earnings" className="mt-2 inline-flex items-center gap-1 text-sm font-bold text-sky-300 hover:text-sky-200">View earnings <ArrowRight size={14} /></Link><p className="mt-1 text-xs text-slate-500">Calculated from payable hours and rates</p></div>
-          </section>
-        </>
+      <header className="employee-attendance-page-header flex min-w-0 flex-col justify-between gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4 pb-5 sm:flex-row sm:items-end sm:p-5">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-sky-300">
+            {isHrManagerSelf ? "HR Manager · My attendance" : "My work · Attendance"}
+          </p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            Attendance &amp; time
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+            Record actual working time, compare attendance history with scheduled shifts, and resolve your time records.
+          </p>
+        </div>
+        <div className="inline-flex shrink-0 items-center gap-2 self-start rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 sm:self-auto">
+          <CalendarDays size={16} className="text-sky-300" />
+          <span className="text-sm font-medium text-slate-300">
+            {dateLabel(tenantToday, calendarTimeZone)}
+          </span>
+        </div>
+      </header>
 
+      {notice && (
+        <div
+          role={notice.type === "error" ? "alert" : "status"}
+          className={`flex min-w-0 items-start gap-3 rounded-xl border p-3.5 text-sm leading-6 ${
+            notice.type === "success"
+              ? "border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-200"
+              : "border-rose-400/20 bg-rose-400/[0.06] text-rose-200"
+          }`}
+        >
+          <AlertCircle size={17} className="mt-0.5 shrink-0" />
+          <span className="min-w-0 flex-1 break-words">{notice.message}</span>
+          <button
+            type="button"
+            aria-label="Dismiss notification"
+            className="shrink-0"
+            onClick={() => setNotice(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      <section className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card
+          icon={Clock3}
+          label="Today's status"
+          value={!clockStatusVerified ? "Status unavailable" : clockedIn ? "Clocked in" : todayEvents.length ? "Clocked out" : "Not started"}
+          detail={
+            !clockStatusVerified
+              ? "Wait for the system to verify your current attendance status"
+              : latestEvent
+              ? `Last event: ${timeLabel(recordedAt(latestEvent), text(latestEvent, "timeZone") || calendarTimeZone)}`
+              : "No attendance event recorded today"
+          }
+        />
+        <Card
+          icon={CalendarDays}
+          label="Scheduled days"
+          value={String(records.calendar.filter((row) => Boolean(text(row, "expectedStart"))).length)}
+          detail={`${dateLabel(loadedFromDate, calendarTimeZone)} – ${dateLabel(loadedToDate, calendarTimeZone)}`}
+        />
+        <Card
+          icon={FileClock}
+          label="Open corrections"
+          value={String(pendingCorrections)}
+          detail="Requests waiting for a decision"
+        />
+        <Card
+          icon={FileClock}
+          label="Pending overtime"
+          value={String(records.overtime.filter((row) => statusOf(row).toUpperCase() === "PENDING").length)}
+          detail="Advance requests waiting for a manager's decision"
+        />
+      </section>
+
+      <section className={`${PANEL} overflow-hidden`}>
+        <div className="grid min-w-0 gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                  !clockStatusVerified
+                    ? "border-amber-400/20 bg-amber-400/10 text-amber-200"
+                    : clockedIn
+                      ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+                      : "border-slate-600 bg-slate-700/30 text-slate-300"
+                }`}
+              >
+                <span
+                  className={`size-1.5 rounded-full ${
+                    !clockStatusVerified ? "bg-amber-300" : clockedIn ? "bg-emerald-300" : "bg-slate-400"
+                  }`}
+                />
+                {!clockStatusVerified ? "Attendance status unavailable" : clockedIn ? "Work session open" : "No open work session"}
+              </span>
+              <span className="text-xs text-slate-500">
+                {dateLabel(tenantToday, calendarTimeZone)}
+              </span>
+            </div>
+
+            <h2 className="mt-3 text-xl font-bold tracking-tight">
+              {!clockStatusVerified ? "We need to verify your attendance" : clockedIn ? "You're currently clocked in" : "Record your working time"}
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+              {!clockStatusVerified
+                ? "Your current attendance state has not been confirmed by the server. The system will recheck your attendance automatically; try again shortly."
+                : "Record the beginning and end of your work period. If you forget a punch or record the wrong time, submit a correction request rather than overwriting the original event."}
+            </p>
+
+            {todayEntry && (
+              <div className="mt-4 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-white/[0.07] bg-black/10 px-3.5 py-2.5 text-sm">
+                <CalendarDays size={16} className="shrink-0 text-sky-300" />
+                <span className="break-words font-semibold">
+                  {text(todayEntry, "scheduleName") || "Today's shift"}
+                </span>
+                <span className="text-slate-400">
+                  {timeLabel(text(todayEntry, "expectedStart"), text(todayEntry, "timeZone") || calendarTimeZone)}
+                  {" – "}
+                  {timeLabel(text(todayEntry, "expectedEnd"), text(todayEntry, "timeZone") || calendarTimeZone)}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex min-w-0 flex-col items-start gap-2 lg:items-end">
+            {attendanceBlock && (
+              <div role="status" className="w-full max-w-sm rounded-xl border border-amber-300/25 bg-amber-300/[0.08] p-3 text-left lg:max-w-72">
+                <p className="text-sm font-bold text-amber-100">{attendanceBlock.title}</p>
+                <p className="mt-1 text-xs leading-5 text-amber-100/75">{attendanceBlock.detail}</p>
+                {clockedIn && <p className="mt-2 text-xs font-semibold text-amber-100">An open session remains active. Clock out to close it safely.</p>}
+              </div>
+            )}
+            {!leaveAndHolidayStatusVerified && !loading && (
+              <div role="alert" className="w-full max-w-sm rounded-xl border border-rose-300/25 bg-rose-300/[0.07] p-3 text-xs leading-5 text-rose-100 lg:max-w-72">
+                Today's leave/holiday status could not be verified. Clock-in remains disabled until the system confirms your status.
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => void recordClockAction()}
+              disabled={Boolean(saving) || loading || !clockStatusVerified || (!clockedIn && clockInBlocked)}
+              className={`inline-flex min-h-12 max-w-full items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-bold shadow-lg transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                clockedIn
+                  ? "bg-rose-500 text-white shadow-rose-950/20 hover:bg-rose-400"
+                  : "bg-emerald-500 text-[#052016] shadow-emerald-950/20 hover:bg-emerald-400"
+              }`}
+            >
+              {saving === "CLOCK_IN" || saving === "CLOCK_OUT" ? (
+                <RefreshCw size={17} className="animate-spin" />
+              ) : clockedIn ? (
+                <ArrowDownRight size={18} />
+              ) : (
+                <ArrowUpRight size={18} />
+              )}
               {saving === "CLOCK_IN"
                 ? "Clocking in…"
                 : saving === "CLOCK_OUT"
