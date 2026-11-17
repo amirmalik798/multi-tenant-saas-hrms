@@ -518,6 +518,12 @@ export default function EmployeeAttendanceWorkspace({ userOverride, dashboardMod
     return () => window.clearInterval(timer);
   }, [serverClockStatus]);
 
+  useEffect(() => {
+    if (serverClockStatus !== "CLOCKED_IN") { setClockNow(0); return; }
+    setClockNow(Date.now());
+    const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [serverClockStatus]);
   useWorkspaceAutoRefresh(() => loadAttendance(true), {
     intervalMs: 60_000,
     shouldRefresh: () => !loading && !saving && !correctionEventId && !correctionReason.trim() && !overtimeReason.trim(),
