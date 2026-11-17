@@ -107,15 +107,17 @@ export default function WorkspaceClock({
     const loadAttendanceStatus = async () => {
       if (requestInFlight || document.visibilityState !== "visible") return;
       requestInFlight = true;
+      const revision = attendanceStatusRevisionRef.current;
 
       try {
-        const revision = attendanceStatusRevisionRef.current;
         const status = await readAttendanceStatus();
         if (active && revision === attendanceStatusRevisionRef.current) {
           setAttendanceStatus(status);
         }
       } catch {
-        if (active) setAttendanceStatus("unavailable");
+        if (active && revision === attendanceStatusRevisionRef.current) {
+          setAttendanceStatus("unavailable");
+        }
       } finally {
         requestInFlight = false;
       }
