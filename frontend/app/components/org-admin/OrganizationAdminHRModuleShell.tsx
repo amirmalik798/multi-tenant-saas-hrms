@@ -160,22 +160,9 @@ export default function OrganizationAdminHRModuleShell({
               )}
             </div>
           )}
-          <section aria-labelledby="org-module-page-title" className="mb-6">
-            <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-2 text-xs font-medium text-slate-500">
-              <span>Workspace</span>
-              <span aria-hidden="true" className="text-slate-600">/</span>
-              <span aria-current="page" className="text-slate-300">{title}</span>
-            </nav>
-            <div className="flex flex-col gap-2 border-b border-white/[0.07] pb-5 sm:flex-row sm:items-end sm:justify-between">
-              <div className="min-w-0">
-                <h1 id="org-module-page-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">{title}</h1>
-                <p className="mt-1.5 max-w-3xl text-sm leading-6 text-slate-400">{description}</p>
-              </div>
-              <span className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-sky-300/15 bg-sky-300/[0.06] px-3 py-1.5 text-[11px] font-semibold text-sky-200">
-                <span aria-hidden="true" className="size-1.5 rounded-full bg-emerald-300" />
-                Organization workspace
-              </span>
-            </div>
+          <section aria-labelledby="org-module-page-title" className="mb-5 border-b border-white/[0.07] pb-4">
+            <h1 id="org-module-page-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">{title}</h1>
+            <p className="sr-only">{description}</p>
           </section>
           {children}
         </div>
