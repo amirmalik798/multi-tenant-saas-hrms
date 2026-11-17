@@ -228,7 +228,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       <div className="rounded-xl border border-white/[0.08] bg-black/10 p-3"><p className="text-xs text-slate-500">No recorded hours</p><p className="mt-1 text-xl font-bold text-slate-200">{loading ? "—" : noHoursCount}</p></div>
       <div className="rounded-xl border border-rose-400/15 bg-rose-400/[0.04] p-3"><p className="text-xs text-slate-500">Needs review</p><p className="mt-1 text-xl font-bold text-rose-200">{loading ? "—" : needsReviewCount}</p></div>
     </div>
-    <div className="mt-5 rounded-2xl border border-white/[0.07] bg-[#101722]/80 p-3 sm:p-4">
+    <div className="payroll-filter-panel mt-5 rounded-2xl border border-white/[0.07] bg-[#101722]/80 p-3 sm:p-4">
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <label className="block text-sm font-medium text-slate-300">
           <span className="flex items-center gap-2"><Search size={15} className="text-slate-500" />Find an employee</span>
@@ -242,8 +242,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             ["PAID", "Paid", paidCount],
             ["REVIEW", "Needs review", needsReviewCount],
             ["NO_HOURS", "No hours", noHoursCount],
-          ] as const).map(([value, label, count]) => <button key={value} type="button" onClick={() => setPaymentFilter(value)} aria-pressed={paymentFilter === value} className={`inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition ${paymentFilter === value ? "border-sky-400/30 bg-sky-400/10 text-sky-200" : "border-slate-700 bg-white/[0.02] text-slate-400 hover:text-slate-200"}`}>{label}<span className="rounded-md bg-black/20 px-1.5 py-0.5 tabular-nums">{loading ? "—" : count}</span></button>)}
-          <button type="button" onClick={() => setNameSortOrder((current) => current === "asc" ? "desc" : "asc")} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-white/[0.02] px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.06]" aria-label={`Sort employee names ${nameSortOrder === "asc" ? "descending" : "ascending"}`}>Name {nameSortOrder === "asc" ? "A–Z" : "Z–A"}</button>
+          ] as const).map(([value, label, count]) => <button key={value} type="button" onClick={() => setPaymentFilter(value)} aria-pressed={paymentFilter === value} className={`payroll-filter-option inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition ${paymentFilter === value ? "border-sky-400/30 bg-sky-400/10 text-sky-200" : "border-slate-700 bg-white/[0.02] text-slate-400 hover:text-slate-200"}`}>{label}<span className="rounded-md bg-black/20 px-1.5 py-0.5 tabular-nums">{loading ? "—" : count}</span></button>)}
+          <button type="button" onClick={() => setNameSortOrder((current) => current === "asc" ? "desc" : "asc")} className="payroll-sort-option inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-white/[0.02] px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.06]" aria-label={`Sort employee names ${nameSortOrder === "asc" ? "descending" : "ascending"}`}>Name {nameSortOrder === "asc" ? "A–Z" : "Z–A"}</button>
 
         </div>
       </div>
