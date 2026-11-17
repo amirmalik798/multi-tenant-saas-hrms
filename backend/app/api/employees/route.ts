@@ -303,15 +303,15 @@ if (
         WHERE target_account.organization_id = e.organization_id
           AND target_account.employee_id = e.id
           AND target_account.account_scope = 'ORGANIZATION'
-          AND regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g')
-            IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR',
-                'ORGANIZATION_OWNER', 'ORG_OWNER', 'TENANT_ADMIN', 'ADMINISTRATOR')
-            OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_ADMIN_%'
-            OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_ADMIN_%'
-            OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATIONADMIN_%'
-            OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_OWNER_%'
-            OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_OWNER_%'
-            OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'TENANT_ADMIN_%'
+          AND (
+  regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR', 'ORGANIZATION_OWNER', 'ORG_OWNER', 'TENANT_ADMIN', 'ADMINISTRATOR')
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_ADMIN_%'
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_ADMIN_%'
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATIONADMIN_%'
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_OWNER_%'
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_OWNER_%'
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'TENANT_ADMIN_%'
+)
       )`);
       where.push(`${normalizedRole} NOT IN (
         'ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR',
