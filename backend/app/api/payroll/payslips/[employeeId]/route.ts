@@ -118,7 +118,7 @@ export async function GET(request: Request, context: RouteContext) {
       return json({ message: "Provide a valid workforce member ID" }, 400);
     }
 
-    if (isHrManager && employeeId === actor.employeeId) {
+    if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER" && employeeId === actor.employeeId) {
       return json({ message: "HR Managers cannot print their own salary slips" }, 403);
     }
 
