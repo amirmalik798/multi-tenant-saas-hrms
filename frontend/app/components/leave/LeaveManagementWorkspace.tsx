@@ -41,20 +41,49 @@ export default function LeaveManagementWorkspace({ audience }: { audience: Audie
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true); setError("");
+    if (!silent) setLoading(true);
+    setError("");
+
+    const loadRequests = async (): Promise<{ rows: LeaveRequest[] | null; error: string }> => {
+      try {
+        const response = await fetch("/api/backend/leave/requests", { credentials: "same-origin", cache: "no-store" });
+        const payload = await response.json().catch(() => null) as Payload | null;
+        if (!response.ok) return { rows: null, error: apiError(payload, "Unable to load leave requests.") };
+        if (!Array.isArray(payload?.requests)) return { rows: null, error: "The leave request response was invalid." };
+        return { rows: payload.requests, error: "" };
+      } catch (caught) {
+        return { rows: null, error: caught instanceof Error ? caught.message : "Unable to load leave requests." };
+      }
+    };
+
+    const loadHolidays = async (): Promise<{ rows: Holiday[] | null; canManage: boolean; error: string }> => {
+      try {
+        const response = await fetch("/api/backend/leave/holidays", { credentials: "same-origin", cache: "no-store" });
+        const payload = await response.json().catch(() => null) as Payload | null;
+        if (!response.ok) return { rows: null, canManage: false, error: apiError(payload, "Unable to load public holidays.") };
+        if (!Array.isArray(payload?.holidays)) return { rows: null, canManage: false, error: "The public holiday response was invalid." };
+        return { rows: payload.holidays, canManage: Boolean(payload.canManage), error: "" };
+      } catch (caught) {
+        return { rows: null, canManage: false, error: caught instanceof Error ? caught.message : "Unable to load public holidays." };
+      }
+    };
+
     try {
-      const [requestResponse, holidayResponse] = await Promise.all([
-        fetch("/api/backend/leave/requests", { credentials: "same-origin", cache: "no-store" }),
-        fetch("/api/backend/leave/holidays", { credentials: "same-origin", cache: "no-store" }),
-      ]);
-      const [requestPayload, holidayPayload] = await Promise.all([requestResponse.json().catch(() => null) as Promise<Payload | null>, holidayResponse.json().catch(() => null) as Promise<Payload | null>]);
-      if (!requestResponse.ok) throw new Error(apiError(requestPayload, "Unable to load leave requests."));
-      if (!holidayResponse.ok) throw new Error(apiError(holidayPayload, "Unable to load public holidays."));
-      setRequests(Array.isArray(requestPayload?.requests) ? requestPayload?.requests ?? [] : []);
-      setHolidays(Array.isArray(holidayPayload?.holidays) ? holidayPayload?.holidays ?? [] : []);
-      setCanManageHolidays(Boolean(holidayPayload?.canManage));
-    } catch (err) { setError(err instanceof Error ? err.message : "Unable to load leave and holiday information."); }
-    finally { setLoading(false); }
+      const [requestResult, holidayResult] = await Promise.all([loadRequests(), loadHolidays()]);
+      // Keep each successfully loaded section usable when the other API is unavailable.
+      // Failed sections retain their last known data rather than appearing falsely empty.
+      if (requestResult.rows) setRequests(requestResult.rows);
+      if (holidayResult.rows) {
+        setHolidays(holidayResult.rows);
+        setCanManageHolidays(holidayResult.canManage);
+      }
+      setError([
+        requestResult.error ? `Leave requests: ${requestResult.error}` : "",
+        holidayResult.error ? `Public holidays: ${holidayResult.error}` : "",
+      ].filter(Boolean).join(" "));
+    } finally {
+      setLoading(false);
+    }
   }, []);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
