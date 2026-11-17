@@ -2,7 +2,7 @@
 
 import AttendanceAlerts from "../../components/notifications/AttendanceAlerts";
 import AttendanceCalendarView from "../../components/attendance/AttendanceCalendarView";
-import EmployeeAttendanceWorkspace from "../../components/attendance/EmployeeAttendanceWorkspace";
+import HRManagerDashboardAttendance from "../../components/hr/HRManagerDashboardAttendance";
 import EmployeeProfilePhoto from "../../components/employee/EmployeeProfilePhoto";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -402,7 +402,7 @@ export default function HRManagerDashboardPage() {
             Monthly hours & history <ArrowRight size={13} />
           </Link>
         </div>
-        <EmployeeAttendanceWorkspace userOverride={auth.user} dashboardMode />
+        <HRManagerDashboardAttendance employeeId={auth.user.employeeId} organizationTimeZone={timeZone || "Africa/Kigali"} />
       </section>
 
       <section aria-label="Team attendance calendar" className="overflow-hidden rounded-3xl border border-[#344357]/80 bg-[#111a27] p-3 shadow-xl shadow-black/10 sm:p-4">
