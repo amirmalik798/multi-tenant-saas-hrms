@@ -309,8 +309,8 @@ export async function PUT(request: Request) {
     const saved = await client.query(
       `INSERT INTO public.monthly_salary_payments
         (organization_id, employee_id, pay_month, amount, currency_code, status, paid_at, payment_reference, notes, recorded_by_user_id)
-       VALUES ($1::uuid, $2::uuid, $3::date, $4::numeric, $5, $6,
-               CASE WHEN $6 = 'PAID' THEN now() ELSE NULL END, NULLIF($7, ''), NULLIF($8, ''), $9::uuid)
+       VALUES ($1::uuid, $2::uuid, $3::date, $4::numeric, $5, $6::varchar,
+               CASE WHEN $6::varchar = 'PAID' THEN now() ELSE NULL END, NULLIF($7, ''), NULLIF($8, ''), $9::uuid)
        ON CONFLICT (organization_id, employee_id, pay_month)
        DO UPDATE SET amount = EXCLUDED.amount, currency_code = EXCLUDED.currency_code, status = EXCLUDED.status,
                      paid_at = CASE WHEN EXCLUDED.status = 'PAID' THEN COALESCE(public.monthly_salary_payments.paid_at, now()) ELSE NULL END,
