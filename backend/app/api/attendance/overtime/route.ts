@@ -35,7 +35,8 @@ const OVERTIME_SELECT = `
     e.first_name AS "firstName",
     e.last_name AS "lastName",
     e.department_id AS "departmentId",
-    d.name AS "departmentName"
+    d.name AS "departmentName",
+    workforce_role.name AS "workforceRole"
   FROM public.attendance_overtime_requests AS o
   JOIN public.employees AS e
     ON e.id = o.employee_id
@@ -43,6 +44,10 @@ const OVERTIME_SELECT = `
   LEFT JOIN public.departments AS d
     ON d.id = e.department_id
    AND d.organization_id = e.organization_id
+  LEFT JOIN public.roles AS workforce_role
+    ON workforce_role.id = e.workforce_role_id
+   AND workforce_role.organization_id = e.organization_id
+   AND workforce_role.scope = 'ORGANIZATION'
 `;
 
 export async function GET(request: Request) {
