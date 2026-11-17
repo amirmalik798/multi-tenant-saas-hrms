@@ -318,7 +318,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     });
     const csvCell = (value: unknown) => {
       const raw = String(value ?? "");
-      const safe = /^[\\s]*[=+\\-@]/.test(raw) ? `'${raw}` : raw;
+      const safe = /^[\s\uFEFF]*[=+@-]/.test(raw) ? `'${raw}` : raw;
       return `"${safe.replaceAll('"', '""')}"`;
     };
     const csv = [headers, ...rows]
