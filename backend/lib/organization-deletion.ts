@@ -215,6 +215,10 @@ export async function deleteOrganizationTenantData(
   ].join("\n");
   const foreignKeysResult = await client.query<ForeignKey>(foreignKeysSql);
   const foreignKeys = foreignKeysResult.rows;
+  const isReportingManagerUserReference = (foreignKey: ForeignKey) =>
+    foreignKey.constraint_name === "employees_reporting_manager_user_fk" &&
+    foreignKey.child_table === "public.employees" &&
+    foreignKey.parent_table === "public.users";
 
   // Current external dependencies are deliberately narrow:
   // password_reset_tokens -> users (CASCADE);
@@ -329,6 +333,20 @@ export async function deleteOrganizationTenantData(
     [organizationId],
   );
 
+  // The HR Manager reporting line points from an employee profile to the
+  // tenant's Organization Admin user. That user already references its
+  // employee profile, creating an employees <-> users foreign-key cycle.
+  // Detach this reference only inside the full-tenant purge transaction.
+  // Both records are deleted below, and any failure rolls the update back.
+  if (foreignKeys.some(isReportingManagerUserReference)) {
+    await client.query(
+      "UPDATE public.employees " +
+        "SET reporting_manager_user_id = NULL " +
+        "WHERE organization_id = $1::uuid AND reporting_manager_user_id IS NOT NULL",
+      [organizationId],
+    );
+  }
+
   // Employee history remains append-only in normal workflows. The migration
   // lets its trigger permit DELETE only in this transaction-scoped purge.
   // Child tables must be deleted before the rows they reference.
@@ -346,7 +364,8 @@ export async function deleteOrganizationTenantData(
       foreignKey.parent_table === "public.employees") ||
     (foreignKey.constraint_name === "fk_employees_department_same_org" &&
       foreignKey.child_table === "public.employees" &&
-      foreignKey.parent_table === "public.departments");
+      foreignKey.parent_table === "public.departments") ||
+    isReportingManagerUserReference(foreignKey);
 
   for (const foreignKey of foreignKeys) {
     if (
