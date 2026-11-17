@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { BadgeDollarSign, CheckCircle2, RefreshCw, Search, SlidersHorizontal, CalendarDays, Clock3, AlertTriangle, CheckCircle, CircleDollarSign, Printer, FileDown } from "lucide-react";
+import { BadgeDollarSign, CheckCircle2, RefreshCw, Search, SlidersHorizontal, CalendarDays, Clock3, AlertTriangle, CheckCircle, CircleDollarSign, Printer, FileDown, Download, ChevronDown, ChevronLeft, ChevronRight, Eye, Pencil, LockKeyhole, ArrowUpDown } from "lucide-react";
 import { buildSalarySlipDocument, type SalarySlipPayload } from "./salary-slip-document";
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
 import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
-type Payment = { id?: string | null; employeeId: string; employeeCode?: string | null; firstName?: string | null; lastName?: string | null; departmentName?: string | null; workforceRole?: string | null; payMonth: string; amount: string | number | null; calculatedAmount?: string | number | null; workedMinutes?: number; payableMinutes?: number; paidLeaveMinutes?: number; paidHolidayMinutes?: number; currencyCode: string; status: "PAID" | "UNPAID" | "NO_RECORDED_HOURS" | "RATE_REQUIRED" | "CURRENCY_MISMATCH"; currencyMismatch?: boolean; paidAt?: string | null; paymentReference?: string | null; notes?: string | null };
+type Payment = { id?: string | null; employeeId: string; employeeCode?: string | null; firstName?: string | null; lastName?: string | null; departmentName?: string | null; workforceRole?: string | null; payMonth: string; amount: string | number | null; calculatedAmount?: string | number | null; workedMinutes?: number; payableMinutes?: number; paidLeaveMinutes?: number; paidHolidayMinutes?: number; currencyCode: string; status: "PAID" | "UNPAID" | "NO_RECORDED_HOURS" | "RATE_REQUIRED" | "CURRENCY_MISMATCH"; currencyMismatch?: boolean; paidAt?: string | null; paymentReference?: string | null; notes?: string | null; paymentRecorded?: boolean; recordedByUserId?: string | null; recordedBy?: string | null; createdAt?: string | null; updatedAt?: string | null };
 type EmployeeRoleRecord = { id?: string; workforce_role?: unknown; workforceRole?: unknown; roleName?: unknown; role_name?: unknown; role?: unknown; userRole?: unknown; user_role?: unknown; user?: { role?: unknown } };
 type Props = { audience: "hr-manager" | "organization-admin" | "department-manager" | "employee"; employeeId?: string; excludeEmployeeId?: string };
 type PayslipPaymentStatus = "PAID" | "UNPAID";
@@ -92,7 +92,11 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   const [paymentConfirmation, setPaymentConfirmation] = useState<Payment | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<"ALL" | "UNPAID" | "PAID" | "REVIEW" | "NO_HOURS">("ALL");
-  const [nameSortOrder, setNameSortOrder] = useState<"asc" | "desc">("asc");
+  const [departmentFilter, setDepartmentFilter] = useState("ALL");
+  const [sortOption, setSortOption] = useState<"NAME_ASC" | "NAME_DESC" | "AMOUNT_DESC" | "AMOUNT_ASC" | "STATUS">("NAME_ASC");
+  const [expandedEmployeeId, setExpandedEmployeeId] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [drafts, setDrafts] = useState<Record<string, { amount: string; currencyCode: string; status: "PAID" | "UNPAID"; paymentReference: string; notes: string }>>({});
   const loadRequestId = useRef(0);
   const paymentConfirmationRef = useRef<HTMLElement | null>(null);
@@ -232,26 +236,96 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   const rateRequiredCount = payments.filter((payment) => payment.status === "RATE_REQUIRED").length;
   const currencyMismatchCount = payments.filter((payment) => payment.status === "CURRENCY_MISMATCH").length;
   const needsReviewCount = rateRequiredCount + currencyMismatchCount;
+  const currencySummaries = useMemo(() => {
+    const summary = new Map<string, { currencyCode: string; paid: number; outstanding: number; paidCount: number; unpaidCount: number }>();
+    for (const payment of payments) {
+      const currencyCode = (payment.currencyCode || "RWF").toUpperCase();
+      const current = summary.get(currencyCode) || { currencyCode, paid: 0, outstanding: 0, paidCount: 0, unpaidCount: 0 };
+      if (payment.status === "PAID") {
+        current.paid += Number(payment.amount || 0);
+        current.paidCount += 1;
+      } else if (payment.status === "UNPAID") {
+        current.outstanding += Number(payment.calculatedAmount ?? payment.amount ?? 0);
+        current.unpaidCount += 1;
+      }
+      summary.set(currencyCode, current);
+    }
+    return [...summary.values()].sort((a, b) => a.currencyCode.localeCompare(b.currencyCode));
+  }, [payments]);
+  const departments = useMemo(
+    () => [...new Set(payments.map((payment) => payment.departmentName?.trim()).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b)),
+    [payments],
+  );
+  const trackableCount = paidCount + unpaidCount;
+  const paidProgress = trackableCount > 0 ? Math.round((paidCount / trackableCount) * 100) : 0;
+
   const visiblePayments = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase();
     const filtered = payments.filter((payment) => {
       const name = [payment.firstName, payment.lastName].filter(Boolean).join(" ") || payment.employeeCode || "Employee";
-      const matchesSearch = !query || [name, payment.employeeCode, payment.departmentName]
+      const matchesSearch = !query || [name, payment.employeeCode, payment.departmentName, payment.workforceRole, payment.paymentReference]
         .some((value) => String(value ?? "").toLocaleLowerCase().includes(query));
+      const matchesDepartment = departmentFilter === "ALL" || payment.departmentName === departmentFilter;
       const matchesFilter = paymentFilter === "ALL"
         || (paymentFilter === "PAID" && payment.status === "PAID")
         || (paymentFilter === "UNPAID" && payment.status === "UNPAID")
         || (paymentFilter === "REVIEW" && (payment.status === "RATE_REQUIRED" || payment.status === "CURRENCY_MISMATCH"))
         || (paymentFilter === "NO_HOURS" && payment.status === "NO_RECORDED_HOURS");
-      return matchesSearch && matchesFilter;
+      return matchesSearch && matchesDepartment && matchesFilter;
     });
+    const nameOf = (payment: Payment) => [payment.firstName, payment.lastName].filter(Boolean).join(" ") || payment.employeeCode || "Employee";
+    const amountOf = (payment: Payment) => Number(payment.status === "PAID" ? payment.amount ?? 0 : payment.calculatedAmount ?? payment.amount ?? 0);
+    const statusRank = (payment: Payment) => payment.status === "UNPAID" ? 0 : payment.status === "RATE_REQUIRED" || payment.status === "CURRENCY_MISMATCH" ? 1 : payment.status === "NO_RECORDED_HOURS" ? 2 : 3;
     return filtered.sort((a, b) => {
-      const nameA = [a.firstName, a.lastName].filter(Boolean).join(" ") || a.employeeCode || "Employee";
-      const nameB = [b.firstName, b.lastName].filter(Boolean).join(" ") || b.employeeCode || "Employee";
-      const result = nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
-      return nameSortOrder === "asc" ? result : -result;
+      if (sortOption === "NAME_DESC") return nameOf(b).localeCompare(nameOf(a), undefined, { sensitivity: "base" });
+      if (sortOption === "AMOUNT_DESC") return amountOf(b) - amountOf(a) || nameOf(a).localeCompare(nameOf(b));
+      if (sortOption === "AMOUNT_ASC") return amountOf(a) - amountOf(b) || nameOf(a).localeCompare(nameOf(b));
+      if (sortOption === "STATUS") return statusRank(a) - statusRank(b) || nameOf(a).localeCompare(nameOf(b));
+      return nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: "base" });
     });
-  }, [payments, searchQuery, paymentFilter, nameSortOrder]);
+  }, [payments, searchQuery, paymentFilter, departmentFilter, sortOption]);
+  const pageCount = Math.max(1, Math.ceil(visiblePayments.length / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const pagePayments = visiblePayments.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+    setExpandedEmployeeId("");
+  }, [month, searchQuery, paymentFilter, departmentFilter, sortOption, pageSize]);
+
+  function exportPayrollRegister() {
+    const headers = [
+      "Employee", "Employee code", "Department", "Role", "Payroll month",
+      "Worked hours", "Payable hours", "Payment status", "Amount",
+      "Currency", "Paid at", "Payment reference", "Recorded by", "Notes",
+    ];
+    const rows = visiblePayments.map((payment) => {
+      const name = [payment.firstName, payment.lastName].filter(Boolean).join(" ") || payment.employeeCode || "Employee";
+      const amount = payment.status === "PAID" ? payment.amount : payment.calculatedAmount ?? payment.amount;
+      const hours = (minutes: number | undefined) => {
+        const safe = Math.max(0, Math.floor(Number(minutes) || 0));
+        return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
+      };
+      return [
+        name, payment.employeeCode || "", payment.departmentName || "", payment.workforceRole || "",
+        month, hours(payment.workedMinutes), hours(payment.payableMinutes), payment.status,
+        amount == null ? "" : Number(amount).toFixed(2), payment.currencyCode || "",
+        payment.paidAt || "", payment.paymentReference || "", payment.recordedBy || "", payment.notes || "",
+      ];
+    });
+    const csv = [headers, ...rows]
+      .map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(","))
+      .join("\r\n");
+    const blob = new Blob(["\\uFEFF", csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `payroll-register-${month}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 
   async function printSalarySlip(targetEmployeeId: string) {
     if (!canEdit || !targetEmployeeId || payslipLoading || payslipDialog) return;
