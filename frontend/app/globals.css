@@ -8341,6 +8341,22 @@ html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communicat
 
 /* Daily attendance report: preserve the blue reporting accent while giving
    the hero, parameters, and supporting cards legible light-mode foregrounds. */
+/* Report sections and the dark hero receive explicit light surfaces. */
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-daily-attendance-report > section {
+  color: #17243a !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  border-color: #dce4ed !important;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 5%) !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-daily-attendance-report > section:first-child {
+  background: linear-gradient(135deg, #ffffff 0%, #edf5fc 100%) !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-daily-attendance-report
+:is(div, span, p)[class~="text-[#F8FAFC]"] {
+  color: #17243a !important;
+}
+
 html[data-org-admin-theme="light"] .org-admin-workspace .oa-daily-attendance-report
 :is(h1, h2, h3, h4)[class~="text-white"] {
   color: #17243a !important;
