@@ -96,7 +96,6 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
   const [notice, setNotice] = useState("");
   const dailyDateTouched = useRef(false);
   const rangeTouched = useRef(false);
-  const printWindowRef = useRef<Window | null>(null);
   const selectedTarget = useMemo(
     () => targets.find((target) => target.employeeId === selectedTargetId) || null,
     [targets, selectedTargetId],
@@ -181,7 +180,6 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
       setError("Your browser blocked the report window. Allow pop-ups for this site and try again.");
       return null;
     }
-    printWindowRef.current = opened;
     opened.document.open();
     opened.document.write(loadingDocument(title, detail));
     opened.document.close();
@@ -226,7 +224,6 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
       setNotice(`Organization-wide attendance PDF opened for ${reportDate}. Use the PDF viewer to print or save it.`);
     } catch (cause) {
       if (!reportWindow.closed) reportWindow.close();
-      printWindowRef.current = null;
       setError(cause instanceof Error ? cause.message : "Unable to generate the daily attendance report.");
     } finally {
       setLoadingMode(null);
@@ -311,7 +308,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
       } else {
         reportWindow.addEventListener("load", () => window.setTimeout(printWhenReady, 300), { once: true });
       }
-      setNotice(`Attendance report prepared for ${targetName(selectedTarget!)}.`);
+      setNotice(`Attendance report prepared for ${selectedTarget ? targetName(selectedTarget) : "the selected workforce member"}.`);
     } catch (cause) {
       if (!reportWindow.closed) reportWindow.close();
       printWindowRef.current = null;
