@@ -46,10 +46,6 @@ function parseEvents(value: ReportDayRow["events"]): AttendanceCalculationEvent[
   return [];
 }
 
-function validRange(fromDate: string | null, toDate: string | null): fromDate is string {
-  return isValidDateString(fromDate) && isValidDateString(toDate) && fromDate <= toDate;
-}
-
 function monthOrdinal(value: string): number {
   const [year, month] = value.split("-").map(Number);
   return year * 12 + month - 1;
@@ -261,8 +257,12 @@ export async function GET(request: Request) {
     if (!employeeId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(employeeId)) {
       return json({ message: "Select a valid workforce member" }, 400);
     }
-    if (!validRange(fromDate, toDate)) {
-      return json({ message: "Choose valid start and end dates in YYYY-MM-DD format" }, 400);
+    if (
+      !isValidDateString(fromDate) ||
+      !isValidDateString(toDate) ||
+      fromDate > toDate
+    ) {
+      return json({ message: "Choose valid start and end dates in YYYY-MM-DD format, with the start date on or before the end date" }, 400);
     }
     const monthCount = monthOrdinal(toDate) - monthOrdinal(fromDate) + 1;
     if (monthCount > 24) {
@@ -399,6 +399,7 @@ export async function GET(request: Request) {
          GROUP BY work_date
        )
        SELECT
+         ec.id::text AS "employeeId",
          ec.employee_code AS "employeeCode",
          ec.first_name AS "firstName",
          ec.last_name AS "lastName",
