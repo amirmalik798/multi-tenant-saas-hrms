@@ -96,16 +96,24 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
     setError("");
     try {
       const seedDate = localDate();
-      const [firstPage, dateSettings] = await Promise.all([
-        api("/employees?page=1&limit=100&status=ACTIVE&sortBy=name&sortOrder=asc"),
+      const [firstPage, dateSettings, workspaceContext] = await Promise.all([
+        api("/employees?page=1&limit=100&status=ACTIVE&sortBy=name&sortOrder=asc&payRateEligible=true"),
         api(`/attendance/calendar?fromDate=${encodeURIComponent(seedDate)}&toDate=${encodeURIComponent(seedDate)}`).catch(() => null),
+        api("/workspace/context").catch(() => null),
       ]);
+      if (workspaceContext && Object.hasOwn(workspaceContext, "currencyCode")) {
+        const configuredCurrency = typeof workspaceContext.currencyCode === "string"
+          ? workspaceContext.currencyCode.trim().toUpperCase()
+          : "";
+        setOrganizationCurrencyCode(configuredCurrency);
+        setCurrencyCode(configuredCurrency);
+      }
       const organizationToday = typeof dateSettings?.today === "string" && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateSettings.today)
         ? dateSettings.today
         : "";
       if (organizationToday) {
         organizationTodayRef.current = organizationToday;
-        setOrganizationTimeZone(typeof dateSettings?.timeZone === "string" ? dateSettings.timeZone : "");
+        setOrganizationTimeZone(typeof dateSettings?.timeZone === "string" ? dateSettings.timeZone : typeof workspaceContext?.timeZone === "string" ? workspaceContext.timeZone : "");
         setDateWarning("");
       } else {
         setDateWarning("Organization date settings could not be loaded. The effective date is using your device date; verify it before saving rates.");
@@ -153,7 +161,7 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
       if (latest) {
         setHourlyRate(latest.hourlyRate);
         setOvertimeRate(latest.overtimeRate);
-        setCurrencyCode(configuredCurrency || latest.currencyCode);
+        setCurrencyCode(configuredCurrency);
         setEffectiveFrom(organizationTodayRef.current);
         setEffectiveTo("");
       } else {
@@ -175,6 +183,11 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
       const payload = await api(`/attendance/pay-rates?employeeId=${encodeURIComponent(targetEmployeeId)}`);
       if (requestId === rateRequestId.current && employeeIdRef.current === targetEmployeeId) {
         setRates(Array.isArray(payload.rates) ? payload.rates as Rate[] : []);
+        const configuredCurrency = typeof payload.organizationCurrencyCode === "string"
+          ? payload.organizationCurrencyCode.trim().toUpperCase()
+          : "";
+        setOrganizationCurrencyCode(configuredCurrency);
+        setCurrencyCode(configuredCurrency);
       }
     } catch (caught) {
       if (requestId === rateRequestId.current && employeeIdRef.current === targetEmployeeId) {
@@ -262,7 +275,7 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
     } finally { setSaving(false); }
   }
 
-  return <section className="space-y-5 text-slate-100">
+  return <section className={`space-y-5 text-slate-100 ${audience === "organization-admin" ? "oa-org-admin-time-pay" : ""}`}>
     <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-300">Compensation settings</p><h2 className="mt-1 text-xl font-bold text-white sm:text-2xl">Employee pay rates</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Set the hourly and overtime rates that drive each employee's minute-based earnings estimate. Rate changes are effective-dated so previous work keeps the rate that applied on that date.</p>{organizationTimeZone && <p className="mt-2 text-xs text-slate-500">Effective dates use the organization time zone: {organizationTimeZone}</p>}{dateWarning && <p role="status" className="mt-2 rounded-lg border border-amber-300/20 bg-amber-300/[0.06] p-3 text-xs leading-5 text-amber-100">{dateWarning}</p>}</div>
     {error && <div role="alert" className="flex flex-col gap-3 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span>{error}</span><button type="button" disabled={loading || saving} onClick={() => { void loadEmployees(); void loadRates(); }} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">{loading ? "Retrying…" : "Retry"}</button></div>}
     {success && <div role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/[0.06] p-3 text-sm text-emerald-100">{success}</div>}
