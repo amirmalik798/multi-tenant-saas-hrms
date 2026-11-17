@@ -921,28 +921,6 @@ export default function EmployeeAttendanceWorkspace({ userOverride, dashboardMod
             label="Scheduled days"
             va
       )}
-      {notice && (
-        <div
-          role={notice.type === "error" ? "alert" : "status"}
-          className={`flex min-w-0 items-start gap-3 rounded-xl border p-3.5 text-sm leading-6 ${
-            notice.type === "success"
-              ? "border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-200"
-              : "border-rose-400/20 bg-rose-400/[0.06] text-rose-200"
-          }`}
-        >
-          <AlertCircle size={17} className="mt-0.5 shrink-0" />
-          <span className="min-w-0 flex-1 break-words">{notice.message}</span>
-          <button
-            type="button"
-            aria-label="Dismiss notification"
-            className="shrink-0"
-            onClick={() => setNotice(null)}
-          >
-            ×
-          </button>
-        </div>
-      )}
-
       <section className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card
           icon={Clock3}
