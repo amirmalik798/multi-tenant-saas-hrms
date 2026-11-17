@@ -729,8 +729,9 @@ export async function PUT(request: Request, context: RouteContext) {
       const existingResult = await client.query<{
         amount: string;
         currencyCode: string;
+        status: "PAID" | "UNPAID";
       }>(
-        `SELECT amount::text AS amount, currency_code AS "currencyCode"
+        `SELECT amount::text AS amount, currency_code AS "currencyCode", status
          FROM public.monthly_salary_payments
          WHERE organization_id = $1::uuid
            AND employee_id = $2::uuid
@@ -740,7 +741,8 @@ export async function PUT(request: Request, context: RouteContext) {
       );
       const existing = existingResult.rows[0];
 
-      if (requested.status === "PAID" && (
+      const alreadyRecordedAsPaid = existing?.status === "PAID";
+      if (requested.status === "PAID" && !alreadyRecordedAsPaid && (
         !monthlyEstimate ||
         monthlyEstimate.payableMinutes <= 0 ||
         monthlyEstimate.amount === null ||
@@ -759,13 +761,22 @@ export async function PUT(request: Request, context: RouteContext) {
         monthlyEstimate.amount !== null &&
         !monthlyEstimate.currencyMismatch
       );
-      const amount = canUseCalculatedAmount
-        ? monthlyEstimate!.amount!
-        : Number(existing?.amount ?? 0);
+      // Status-only edits must not silently rewrite an existing recorded amount.
+      // A new PAID selection still uses the validated current monthly calculation.
+      const preserveExistingAmount = Boolean(
+        existing && (requested.status === "UNPAID" || alreadyRecordedAsPaid)
+      );
+      const amount = preserveExistingAmount
+        ? Number(existing!.amount)
+        : canUseCalculatedAmount
+          ? monthlyEstimate!.amount!
+          : Number(existing?.amount ?? 0);
       const currencyCode = (
-        (canUseCalculatedAmount ? monthlyEstimate?.currencyCode : null) ||
-        existing?.currencyCode ||
-        organizationCurrency
+        preserveExistingAmount
+          ? existing!.currencyCode
+          : (canUseCalculatedAmount ? monthlyEstimate?.currencyCode : null) ||
+            existing?.currencyCode ||
+            organizationCurrency
       ).trim().toUpperCase();
 
       if (!Number.isFinite(amount) || amount < 0 || !/^[A-Z]{3}$/.test(currencyCode)) {
