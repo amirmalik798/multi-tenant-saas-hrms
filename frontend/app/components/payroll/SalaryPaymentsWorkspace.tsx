@@ -128,8 +128,11 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       setDrafts(Object.fromEntries(rows.map((p) => [p.employeeId, { amount: p.amount == null ? "" : String(p.amount), currencyCode: p.currencyCode || "RWF", status: p.status === "PAID" ? "PAID" : "UNPAID", paymentReference: p.paymentReference || "", notes: p.notes || "" }])));
     } catch (e) {
       if (requestId === loadRequestId.current) {
-        setPayments([]);
-        setDrafts({});
+        // A background refresh failure must not erase the last known payroll view.
+        if (!silent) {
+          setPayments([]);
+          setDrafts({});
+        }
         setError(e instanceof Error ? e.message : "Unable to load salary payments.");
       }
     }
