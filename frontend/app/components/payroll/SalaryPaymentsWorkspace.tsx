@@ -358,7 +358,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
 
   async function printSalarySlip(targetEmployeeId: string) {
     if (!canEdit || !targetEmployeeId || payslipLoading || payslipDialog) return;
-    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
       setError("Choose a valid payroll month before preparing a salary slip.");
       return;
     }
@@ -403,7 +403,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   async function loadSalarySlipPeriod() {
     const dialog = payslipDialog;
     if (!dialog || payslipLoading || savingPayslipStatuses) return;
-    const validMonth = (value: string) => /^\\d{4}-(0[1-9]|1[0-2])$/.test(value);
+    const validMonth = (value: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
     if (!validMonth(dialog.startMonth) || !validMonth(dialog.endMonth)) {
       setError("Choose valid start and end months for the salary slip.");
       return;
