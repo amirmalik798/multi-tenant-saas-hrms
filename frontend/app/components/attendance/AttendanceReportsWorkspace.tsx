@@ -340,8 +340,8 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
         </div>
       </section>
 
-      <section className={`grid gap-3 ${isEmployee ? "grid-cols-1" : "xl:grid-cols-2"}`} aria-label="Attendance report types">
-        {!isEmployee && (
+      {!isEmployee && (
+        <section className="grid gap-3 xl:grid-cols-2" aria-label="Attendance report types">
           <button
             type="button"
             onClick={() => { if (isOrganizationAdmin) { setMode("daily"); setError(""); setNotice(""); } }}
@@ -358,23 +358,22 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
             <h3 className="mt-4 text-base font-bold text-white">Single-day organization report</h3>
             <p className="mt-1 text-xs leading-5 text-slate-400">One date · Active workforce · Daily attendance register</p>
           </button>
-        )}
-
-        <button
-          type="button"
-          onClick={() => { setMode("member"); setError(""); setNotice(""); }}
-          disabled={busy}
-          aria-pressed={mode === "member"}
-          className={`group min-w-0 rounded-2xl border p-4 text-left transition sm:p-5 ${mode === "member" ? "border-sky-400/45 bg-sky-400/[0.07] shadow-lg shadow-sky-950/10" : "border-white/[0.08] bg-[#151e2b] hover:border-white/[0.16]"}`}
-        >
-          <div className="flex items-start justify-between gap-4">
-            <span className="flex size-11 items-center justify-center rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] text-indigo-200"><FileText size={20}/></span>
-            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${mode === "member" ? "border-sky-300/25 bg-sky-300/10 text-sky-200" : "border-slate-700 text-slate-500"}`}>{isEmployee ? "My attendance" : "02 · Workforce member"}</span>
-          </div>
-          <h3 className="mt-4 text-base font-bold text-white">{isEmployee ? "My attendance report" : "Individual attendance report"}</h3>
-          <p className="mt-1 text-xs leading-5 text-slate-400">{isEmployee ? "Your attendance · Date range · Monthly hours and daily detail" : "Selected member · Date range · Monthly hours and daily detail"}</p>
-        </button>
-      </section>
+          <button
+            type="button"
+            onClick={() => { setMode("member"); setError(""); setNotice(""); }}
+            disabled={busy}
+            aria-pressed={mode === "member"}
+            className={`group min-w-0 rounded-2xl border p-4 text-left transition sm:p-5 ${mode === "member" ? "border-sky-400/45 bg-sky-400/[0.07] shadow-lg shadow-sky-950/10" : "border-white/[0.08] bg-[#151e2b] hover:border-white/[0.16]"}`}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <span className="flex size-11 items-center justify-center rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] text-indigo-200"><FileText size={20}/></span>
+              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${mode === "member" ? "border-sky-300/25 bg-sky-300/10 text-sky-200" : "border-slate-700 text-slate-500"}`}>02 · Workforce member</span>
+            </div>
+            <h3 className="mt-4 text-base font-bold text-white">Individual attendance report</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-400">Selected member · Date range · Monthly hours and daily detail</p>
+          </button>
+        </section>
+      )}
 
       <section className="rounded-2xl border border-[#34465d]/80 bg-[#141e2b] p-5 shadow-xl shadow-black/10 sm:p-7">
         {mode === "daily" ? (
