@@ -190,7 +190,6 @@ export async function GET(request: Request, context: RouteContext) {
       }, 403);
     }
 
-    const [startYear, startMonthNumber] = startMonth.split("-").map(Number);
     const [endYear, endMonthNumber] = endMonth.split("-").map(Number);
     const fromDate = `${startMonth}-01`;
     const toDate = new Date(Date.UTC(endYear, endMonthNumber, 0)).toISOString().slice(0, 10);
@@ -491,8 +490,14 @@ export async function GET(request: Request, context: RouteContext) {
           currencyCode: day.currencyCode,
         };
         const last = ratePeriods[ratePeriods.length - 1];
+        const previousDate = (() => {
+          const [year, monthNumber, dayNumber] = day.workDate.split("-").map(Number);
+          return new Date(Date.UTC(year, monthNumber - 1, dayNumber - 1)).toISOString().slice(0, 10);
+        })();
+        const isConsecutive = Boolean(last && last.toDate === previousDate);
         if (
           last &&
+          isConsecutive &&
           last.hourlyRate === current.hourlyRate &&
           last.overtimeRate === current.overtimeRate &&
           last.currencyCode === current.currencyCode
