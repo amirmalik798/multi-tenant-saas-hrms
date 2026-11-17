@@ -14,7 +14,7 @@ const BUTTON = "inline-flex min-h-9 items-center justify-center gap-2 rounded-xl
 function localDate() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function monthNow() { return localDate().slice(0, 7); }
 function money(value: string | number | null, currency: string) { if (value === null || value === "") return "Not recorded"; const n = Number(value); if (!Number.isFinite(n)) return "—"; try { return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n); } catch { return `${currency} ${n.toFixed(2)}`; } }
-function isExcludedHrTarget(employee: EmployeeRoleRecord, allowHrManager = false) {
+function normalizedEmployeeRoles(employee: EmployeeRoleRecord): string[] {
   const normalize = (value: unknown): string[] => {
     if (typeof value === "string") return [value.toUpperCase().trim().replace(/[^A-Z0-9]+/g, "_")];
     if (value && typeof value === "object") {
@@ -23,16 +23,30 @@ function isExcludedHrTarget(employee: EmployeeRoleRecord, allowHrManager = false
     }
     return [];
   };
-  const roles = [
+  return [
     ...normalize(employee.workforce_role), ...normalize(employee.workforceRole),
     ...normalize(employee.roleName), ...normalize(employee.role_name),
     ...normalize(employee.role), ...normalize(employee.userRole),
     ...normalize(employee.user_role), ...normalize(employee.user?.role),
   ];
+}
+
+function isExcludedHrTarget(employee: EmployeeRoleRecord, allowHrManager = false) {
+  const roles = normalizedEmployeeRoles(employee);
   const isOrganizationAdmin = roles.some((role) => ["ORGANIZATION_ADMIN", "ORG_ADMIN", "ORGANIZATIONADMIN", "ORGANIZATION_ADMINISTRATOR", "ORGANIZATION_OWNER", "ORG_OWNER", "TENANT_ADMIN", "ADMINISTRATOR"].includes(role) || role.startsWith("ORGANIZATION_ADMIN_") || role.startsWith("ORGANIZATIONADMIN_") || role.startsWith("ORG_ADMIN_") || role.startsWith("ORGANIZATION_OWNER_") || role.startsWith("ORG_OWNER_") || role.startsWith("TENANT_ADMIN_"));
   const isHrManager = roles.some((role) => ["HR_MANAGER", "HRMANAGER"].includes(role) || role.startsWith("HR_MANAGER_") || role.startsWith("HRMANAGER_"));
   return isOrganizationAdmin || (!allowHrManager && isHrManager);
 }
+
+function isEligiblePayslipTarget(employee: EmployeeRoleRecord, audience: Props["audience"]) {
+  if (isExcludedHrTarget(employee, audience === "organization-admin")) return false;
+  const roles = normalizedEmployeeRoles(employee);
+  const allowedRoles = audience === "organization-admin"
+    ? new Set(["HR_MANAGER", "HRMANAGER", "DEPARTMENT_MANAGER", "DEPARTMENTMANAGER", "EMPLOYEE"])
+    : new Set(["DEPARTMENT_MANAGER", "DEPARTMENTMANAGER", "EMPLOYEE"]);
+  return roles.length === 0 || roles.some((role) => allowedRoles.has(role));
+}
+
 async function loadEligibleEmployeeIds(audience: Props["audience"]) {
   const fetchPage = async (page: number) => {
     const response = await fetch(`/api/backend/employees?page=${page}&limit=100&sortBy=name&sortOrder=asc`, { credentials: "same-origin", cache: "no-store" });
@@ -48,7 +62,7 @@ async function loadEligibleEmployeeIds(audience: Props["audience"]) {
     const result = await fetchPage(page);
     allRows.push(...result.rows);
   }
-  return new Set(allRows.filter((employee) => typeof employee.id === "string" && !isExcludedHrTarget(employee, audience === "organization-admin")).map((employee) => employee.id as string));
+  return new Set(allRows.filter((employee) => typeof employee.id === "string" && isEligiblePayslipTarget(employee, audience)).map((employee) => employee.id as string));
 }
 
 export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeEmployeeId }: Props) {
