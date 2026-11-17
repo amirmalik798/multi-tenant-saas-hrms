@@ -147,7 +147,7 @@ function statusLabel(value: string): string {
 
 function paymentLabel(month: SalarySlipMonth): string {
   const status = month.payment.status === "PAID" ? "PAID" : "UNPAID";
-  return month.payment.recorded ? `Payment status · ${status} (recorded in payroll)` : `Payment status · ${status} (not recorded)`;
+  return `Payment status · ${status}`;
 }
 
 function monthlyEarningsSummary(month: SalarySlipMonth): string {
@@ -236,7 +236,7 @@ function buildMonthPage(
       <div class="period-block">
         <span class="eyebrow">PAY PERIOD</span>
         <strong>${escapeHtml(monthLabel(month.month))}</strong>
-        <span class="payment-status ${month.payment.status === "PAID" ? "paid" : "unpaid"}">${escapeHtml(month.payment.status === "PAID" ? "PAID" : "UNPAID")}${month.payment.recorded ? "" : " · NOT RECORDED"}</span>
+        <span class="payment-status ${month.payment.status === "PAID" ? "paid" : "unpaid"}">${escapeHtml(month.payment.status === "PAID" ? "PAID" : "UNPAID")}</span>
         <span class="month-index">Month ${monthIndex + 1} of ${totalMonths}</span>
       </div>
     </div>

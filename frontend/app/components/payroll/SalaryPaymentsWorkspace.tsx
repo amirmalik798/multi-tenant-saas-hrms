@@ -795,7 +795,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                       {payment.status === "PAID" ? <CheckCircle size={12}/> : isReview ? <AlertTriangle size={12}/> : payment.status === "NO_RECORDED_HOURS" ? <Clock3 size={12}/> : <CircleDollarSign size={12}/>}
                       {statusLabel}
                     </span>
-                    <p className="mt-1 text-[10px] text-slate-500">{payment.paymentRecorded ? "Payment record stored" : "No payment record"}</p>
+                    <p className="mt-1 text-[10px] text-slate-500">{payment.status === "RATE_REQUIRED" ? "Missing rate for payable work dates" : payment.paymentRecorded ? "Payment record stored" : "No payment record"}</p>
                   </td>
                   <td className="px-4 py-3.5">
                     <p className="whitespace-nowrap text-xs text-slate-300">{formatPayrollTimestamp(payment.paidAt, organizationTimeZone, false)}</p>

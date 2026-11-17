@@ -82,6 +82,7 @@ function loadingDocument(title: string, detail: string): string {
 
 export default function AttendanceReportsWorkspace({ audience }: Props) {
   const isOrganizationAdmin = audience === "organization-admin";
+  const isEmployee = audience === "employee";
   const [mode, setMode] = useState<ReportMode>(isOrganizationAdmin ? "daily" : "member");
   const [reportDate, setReportDate] = useState(() => localDate());
   const [fromDate, setFromDate] = useState(() => monthStart(localDate()));
@@ -327,10 +328,10 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sky-300">
               <FileBarChart size={18}/>
-              <span className="text-[10px] font-extrabold uppercase tracking-[0.18em]">Workforce intelligence</span>
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.18em]">{isEmployee ? "Personal attendance" : "Workforce intelligence"}</span>
             </div>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">Report builder</h2>
-            <p className="mt-2 max-w-2xl text-sm text-slate-300">Generate verified attendance PDFs from your authorized reporting scope.</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">{isEmployee ? "My attendance report" : "Report builder"}</h2>
+            <p className="mt-2 max-w-2xl text-sm text-slate-300">{isEmployee ? "Generate a printable PDF of your own attendance history, monthly hours and daily details." : "Generate verified attendance PDFs from your authorized reporting scope."}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
             {timeZone && <span className="inline-flex items-center gap-2 rounded-lg border border-white/[0.08] bg-black/15 px-3 py-2"><CalendarDays size={14} className="text-sky-300"/>{timeZone}</span>}
@@ -339,23 +340,25 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
         </div>
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-2" aria-label="Attendance report types">
-        <button
-          type="button"
-          onClick={() => { if (isOrganizationAdmin) { setMode("daily"); setError(""); setNotice(""); } }}
-          disabled={!isOrganizationAdmin || busy}
-          aria-pressed={mode === "daily"}
-          className={`group min-w-0 rounded-2xl border p-4 text-left transition sm:p-5 ${mode === "daily" ? "border-sky-400/45 bg-sky-400/[0.07] shadow-lg shadow-sky-950/10" : "border-white/[0.08] bg-[#151e2b] hover:border-white/[0.16]"} ${!isOrganizationAdmin ? "cursor-not-allowed opacity-65" : ""}`}
-        >
-          <div className="flex items-start justify-between gap-4">
-            <span className="flex size-11 items-center justify-center rounded-xl border border-sky-300/20 bg-sky-300/[0.08] text-sky-200"><Users size={20}/></span>
-            {!isOrganizationAdmin
-              ? <span className="inline-flex items-center gap-1 rounded-full border border-slate-600 bg-slate-800/70 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400"><LockKeyhole size={11}/>Organization Admin</span>
-              : <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${mode === "daily" ? "border-sky-300/25 bg-sky-300/10 text-sky-200" : "border-slate-700 text-slate-500"}`}>01 · Organization-wide</span>}
-          </div>
-          <h3 className="mt-4 text-base font-bold text-white">Single-day organization report</h3>
-          <p className="mt-1 text-xs leading-5 text-slate-400">One date · Active workforce · Daily attendance register</p>
-        </button>
+      <section className={`grid gap-3 ${isEmployee ? "grid-cols-1" : "xl:grid-cols-2"}`} aria-label="Attendance report types">
+        {!isEmployee && (
+          <button
+            type="button"
+            onClick={() => { if (isOrganizationAdmin) { setMode("daily"); setError(""); setNotice(""); } }}
+            disabled={!isOrganizationAdmin || busy}
+            aria-pressed={mode === "daily"}
+            className={`group min-w-0 rounded-2xl border p-4 text-left transition sm:p-5 ${mode === "daily" ? "border-sky-400/45 bg-sky-400/[0.07] shadow-lg shadow-sky-950/10" : "border-white/[0.08] bg-[#151e2b] hover:border-white/[0.16]"} ${!isOrganizationAdmin ? "cursor-not-allowed opacity-65" : ""}`}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <span className="flex size-11 items-center justify-center rounded-xl border border-sky-300/20 bg-sky-300/[0.08] text-sky-200"><Users size={20}/></span>
+              {!isOrganizationAdmin
+                ? <span className="inline-flex items-center gap-1 rounded-full border border-slate-600 bg-slate-800/70 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400"><LockKeyhole size={11}/>Organization Admin</span>
+                : <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${mode === "daily" ? "border-sky-300/25 bg-sky-300/10 text-sky-200" : "border-slate-700 text-slate-500"}`}>01 · Organization-wide</span>}
+            </div>
+            <h3 className="mt-4 text-base font-bold text-white">Single-day organization report</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-400">One date · Active workforce · Daily attendance register</p>
+          </button>
+        )}
 
         <button
           type="button"
@@ -366,10 +369,10 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
         >
           <div className="flex items-start justify-between gap-4">
             <span className="flex size-11 items-center justify-center rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] text-indigo-200"><FileText size={20}/></span>
-            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${mode === "member" ? "border-sky-300/25 bg-sky-300/10 text-sky-200" : "border-slate-700 text-slate-500"}`}>02 · Workforce member</span>
+            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${mode === "member" ? "border-sky-300/25 bg-sky-300/10 text-sky-200" : "border-slate-700 text-slate-500"}`}>{isEmployee ? "My attendance" : "02 · Workforce member"}</span>
           </div>
-          <h3 className="mt-4 text-base font-bold text-white">Individual attendance report</h3>
-          <p className="mt-1 text-xs leading-5 text-slate-400">Selected member · Date range · Monthly hours and daily detail</p>
+          <h3 className="mt-4 text-base font-bold text-white">{isEmployee ? "My attendance report" : "Individual attendance report"}</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-400">{isEmployee ? "Your attendance · Date range · Monthly hours and daily detail" : "Selected member · Date range · Monthly hours and daily detail"}</p>
         </button>
       </section>
 
@@ -394,15 +397,22 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
           <>
             <div className="flex items-start gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-indigo-400/[0.08] text-indigo-200 ring-1 ring-indigo-300/15"><FileText size={18}/></span>
-              <div><h3 className="text-base font-bold text-white">Workforce attendance · Date range</h3><p className="mt-1 text-xs text-slate-400">Select one authorized workforce member and reporting period.</p></div>
+              <div><h3 className="text-base font-bold text-white">{isEmployee ? "My attendance · Date range" : "Workforce attendance · Date range"}</h3><p className="mt-1 text-xs text-slate-400">{isEmployee ? "Choose the reporting period for your own attendance record." : "Select one authorized workforce member and reporting period."}</p></div>
             </div>
-            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4 xl:items-end">
-              <label className="block min-w-0 text-xs font-semibold text-slate-300 md:col-span-2 xl:col-span-2">Workforce member
-                <select value={selectedTargetId} disabled={targetsLoading || busy || targets.length === 0} onChange={(event) => { setSelectedTargetId(event.target.value); setError(""); setNotice(""); }} className={INPUT}>
-                  <option value="">{targetsLoading ? "Loading permitted members…" : "Select workforce member"}</option>
-                  {targets.map((target) => <option key={target.employeeId} value={target.employeeId}>{targetLabel(target)}</option>)}
-                </select>
-              </label>
+            <div className={`mt-5 grid gap-4 ${isEmployee ? "md:grid-cols-2" : "md:grid-cols-2 xl:grid-cols-4 xl:items-end"}`}>
+              {isEmployee ? (
+                <div className="min-w-0 rounded-xl border border-white/[0.07] bg-black/10 px-3.5 py-3 md:col-span-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Your workforce record</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-slate-100">{selectedTarget ? targetLabel(selectedTarget) : targetsLoading ? "Loading your employee profile…" : "Your employee record is unavailable."}</p>
+                </div>
+              ) : (
+                <label className="block min-w-0 text-xs font-semibold text-slate-300 md:col-span-2 xl:col-span-2">Workforce member
+                  <select value={selectedTargetId} disabled={targetsLoading || busy || targets.length === 0} onChange={(event) => { setSelectedTargetId(event.target.value); setError(""); setNotice(""); }} className={INPUT}>
+                    <option value="">{targetsLoading ? "Loading permitted members…" : "Select workforce member"}</option>
+                    {targets.map((target) => <option key={target.employeeId} value={target.employeeId}>{targetLabel(target)}</option>)}
+                  </select>
+                </label>
+              )}
               <label className="block min-w-0 text-xs font-semibold text-slate-300">Start date
                 <input type="date" value={fromDate} disabled={dateLoading || busy} onChange={(event) => { rangeTouched.current = true; setFromDate(event.target.value); setError(""); setNotice(""); }} className={INPUT}/>
               </label>
@@ -411,7 +421,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
               </label>
             </div>
             <div className="mt-4 flex flex-col gap-3 border-t border-white/[0.06] pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-slate-500">{targets.length} authorized member(s) · Each month starts on a new PDF page</p>
+              <p className="text-xs text-slate-500">{isEmployee ? "Your attendance record · Each month starts on a new PDF page" : `${targets.length} authorized member(s) · Each month starts on a new PDF page`}</p>
               <button type="button" onClick={() => void generateMemberReport()} disabled={targetsLoading || busy || !selectedTargetId || dateLoading} className={BUTTON}>
                 {loadingMode === "member" ? <RefreshCw size={16} className="animate-spin"/> : <Printer size={16}/>}
                 {loadingMode === "member" ? "Preparing PDF…" : "Generate and print PDF"}

@@ -16,6 +16,7 @@ import {
   ArrowRight,
   BadgeDollarSign,
   CalendarDays,
+  FileBarChart,
   ChevronDown,
   ClipboardList,
   Clock,
@@ -131,6 +132,16 @@ const navGroups: EmployeeNavGroup[] = [
     ],
   },
   {
+    label: "REPORTING",
+    items: [
+      {
+        label: "Attendance Reports",
+        href: "/employee/reports",
+        icon: FileBarChart,
+      },
+    ],
+  },
+  {
     label: "TIME OFF",
     items: [
       {
@@ -160,6 +171,7 @@ const navGroups: EmployeeNavGroup[] = [
 const mobileNavItems: EmployeeNavItem[] = [
   { label: "Home", href: "/employee/dashboard", icon: LayoutDashboard },
   { label: "Time", href: "/employee/attendance", icon: Clock },
+  { label: "Reports", href: "/employee/reports", icon: FileBarChart },
   { label: "Earnings", href: "/employee/payroll", icon: BadgeDollarSign },
   { label: "Leave", href: "/employee/leave", icon: CalendarDays },
   { label: "Requests", href: "/employee/requests", icon: ClipboardList },
@@ -722,7 +734,7 @@ export function EmployeeChrome({ children }: { children: ReactNode }) {
 
         <nav
           aria-label="Primary mobile navigation"
-          className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-7 border-t border-white/[0.09] bg-[#0d131d]/95 px-1 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur-xl sm:hidden"
+          className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-8 border-t border-white/[0.09] bg-[#0d131d]/95 px-1 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur-xl sm:hidden"
         >
           {mobileNavItems.map((item) => {
             const Icon = item.icon;
