@@ -102,12 +102,13 @@ async function resolveTarget(actor: Actor, employeeId: string): Promise<TargetRo
            AND admin_account.account_scope = 'ORGANIZATION'
            AND (
              regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') IN (
-               'ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR',
+               'ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR', 'ORG_ADMINISTRATOR',
                'ORGANIZATION_OWNER', 'ORG_OWNER', 'TENANT_ADMIN', 'ADMINISTRATOR'
              )
              OR regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_ADMIN_%'
              OR regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATIONADMIN_%'
              OR regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_ADMIN_%'
+              OR regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_ADMINISTRATOR_%'
              OR regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_OWNER_%'
              OR regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_OWNER_%'
              OR regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'TENANT_ADMIN_%'
@@ -231,12 +232,13 @@ export async function GET(request: Request) {
                AND admin_account.account_scope = 'ORGANIZATION'
                AND (
                  regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') IN (
-                   'ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR',
+                   'ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR', 'ORG_ADMINISTRATOR',
                    'ORGANIZATION_OWNER', 'ORG_OWNER', 'TENANT_ADMIN', 'ADMINISTRATOR'
                  )
                  OR regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_ADMIN_%'
                  OR regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATIONADMIN_%'
                  OR regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_ADMIN_%'
+              OR regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_ADMINISTRATOR_%'
                  OR regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_OWNER_%'
                  OR regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_OWNER_%'
                  OR regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'TENANT_ADMIN_%'
