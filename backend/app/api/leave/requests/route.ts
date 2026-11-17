@@ -36,7 +36,19 @@ export async function GET(request: Request) {
           )
       )`);
     } else if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER") {
-      values.push(actor.employeeId); conditions.push(`r.employee_id = $${values.length}::uuid`);
+      values.push(actor.employeeId);
+      conditions.push(`(
+        r.employee_id = ${values.length}::uuid
+        OR NOT EXISTS (
+          SELECT 1 FROM public.roles scoped_role
+          WHERE scoped_role.id = e.workforce_role_id
+            AND scoped_role.organization_id = e.organization_id
+            AND (
+              regexp_replace(UPPER(scoped_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'HR_MANAGER%'
+              OR regexp_replace(UPPER(scoped_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'HRMANAGER%'
+            )
+        )
+      )`);
     } else if (actor.kind !== "ORGANIZATION_ADMIN") {
       return jsonResponse({ message: "You do not have permission to view leave requests" }, 403);
     }
