@@ -137,6 +137,12 @@ export default function WorkspaceClock({
       const first = focusableElements[0];
       const last = focusableElements[focusableElements.length - 1];
 
+      if (!dialogRef.current?.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
@@ -531,7 +537,7 @@ export default function WorkspaceClock({
 
       {showAttendanceStatus && clockModalOpen && portalReady && typeof document !== "undefined" && createPortal((
         <div
-          className="fixed inset-0 z-[10000] grid place-items-center overflow-y-auto overscroll-contain bg-slate-950/35 p-3 sm:p-5"
+          className="fixed inset-0 z-[10000] grid place-items-center overflow-y-auto overscroll-contain bg-slate-950/25 p-3 sm:p-5"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeClockConfirmation();
           }}
