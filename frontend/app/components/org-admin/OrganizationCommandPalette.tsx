@@ -571,11 +571,8 @@ export function OrganizationCommandPalette({
                   >
                     Command palette
                   </h2>
-                  <p
-                    id="organization-command-description"
-                    className="mt-0.5 text-[11px] text-slate-500"
-                  >
-                    Navigate your workspace or run a page action.
+                  <p id="organization-command-description" className="sr-only">
+                    Search and open workspace pages or actions.
                   </p>
                 </div>
 
@@ -602,7 +599,7 @@ export function OrganizationCommandPalette({
                     ref={inputRef}
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Search dashboard, employees, departments, invitations, settings, actions…"
+                    placeholder="Search pages, people, actions…"
                     className="h-10 w-full rounded-lg border border-white/10 bg-[#0b111b] py-2 pl-9 pr-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#75c7ff]/60 focus:ring-2 focus:ring-[#75c7ff]/10"
                     aria-label="Search workspace commands"
                     aria-controls="organization-command-results"
