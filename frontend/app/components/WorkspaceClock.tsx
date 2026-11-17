@@ -236,6 +236,8 @@ export default function WorkspaceClock({
   }
 
   async function confirmClockAction() {
+    if (clockSubmitting) return;
+
     const action: ClockAction | null =
       attendanceStatus === "CLOCKED_IN"
         ? "CLOCK_OUT"
@@ -299,17 +301,28 @@ export default function WorkspaceClock({
 
       window.dispatchEvent(new Event("hrms:attendance-status-changed"));
     } catch (caught) {
-      setClockActionError(
-        caught instanceof Error
-          ? caught.message
-          : "Your attendance action could not be recorded. Please try again.",
-      );
+      let latestStatus: ConfirmedAttendanceStatus | null = null;
       try {
-        const latestStatus = await readAttendanceStatus();
+        latestStatus = await readAttendanceStatus();
         attendanceStatusRevisionRef.current += 1;
         setAttendanceStatus(latestStatus);
       } catch {
-        // Keep the original action error visible; the regular status refresh will retry.
+        // The action result is unknown until the attendance status can be read again.
+      }
+
+      const expectedStatus = action === "CLOCK_IN" ? "CLOCKED_IN" : "CLOCKED_OUT";
+      if (latestStatus === expectedStatus) {
+        // The server may have saved the punch even if its response was lost.
+        setClockActionError("");
+        setCompletedAction(action);
+        setClockActionResult("success");
+        window.dispatchEvent(new Event("hrms:attendance-status-changed"));
+      } else {
+        setClockActionError(
+          caught instanceof Error
+            ? caught.message
+            : "Your attendance action could not be recorded. Please try again.",
+        );
       }
     } finally {
       setClockSubmitting(false);
