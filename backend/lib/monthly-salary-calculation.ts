@@ -44,7 +44,12 @@ function validRate(value: string | number | null): number | null {
  * attendance events. They never create clock events or double-count a day. This function
  * does not create or mark a payment paid.
  */
-export async function calculateOrganizationMonthlyPay(pool: Pool, organizationId: string, month: string) {
+export async function calculateOrganizationMonthlyPay(
+  pool: Pool,
+  organizationId: string,
+  month: string,
+  employeeId?: string,
+) {
   const [year, monthNumber] = month.split("-").map(Number);
   const fromDate = `${month}-01`;
   const toDate = new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10);
@@ -58,6 +63,7 @@ export async function calculateOrganizationMonthlyPay(pool: Pool, organizationId
        FROM public.employees e
        LEFT JOIN public.organization_settings os ON os.organization_id = e.organization_id
        WHERE e.organization_id = $1::uuid
+         AND ($4::uuid IS NULL OR e.id = $4::uuid)
      ),
      scheduled_days AS (
        SELECT DISTINCT ON (ec.id, cd.work_date)
@@ -137,7 +143,7 @@ export async function calculateOrganizationMonthlyPay(pool: Pool, organizationId
        ORDER BY pr.effective_from DESC, pr.created_at DESC LIMIT 1
      ) rate ON TRUE
      ORDER BY ec.id, cd.work_date`,
-    [organizationId, fromDate, toDate],
+    [organizationId, fromDate, toDate, employeeId ?? null],
   );
 
   const totals = new Map<string, { workedMinutes: number; regularMinutes: number; overtimeMinutes: number; paidLeaveMinutes: number; paidHolidayMinutes: number; payableMinutes: number; amount: number | null; regularAmount: number; overtimeAmount: number; paidAbsenceAmount: number; currencyCode: string | null; hasRate: boolean; currencyMismatch: boolean }>();
