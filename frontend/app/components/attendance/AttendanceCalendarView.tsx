@@ -740,7 +740,7 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
   );
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className={audience === "organization-admin" ? "oa-org-admin-attendance flex flex-col gap-6" : "flex flex-col gap-6"}>
       {!compact && <header className="order-1">
         <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-sky-300">
           Attendance & time
@@ -757,7 +757,7 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
 
 
       {!isEmployee && !compact && (
-        <section className="order-3 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0f1723]">
+        <section className="oa-attendance-rollcall order-3 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0f1723]">
           <div className="border-b border-white/[0.07] bg-gradient-to-r from-[#17263a] via-[#111a27] to-[#111a27] p-4 sm:p-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
@@ -800,7 +800,7 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
           </div>
 
           <div className="p-4 sm:p-5">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="oa-attendance-rollcall-summary grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <SummaryCard icon={Users} label="Expected on this shift" value={expectedRows.length} />
               <SummaryCard icon={CheckCircle2} label="Checked in" value={checkedInRows.length} />
               <SummaryCard icon={AlertCircle} label="No clock-in / absence review" value={absenceRows.length} />
@@ -933,8 +933,8 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
           {!error && entries.length === 0 && <div className="border-b border-white/[0.06] px-4 py-3 text-xs text-slate-400">No attendance records for this week yet. The full Monday–Sunday calendar remains available for review.</div>}
           <div className="overflow-x-auto">
             <div className="min-w-[840px]">
-              <div className="grid grid-cols-7 border-b border-white/[0.07] bg-white/[0.035]">
-                {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => <div key={day} className="border-r border-white/[0.04] px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400 last:border-r-0 sm:px-3">{day}</div>)}
+              <div className="oa-attendance-weekday-row grid grid-cols-7 border-b border-white/[0.07] bg-white/[0.035]">
+                {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => <div key={day} className="oa-attendance-weekday-label border-r border-white/[0.04] px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400 last:border-r-0 sm:px-3">{day}</div>)}
               </div>
               <div className="grid grid-cols-7 gap-px bg-white/[0.06]">
                 {calendarDates.map((date) => {
