@@ -2057,7 +2057,7 @@ export default function EmployeesPage() {
             </article>
           </section>
 
-          {error && <div role="alert" className="mb-5 flex flex-col gap-3 rounded-xl border border-rose-400/30 bg-rose-500/15 p-4 text-sm font-medium text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span className="flex min-w-0 items-start gap-3"><Icon name="alert" size={18} /><span>{error}</span></span><button type="button" onClick={() => setReloadKey((key) => key + 1)} disabled={loading || saving} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">Retry</button></div>
+          {error && <div role="alert" className="mb-5 flex flex-col gap-3 rounded-xl border border-rose-400/30 bg-rose-500/15 p-4 text-sm font-medium text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span className="flex min-w-0 items-start gap-3"><Icon name="alert" size={18} /><span>{error}</span></span><button type="button" onClick={() => setReloadKey((key) => key + 1)} disabled={loading || saving} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">Retry</button></div>}
 
           {/* Employee directory — dense table by default, optional cards for individual review. */}
           <section className="overflow-hidden rounded-xl border border-[#29384b] bg-[#141f2e]/90">
