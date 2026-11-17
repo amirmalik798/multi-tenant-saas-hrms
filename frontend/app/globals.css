@@ -8425,3 +8425,144 @@ html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communicat
   color: #a32638 !important;
   -webkit-text-fill-color: #a32638 !important;
 }
+
+/* Organization Admin workspace — focused contrast and light-surface refinements. */
+.org-admin-workspace .oa-pay-rate-edit-button {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #1769aa !important;
+  border-color: #1769aa !important;
+}
+.org-admin-workspace .oa-pay-rate-edit-button:hover {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #12568d !important;
+  border-color: #12568d !important;
+}
+.org-admin-workspace .oa-org-admin-leave .oa-leave-tab[aria-pressed="true"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #1769aa !important;
+  border-color: #1769aa !important;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 12%);
+}
+.org-admin-workspace .oa-org-admin-leave .oa-leave-tab[aria-pressed="false"] {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+.org-admin-workspace .oa-org-admin-leave .oa-leave-tab[aria-pressed="false"]:hover {
+  color: #17243a !important;
+  -webkit-text-fill-color: #17243a !important;
+  background-color: #edf3f9 !important;
+}
+
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay .payroll-filter-panel {
+  color: #35465d !important;
+  background: #f4f7fb !important;
+  border-color: #d7e1ec !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 75%);
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay .payroll-filter-panel label,
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay .payroll-filter-panel label > span,
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay .payroll-filter-panel > div > div > span {
+  color: #40536b !important;
+  -webkit-text-fill-color: #40536b !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay .payroll-filter-panel input {
+  color: #17243a !important;
+  -webkit-text-fill-color: #17243a !important;
+  background: #ffffff !important;
+  border-color: #cbd7e4 !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay .payroll-filter-panel input::placeholder {
+  color: #718198 !important;
+  -webkit-text-fill-color: #718198 !important;
+  opacity: 1 !important;
+}
+.org-admin-workspace .oa-org-admin-time-pay .payroll-filter-option[aria-pressed="true"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: #1769aa !important;
+  border-color: #1769aa !important;
+}
+.org-admin-workspace .oa-org-admin-time-pay .payroll-filter-option[aria-pressed="true"] > span {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: rgb(255 255 255 / 18%) !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay .payroll-filter-option:not([aria-pressed="true"]),
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay .payroll-sort-option {
+  color: #40536b !important;
+  -webkit-text-fill-color: #40536b !important;
+  background: #ffffff !important;
+  border-color: #d3deea !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay .payroll-filter-option:not([aria-pressed="true"]):hover,
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay .payroll-sort-option:hover {
+  color: #17243a !important;
+  -webkit-text-fill-color: #17243a !important;
+  background: #edf3f9 !important;
+  border-color: #b9ccdf !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay .payroll-filter-option:not([aria-pressed="true"]) > span {
+  color: #53657d !important;
+  -webkit-text-fill-color: #53657d !important;
+  background: #edf2f7 !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay .payroll-filter-panel > div:last-child {
+  border-color: #dce4ed !important;
+  color: #596b82 !important;
+}
+
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-attendance {
+  color: #17243a !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-attendance .oa-attendance-weekday-row {
+  background: #eaf1f8 !important;
+  border-color: #cfdbe8 !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-attendance .oa-attendance-weekday-label {
+  color: #34465e !important;
+  -webkit-text-fill-color: #34465e !important;
+  border-color: #d3deea !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-attendance .oa-attendance-rollcall {
+  color: #17243a !important;
+  background: #ffffff !important;
+  border-color: #d8e2ec !important;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 4%);
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-attendance .oa-attendance-rollcall > div:first-child {
+  background: linear-gradient(135deg, #f4f8fc 0%, #ffffff 100%) !important;
+  border-color: #e0e7ef !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-attendance .oa-attendance-rollcall-summary > div {
+  color: #17243a !important;
+  background: #f8fafc !important;
+  border-color: #dce4ed !important;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 3%);
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-attendance .oa-attendance-rollcall-summary :is(p, span, strong, label)[class~="text-white"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-attendance .oa-attendance-rollcall :is(h2, h3)[class~="text-white"] {
+  color: #17243a !important;
+  -webkit-text-fill-color: #17243a !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-attendance .oa-attendance-rollcall :is(p, span, label, small)[class~="text-slate-300"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-attendance .oa-attendance-rollcall :is(p, span, label, small)[class~="text-slate-400"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-attendance .oa-attendance-rollcall :is(p, span, label, small)[class~="text-slate-500"] {
+  color: #596b82 !important;
+  -webkit-text-fill-color: #596b82 !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-attendance .oa-attendance-rollcall .text-sky-300,
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-attendance .oa-attendance-rollcall .text-sky-200 {
+  color: #1769aa !important;
+  -webkit-text-fill-color: #1769aa !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-attendance .oa-attendance-rollcall button[aria-pressed="true"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: #1769aa !important;
+  border-color: #1769aa !important;
+}
