@@ -145,7 +145,7 @@ export default function OrganizationAdminHRModuleShell({
           commandPaletteOpen={commandPaletteOpen}
           onCommandPaletteOpenChange={setCommandPaletteOpen}
         />
-        <div className="mx-auto w-full max-w-[1600px] px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pt-8">
+        <div className={`mx-auto w-full max-w-[1600px] px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pt-8 ${["attendance", "schedules", "leave", "pay-rates", "payroll", "reports"].includes(activePage) ? "oa-org-admin-time-pay" : ""}`}>
           {error && (
             <div role="alert" aria-live="assertive" className="mb-5 flex flex-col gap-3 rounded-xl border border-rose-400/25 bg-rose-500/10 p-3.5 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between">
               <p className="min-w-0">{error}</p>
@@ -166,9 +166,7 @@ export default function OrganizationAdminHRModuleShell({
             <p className="sr-only">{description}</p>
           </section>
           <AttendanceAlerts />
-          <div className={["attendance", "schedules", "leave", "pay-rates", "payroll", "reports"].includes(activePage) ? "oa-org-admin-time-pay" : undefined}>
-            {children}
-          </div>
+          {children}
         </div>
       </main>
     </div>
