@@ -320,7 +320,7 @@ export default function OrganizationInvitationsPage() {
           <section aria-labelledby="invitations-page-title" className="mb-6">
             
             <h1 id="invitations-page-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">Invitations</h1>
-            <p className="mt-1.5 text-sm leading-6 text-slate-400">Track workforce activation invitations, expiry, acceptance and resend history.</p>
+            <p className="sr-only">Track workforce activation invitations, expiry, acceptance and resend history.</p>
           </section>
 
           {/* Metrics follow the four-card layout used by the Departments directory. */}
