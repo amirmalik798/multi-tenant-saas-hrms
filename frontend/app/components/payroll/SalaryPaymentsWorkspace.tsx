@@ -472,7 +472,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
           <div className="flex min-w-0 items-start gap-3"><EmployeeProfilePhoto employeeId={p.employeeId} name={name} className="size-10 rounded-xl border border-sky-400/15 bg-sky-400/[0.07]" textClassName="text-sm font-bold text-sky-200" /><div className="min-w-0"><h3 className="break-words font-semibold text-white">{name}</h3><p className="mt-1 break-words text-xs text-slate-400">{p.employeeCode || "Employee code unavailable"}{p.departmentName ? ` · ${p.departmentName}` : ""}{p.workforceRole ? ` · ${p.workforceRole.replaceAll("_", " ")}` : ""}</p><div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500"><span className="inline-flex items-center gap-1.5"><Clock3 size={12} />{Math.floor(Math.max(0, p.workedMinutes || 0) / 60)}h {String(Math.max(0, p.workedMinutes || 0) % 60).padStart(2, "0")}m recorded</span>{((p.paidLeaveMinutes || 0) + (p.paidHolidayMinutes || 0)) > 0 && <span className="text-emerald-300">{Math.floor(((p.paidLeaveMinutes || 0) + (p.paidHolidayMinutes || 0)) / 60)}h {String(((p.paidLeaveMinutes || 0) + (p.paidHolidayMinutes || 0)) % 60).padStart(2, "0")}m paid leave / holiday</span>}</div></div></div>
           <div className="flex min-w-0 flex-wrap items-start justify-end gap-2">
             <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end"><span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${statusStyle}`}>{p.status === "PAID" ? <CheckCircle size={13} /> : isReview ? <AlertTriangle size={13} /> : p.status === "NO_RECORDED_HOURS" ? <Clock3 size={13} /> : <CircleDollarSign size={13} />}{statusLabel}</span><p className="text-xs text-slate-500">{p.paidAt ? `Paid ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(p.paidAt))}` : p.status === "PAID" ? "Payment recorded" : "Payment not completed"}</p></div>
-            {canEdit && <button type="button" onClick={() => void printSalarySlip(p.employeeId)} disabled={Boolean(payslipLoading) || !payslipStartMonth || !payslipEndMonth} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-sky-300/25 bg-sky-300/[0.09] px-3 py-2 text-xs font-bold text-sky-200 transition hover:border-sky-200/50 hover:bg-sky-300/[0.15] disabled:cursor-wait disabled:opacity-50">{payslipLoading === p.employeeId ? <RefreshCw size={14} className="animate-spin" /> : <Printer size={14} />}{payslipLoading === p.employeeId ? "Preparing…" : "Print salary slip"}</button>}
+            {canEdit && <button type="button" onClick={() => void printSalarySlip(p.employeeId)} disabled={Boolean(payslipLoading) || Boolean(payslipDialog) || !payslipStartMonth || !payslipEndMonth} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-sky-300/25 bg-sky-300/[0.09] px-3 py-2 text-xs font-bold text-sky-200 transition hover:border-sky-200/50 hover:bg-sky-300/[0.15] disabled:cursor-wait disabled:opacity-50">{payslipLoading === p.employeeId ? <RefreshCw size={14} className="animate-spin" /> : <Printer size={14} />}{payslipLoading === p.employeeId ? "Preparing…" : "Print salary slip"}</button>}
           </div>
         </div>
         {canEdit ? <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -481,6 +481,120 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         </div> : <div className="grid gap-3 p-4 sm:grid-cols-3 sm:p-5"><div className="rounded-xl border border-white/[0.06] bg-black/10 p-3"><p className="text-xs text-slate-500">{p.status === "PAID" ? "Paid amount" : "Calculated amount"}</p><p className="mt-1 break-words font-semibold text-white">{money(p.amount, p.currencyCode)}</p></div><div className="rounded-xl border border-white/[0.06] bg-black/10 p-3"><p className="text-xs text-slate-500">Payment date</p><p className="mt-1 text-sm text-slate-200">{p.paidAt ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(p.paidAt)) : "Not paid yet"}</p></div><div className="rounded-xl border border-white/[0.06] bg-black/10 p-3"><p className="text-xs text-slate-500">Reference</p><p className="mt-1 break-words text-sm text-slate-200">{p.paymentReference || "—"}</p></div>{p.notes && <p className="text-sm text-slate-400 sm:col-span-3">{p.notes}</p>}</div>}
       </article>;
     })}</div>}
+    {payslipDialog && typeof document !== "undefined" && createPortal(
+      <div
+        className="fixed inset-0 z-[300] flex items-center justify-center overflow-y-auto bg-slate-950/55 p-3 sm:p-5"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget && !savingPayslipStatuses) cancelSalarySlipPreparation();
+        }}
+      >
+        <section
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="salary-slip-status-title"
+          aria-describedby="salary-slip-status-description"
+          className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-700 bg-[#111a28] p-4 text-white shadow-[0_28px_80px_rgba(0,0,0,0.5)] sm:p-6"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-sky-300"><FileDown size={15} /> Monthly payroll status</span>
+              <h2 id="salary-slip-status-title" className="mt-2 text-xl font-bold">Confirm each month’s payment status</h2>
+              <p className="mt-1 text-sm text-slate-300">{payslipDialog.employeeName}</p>
+            </div>
+            <button
+              type="button"
+              onClick={cancelSalarySlipPreparation}
+              disabled={savingPayslipStatuses}
+              aria-label="Close salary slip status confirmation"
+              className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-700 text-slate-400 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+
+          <p id="salary-slip-status-description" className="mt-4 rounded-xl border border-sky-300/15 bg-sky-300/[0.05] p-3 text-sm leading-6 text-slate-300">
+            Choose the actual payment status for every month in this salary slip. These choices are saved in the monthly payroll ledger before the PDF is produced. Months without a saved status default to UNPAID.
+          </p>
+
+          <div className="mt-4 space-y-2">
+            {payslipDialog.payload.months.map((monthRecord) => {
+              const status = payslipDialog.statuses[monthRecord.month] || "UNPAID";
+              const originalStatus = monthRecord.payment.status === "PAID" ? "PAID" : "UNPAID";
+              const hasSavedSelection = monthRecord.payment.recorded && status === originalStatus;
+              const monthLabel = new Intl.DateTimeFormat("en", {
+                month: "long",
+                year: "numeric",
+                timeZone: "UTC",
+              }).format(new Date(`${monthRecord.month}-01T00:00:00Z`));
+              return (
+                <div key={monthRecord.month} className="grid gap-3 rounded-xl border border-white/[0.08] bg-white/[0.025] p-3 sm:grid-cols-[minmax(0,1fr)_minmax(150px,190px)] sm:items-center">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-100">{monthLabel}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {hasSavedSelection
+                        ? "Status already stored in payroll"
+                        : monthRecord.payment.recorded
+                          ? "Changed — will be saved before printing"
+                          : "Not stored yet — will be saved before printing"}
+                    </p>
+                    {status === "PAID" && (
+                      <p className="mt-1 text-xs text-amber-200">
+                        PAID is accepted only when complete payable earnings and valid rates are available.
+                      </p>
+                    )}
+                  </div>
+                  <label className="block text-xs font-semibold text-slate-400">
+                    Payment status
+                    <select
+                      value={status}
+                      disabled={savingPayslipStatuses}
+                      onChange={(event) => setPayslipDialog((current) => current ? {
+                        ...current,
+                        statuses: {
+                          ...current.statuses,
+                          [monthRecord.month]: event.target.value as PayslipPaymentStatus,
+                        },
+                      } : current)}
+                      className={INPUT}
+                    >
+                      <option value="UNPAID">UNPAID</option>
+                      <option value="PAID">PAID</option>
+                    </select>
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+
+          {error && (
+            <div role="alert" className="mt-4 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200">
+              {error}
+            </div>
+          )}
+
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={cancelSalarySlipPreparation}
+              disabled={savingPayslipStatuses}
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.05] disabled:opacity-40"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void saveSalarySlipStatusesAndPrint()}
+              disabled={savingPayslipStatuses}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 disabled:cursor-wait disabled:opacity-50"
+            >
+              {savingPayslipStatuses ? <RefreshCw size={15} className="animate-spin" /> : <Printer size={15} />}
+              {savingPayslipStatuses ? "Saving statuses…" : "Save statuses & print"}
+            </button>
+          </div>
+        </section>
+      </div>,
+      document.body,
+    )}
     {paymentConfirmation && (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setPaymentConfirmation(null); }}>
         <section ref={paymentConfirmationRef} tabIndex={-1} role="alertdialog" aria-modal="true" aria-labelledby="payroll-confirm-title" aria-describedby="payroll-confirm-description" className="w-full max-w-md rounded-2xl border border-amber-300/20 bg-[#111a28] p-5 text-white shadow-2xl sm:p-6">
