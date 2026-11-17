@@ -209,8 +209,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
 
   async function printSalarySlip(targetEmployeeId: string) {
     if (!canEdit || !targetEmployeeId || payslipLoading) return;
-    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(payslipStartMonth) ||
-        !/^\\d{4}-(0[1-9]|1[0-2])$/.test(payslipEndMonth)) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(payslipStartMonth) ||
+        !/^\d{4}-(0[1-9]|1[0-2])$/.test(payslipEndMonth)) {
       setError("Choose a valid start month and end month before printing.");
       return;
     }
