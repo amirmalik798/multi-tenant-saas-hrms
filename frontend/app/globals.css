@@ -8241,3 +8241,126 @@ html[data-hr-manager-theme="light"] .hr-manager-theme-root .hr-manager-download-
   outline: 2px solid #7dd3fc !important;
   outline-offset: 2px !important;
 }
+
+/* Organization Admin — final light-mode corrections for Time & Pay,
+   Communications, and the daily attendance report. These rules are scoped to
+   the tenant workspace so the shared components retain their other themes. */
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay {
+  color: #17243a !important;
+}
+
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is(div, form, section, article, aside, header, li, span)
+:is(
+  [class*="bg-[#141c28]"], [class*="bg-[#0d131d]"], [class*="bg-[#111a28]"],
+  [class*="bg-black/10"], [class*="bg-black/15"],
+  [class*="bg-white/[0.015]"], [class*="bg-white/[0.02]"],
+  [class*="bg-white/[0.025]"], [class*="bg-white/[0.03]"]
+) {
+  color: #35465d !important;
+  background-color: #f7f9fc !important;
+  background-image: none !important;
+  border-color: #dce4ed !important;
+}
+
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is(h1, h2, h3, h4, p, label, span, strong, small, dt, dd, th, td)[class~="text-white"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is(h1, h2, h3, h4, p, label, span, strong, small, dt, dd, th, td)[class~="text-slate-100"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is(h1, h2, h3, h4, p, label, span, strong, small, dt, dd, th, td)[class~="text-slate-200"] {
+  color: #17243a !important;
+  -webkit-text-fill-color: #17243a !important;
+}
+
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is(p, span, label, small, strong)[class~="text-slate-300"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is(p, span, label, small)[class~="text-slate-400"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is(p, span, label, small)[class~="text-slate-500"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is(p, span, label, small)[class~="text-slate-600"] {
+  color: #596b82 !important;
+}
+
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is(p, span, label, small)[class~="text-sky-200"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is(p, span, label, small)[class~="text-sky-300"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is(p, span, label, small)[class~="text-blue-200"] {
+  color: #1769aa !important;
+}
+
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is(div, form, section, article, aside)[class*="border-white/"] {
+  border-color: #dce4ed !important;
+}
+
+/* Messages use the same bright, low-noise surfaces as other Organization
+   Admin pages, including nested composer and thread panels. */
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications {
+  color: #17243a !important;
+}
+
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications
+:is(div, form, section, article, aside, header)
+:is([class*="bg-[#0d131d]"], [class*="bg-[#111a28]"], [class*="bg-slate-900"], [class*="bg-slate-800"]) {
+  color: #35465d !important;
+  background-color: #f7f9fc !important;
+  background-image: none !important;
+  border-color: #dce4ed !important;
+}
+
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications
+:is(h1, h2, h3, h4, p, span, label, small, strong)[class~="text-white"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications
+:is(h1, h2, h3, h4, p, span, label, small, strong)[class~="text-slate-100"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications
+:is(h1, h2, h3, h4, p, span, label, small, strong)[class~="text-slate-200"] {
+  color: #17243a !important;
+  -webkit-text-fill-color: #17243a !important;
+}
+
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications
+:is(p, span, label, small)[class~="text-slate-300"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications
+:is(p, span, label, small)[class~="text-slate-400"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications
+:is(p, span, label, small)[class~="text-slate-500"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications
+:is(p, span, label, small)[class~="text-slate-600"] {
+  color: #596b82 !important;
+}
+
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications
+:is(span, p)[class~="text-sky-200"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications
+:is(span, p)[class~="text-sky-300"] {
+  color: #1769aa !important;
+}
+
+/* Daily attendance report: preserve the blue reporting accent while giving
+   the hero, parameters, and supporting cards legible light-mode foregrounds. */
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-daily-attendance-report
+:is(h1, h2, h3, h4)[class~="text-white"] {
+  color: #17243a !important;
+}
+
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-daily-attendance-report
+:is(p, div, span, label)[class~="text-[#C5D0DE]"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-daily-attendance-report
+:is(p, div, span, label)[class~="text-[#9AA8BA]"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-daily-attendance-report
+:is(p, div, span, label)[class~="text-[#E8EEF5]"] {
+  color: #596b82 !important;
+}
+
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-daily-attendance-report
+:is(div, span)[class~="text-blue-200"],
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-daily-attendance-report
+:is(div, span)[class~="text-blue-300"] {
+  color: #1769aa !important;
+}
+
