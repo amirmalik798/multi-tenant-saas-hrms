@@ -580,7 +580,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     finally { setSaving(""); }
   }
   return <section className={`hr-manager-payroll-workspace min-w-0 space-y-5 rounded-2xl border border-white/[0.08] bg-[#141c28] p-4 shadow-lg shadow-black/10 sm:p-6 ${audience === "organization-admin" ? "oa-org-admin-time-pay" : ""}`}>
-    <header className="flex min-w-0 flex-col justify-between gap-4 xl:flex-row xl:items-end">
+    <header className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
       <div className="min-w-0">
         <div className="flex items-center gap-2 text-sky-300">
           <BadgeDollarSign size={18}/>
@@ -588,16 +588,17 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
           {!canEdit && <span className="inline-flex items-center gap-1 rounded-full border border-slate-500/40 bg-slate-700/30 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-300"><LockKeyhole size={11}/>Read only</span>}
         </div>
         <h2 className="mt-1 text-2xl font-bold tracking-tight text-white">Salary payments</h2>
+        <p className="mt-1 text-xs text-slate-500">Review payment status, outstanding earnings and payroll records for the selected month.</p>
       </div>
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="min-w-[170px] text-xs font-semibold text-slate-400">
+      <div className="flex min-w-0 flex-wrap items-end gap-2.5 xl:justify-end">
+        <label className="min-w-[175px] text-xs font-semibold text-slate-400">
           Register month
           <input type="month" value={month} disabled={!monthReady || Boolean(saving)} onChange={(event) => setMonth(event.target.value)} className={INPUT}/>
+          {organizationTimeZone && <span className="mt-1 block text-[10px] font-medium text-slate-500">{organizationTimeZone}</span>}
         </label>
-        {organizationTimeZone && <span className="pb-2 text-xs text-slate-500">{organizationTimeZone}</span>}
-        {canEdit && <Link href={audience === "hr-manager" ? "/hr/modules/pay-rates" : "/org/pay-rates"} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-600 bg-white/[0.025] px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07]">Manage pay rates</Link>}
-        <button type="button" onClick={exportPayrollRegister} disabled={loading || payments.length === 0 || visiblePayments.length === 0} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-600 bg-white/[0.025] px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-40">
-          <FileDown size={14}/>Export PDF
+        {canEdit && <Link href={audience === "hr-manager" ? "/hr/modules/pay-rates" : "/org/pay-rates"} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-600 bg-white/[0.025] px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07]">Manage pay rates</Link>}
+        <button type="button" onClick={exportPayrollRegister} disabled={loading || payments.length === 0 || visiblePayments.length === 0} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-sky-600 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-40">
+          <FileDown size={14}/>Export register PDF
         </button>
       </div>
     </header>
@@ -831,8 +832,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         >
           <div className="flex items-start justify-between gap-4">
             <div>
-              <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-sky-300"><FileDown size={15} /> Monthly payroll status</span>
-              <h2 id="salary-slip-status-title" className="mt-2 text-xl font-bold">Confirm each month’s payment status</h2>
+              <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-sky-300"><FileDown size={15} /> Salary slip · PDF</span>
+              <h2 id="salary-slip-status-title" className="mt-2 text-xl font-bold">Prepare salary slip</h2>
               <p className="mt-1 text-sm text-slate-300">{payslipDialog.employeeName}</p>
             </div>
             <button
