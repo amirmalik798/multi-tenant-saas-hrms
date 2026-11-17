@@ -52,6 +52,9 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   const paymentConfirmationRef = useRef<HTMLElement | null>(null);
   const paymentDialogPreviousFocusRef = useRef<HTMLElement | null>(null);
   const payslipPrintWindowRef = useRef<Window | null>(null);
+  const payslipDialogRef = useRef<HTMLElement | null>(null);
+  const payslipDialogBusyRef = useRef(false);
+  payslipDialogBusyRef.current = savingPayslipStatuses || Boolean(payslipLoading);
   useEffect(() => {
     let cancelled = false;
     async function resolveOrganizationMonth() {
@@ -148,26 +151,52 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     return () => { document.removeEventListener("keydown", handleKeyDown); paymentDialogPreviousFocusRef.current?.focus(); };
   }, [paymentConfirmation, saving]);
 
+  const payslipDialogOpen = Boolean(payslipDialog);
   useEffect(() => {
-    if (!payslipDialog) return;
+    if (!payslipDialogOpen) return;
     const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = "hidden";
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !savingPayslipStatuses) {
+    payslipDialogRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
         event.preventDefault();
+        if (payslipDialogBusyRef.current) return;
         if (payslipPrintWindowRef.current && !payslipPrintWindowRef.current.closed) {
           payslipPrintWindowRef.current.close();
         }
         payslipPrintWindowRef.current = null;
         setPayslipDialog(null);
+        return;
+      }
+      if (event.key !== "Tab" || !payslipDialogRef.current) return;
+      const items = Array.from(payslipDialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ));
+      if (!items.length) {
+        event.preventDefault();
+        payslipDialogRef.current.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === payslipDialogRef.current)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
-    window.addEventListener("keydown", handleEscape);
+
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
     };
-  }, [payslipDialog, savingPayslipStatuses]);
+  }, [payslipDialogOpen]);
 
   const hasUnsavedChanges = canEdit && payments.some((payment) => {
     const draft = drafts[payment.employeeId];
@@ -509,7 +538,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   }
 
   function cancelSalarySlipPreparation() {
-    if (savingPayslipStatuses) return;
+    if (savingPayslipStatuses || payslipLoading) return;
     if (payslipPrintWindowRef.current && !payslipPrintWindowRef.current.closed) {
       payslipPrintWindowRef.current.close();
     }
@@ -552,7 +581,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
           <input
             type="month"
             value={month}
-            disabled={!monthReady || Boolean(saving) || hasUnsavedChanges}
+            disabled={!monthReady || Boolean(saving) || Boolean(payslipLoading) || Boolean(payslipDialog) || hasUnsavedChanges}
             onChange={(event) => {
               const nextMonth = event.target.value;
               if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(nextMonth) || nextMonth === month) return;
@@ -790,7 +819,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       <div
         className="fixed inset-0 z-[10000] flex items-center justify-center overflow-y-auto bg-slate-950/55 p-3 sm:p-5"
         onMouseDown={(event) => {
-          if (event.target === event.currentTarget && !savingPayslipStatuses) cancelSalarySlipPreparation();
+          if (event.target === event.currentTarget && !savingPayslipStatuses && !payslipLoading) cancelSalarySlipPreparation();
         }}
       >
         <section
@@ -798,6 +827,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
           aria-modal="true"
           aria-labelledby="salary-slip-status-title"
           aria-describedby="salary-slip-status-description"
+          ref={payslipDialogRef}
+          tabIndex={-1}
           className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-700 bg-[#111a28] p-4 text-white shadow-[0_28px_80px_rgba(0,0,0,0.5)] sm:p-6"
         >
           <div className="flex items-start justify-between gap-4">
@@ -809,7 +840,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             <button
               type="button"
               onClick={cancelSalarySlipPreparation}
-              disabled={savingPayslipStatuses}
+              disabled={savingPayslipStatuses || Boolean(payslipLoading)}
               aria-label="Close salary slip status confirmation"
               className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-700 text-slate-400 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
             >
