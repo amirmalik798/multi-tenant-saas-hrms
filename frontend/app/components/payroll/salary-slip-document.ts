@@ -201,8 +201,8 @@ function buildDayRows(days: SalarySlipDay[]): string {
       <td><span class="status-pill ${statusClass}">${escapeHtml(statusLabel(day.dayStatus))}</span><span class="sub-note">${escapeHtml(day.scheduleName || "—")}</span></td>
       <td class="numeric">${escapeHtml(duration(day.workedMinutes))}</td>
       <td class="numeric">${escapeHtml(overtimeLabel)}${unapprovedNote}</td>
-      <td class="numeric">${escapeHtml(day.regularPay === null ? "Rate required" : money(day.regularPay, currency))}</td>
-      <td class="numeric">${escapeHtml(day.overtimePay === null ? "Rate required" : money(day.overtimePay, currency))}</td>
+      <td class="numeric">${escapeHtml(day.payableRegularMinutes <= 0 ? "—" : day.regularPay === null ? "Rate required" : money(day.regularPay, currency))}</td>
+      <td class="numeric">${escapeHtml(day.payableOvertimeMinutes <= 0 ? "—" : day.overtimePay === null ? "Rate required" : money(day.overtimePay, currency))}</td>
       <td class="numeric amount-cell">${escapeHtml(dayAmount)}</td>
     </tr>`;
   }).join("");
