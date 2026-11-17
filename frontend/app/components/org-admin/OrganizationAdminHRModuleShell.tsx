@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import AttendanceAlerts from "../notifications/AttendanceAlerts";
 import {
   OrganizationAdminHeader,
   OrganizationAdminSidebar,
@@ -165,7 +164,6 @@ export default function OrganizationAdminHRModuleShell({
             <h1 id="org-module-page-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">{title}</h1>
             <p className="sr-only">{description}</p>
           </section>
-          <AttendanceAlerts />
           {children}
         </div>
       </main>

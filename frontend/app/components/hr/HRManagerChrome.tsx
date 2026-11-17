@@ -761,7 +761,7 @@ export function HRManagerShell({
           <div className="flex shrink-0 items-center gap-3">
             {actions}
 
-            <WorkspaceClock requireOrganizationTimeZone />
+            <WorkspaceClock requireOrganizationTimeZone showAttendanceStatus />
 
             <button
               type="button"
