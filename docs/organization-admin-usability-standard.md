@@ -108,3 +108,16 @@ The following safeguards were implemented after reviewing the Organization Admin
 - Verify keyboard-only navigation and screen-reader announcements in the running app, including focus order when dialogs open/close.
 - Verify that all confirmation flows still call the same existing APIs and that server-side validation, tenant isolation, authorization, and audit logging remain authoritative.
 - Run the build and regression suite only under the project's agreed testing procedure. No build or regression pass is claimed by this document.
+
+## 2026-11-17 follow-up — new route quality pass
+
+Reviewed the six new Organization Admin routes and the two new HR Manager personal routes together with their shared workspaces. Additional code-level improvements:
+
+- Attendance and schedule date ranges now initialize from the organization's authoritative work date for Organization Admin and HR Manager sessions; Department Managers continue using their organization-scoped overview date. If the date cannot be verified, the page displays a warning instead of silently presenting a potentially incorrect device-local date.
+- Payroll month defaults now use the organization's authoritative work date and display the configured timezone. If the date source is unavailable, the page falls back visibly with a warning and does not silently imply the device month is authoritative.
+- Pay-rate effective dates now use the organization work date and identify the timezone used. The employee picker supports searching by name, employee code, and department while retaining the current selection during filtering.
+- Schedule definitions and assignments now have a shared search field, filtered-result counts, and distinct no-results messaging.
+- Leave requests and public holidays load independently. A temporary failure in one source no longer prevents the other section from displaying its successfully loaded data; failed sections retain their last known data and expose a retryable error.
+- Payroll and personal earnings preserve the last successful view when a silent background refresh fails, while still displaying the refresh error. Explicit loads for a newly selected period continue to clear stale period data.
+
+These are source-level improvements. Desktop/tablet/mobile rendering, keyboard/screen-reader behavior, real API failure scenarios, build correctness, and regression safety still require verification in the running application.
