@@ -291,7 +291,7 @@ export async function PUT(request: Request) {
     // Calculate after locking the employee row. Pay-rate changes use the
     // same employee lock, preventing a payment from being saved using a
     // stale calculation while a concurrent rate update commits.
-    const monthCalculation = await calculateOrganizationMonthlyPay(pool, actor.organizationId, month);
+    const monthCalculation = await calculateOrganizationMonthlyPay(pool, actor.organizationId, month, employeeId);
     const calculatedEmployee = monthCalculation.get(employeeId);
 
     if (!calculatedEmployee || calculatedEmployee.payableMinutes <= 0) {
