@@ -887,23 +887,26 @@ export default function EmployeeAttendanceWorkspace({ userOverride, dashboardMod
           </section>
         </>
       ) : (
-  0 bg-rose-400/[0.06] text-rose-200"
-            }`}
-          >
-            <AlertCircle size={17} className="mt-0.5 shrink-0" />
-            <span className="min-w-0 flex-1 break-words">{notice.message}</span>
-            <button
-              type="button"
-              aria-label="Dismiss notification"
-              className="shrink-0"
-              onClick={() => setNotice(null)}
-            >
-              ×
-            </button>
-          </div>
-        )}
-  
-        <section className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <>
+          <header className="employee-attendance-page-header flex min-w-0 flex-col justify-between gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4 pb-5 sm:flex-row sm:items-end sm:p-5">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-sky-300">{isHrManagerSelf ? "HR Manager · My attendance" : "My work · Attendance"}</p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">Attendance &amp; time</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Record actual working time, compare attendance history with scheduled shifts, and resolve your time records.</p>
+            </div>
+            <div className="inline-flex shrink-0 items-center gap-2 self-start rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 sm:self-auto">
+              <CalendarDays size={16} className="text-sky-300" />
+              <span className="text-sm font-medium text-slate-300">{dateLabel(tenantToday, calendarTimeZone)}</span>
+            </div>
+          </header>
+          {notice && (
+            <div role={notice.type === "error" ? "alert" : "status"} className={`flex min-w-0 items-start gap-3 rounded-xl border p-3.5 text-sm leading-6 ${notice.type === "success" ? "border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-200" : "border-rose-400/20 bg-rose-400/[0.06] text-rose-200"}`}>
+              <AlertCircle size={17} className="mt-0.5 shrink-0" />
+              <span className="min-w-0 flex-1 break-words">{notice.message}</span>
+              <button type="button" aria-label="Dismiss notification" className="shrink-0" onClick={() => setNotice(null)}>×</button>
+            </div>
+          )}
+                  <section className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Card
             icon={Clock3}
             label="Today's status"
@@ -953,6 +956,8 @@ export default function EmployeeAttendanceWorkspace({ userOverride, dashboardMod
           detail="Advance requests waiting for a manager's decision"
         />
       </section>
+        </>
+      )}
 
       <section className={`${PANEL} overflow-hidden`}>
         <div className="grid min-w-0 gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
