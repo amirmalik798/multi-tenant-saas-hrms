@@ -311,7 +311,6 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
       setNotice(`Attendance report prepared for ${selectedTarget ? targetName(selectedTarget) : "the selected workforce member"}.`);
     } catch (cause) {
       if (!reportWindow.closed) reportWindow.close();
-      printWindowRef.current = null;
       setError(cause instanceof Error ? cause.message : "Unable to generate the workforce attendance report.");
     } finally {
       setLoadingMode(null);
@@ -387,7 +386,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
               </label>
               <button type="button" onClick={() => void generateDailyReport()} disabled={!isOrganizationAdmin || dateLoading || busy || !reportDate} className={BUTTON}>
                 {loadingMode === "daily" ? <RefreshCw size={16} className="animate-spin"/> : <Download size={16}/>}
-                {loadingMode === "daily" ? "Generating PDF…" : "Generate organization PDF"}
+                {loadingMode === "daily" ? "Generating PDF…" : "Generate / print organization PDF"}
               </button>
             </div>
           </>
