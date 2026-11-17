@@ -2,6 +2,7 @@ import { pool } from "../../../../../lib/db";
 import { getTenantPermissionActor } from "../../../../../lib/permissions";
 import { parseJsonRequestBody, validateSameOriginRequest } from "../../../../../lib/request-security";
 import { isRecord, isUuid, jsonResponse, organizationIsActive } from "../../../../../lib/schedule-utils";
+import { isExcludedHrTargetRole } from "../../../../../lib/workforce-eligibility";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const originError = validateSameOriginRequest(request); if (originError) return originError;
@@ -36,7 +37,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         const isHrManager = actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER";
         if (!(actor.kind === "ORGANIZATION_ADMIN" || isManager || isHrManager)) { await client.query("ROLLBACK"); return jsonResponse({ message: "You do not have permission to decide leave requests" }, 403); }
         if (isEmployee || (actor.kind === "ORGANIZATION_USER" && row.employeeId === actor.employeeId)) { await client.query("ROLLBACK"); return jsonResponse({ message: "You cannot approve or reject your own leave request" }, 403); }
-        if ((row.workforceRole === "HR_MANAGER" || row.workforceRole === "HRMANAGER" || row.workforceRole.startsWith("HR_MANAGER_") || row.workforceRole.startsWith("HRMANAGER_")) && actor.kind !== "ORGANIZATION_ADMIN") { await client.query("ROLLBACK"); return jsonResponse({ message: "HR Manager leave requests must be reviewed by the Organization Admin" }, 403); }
+        if (isExcludedHrTargetRole(row.workforceRole) && actor.kind !== "ORGANIZATION_ADMIN") { await client.query("ROLLBACK"); return jsonResponse({ message: "HR Manager leave requests must be reviewed by the Organization Admin" }, 403); }
         if (isManager && row.departmentManagerId !== actor.employeeId) { await client.query("ROLLBACK"); return jsonResponse({ message: "You can decide requests only for employees in your managed departments" }, 403); }
         if (row.status !== "PENDING") { await client.query("ROLLBACK"); return jsonResponse({ message: "Only pending leave requests can be decided" }, 409); }
         if (status === "APPROVED") {
