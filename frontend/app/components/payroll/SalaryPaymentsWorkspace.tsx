@@ -304,7 +304,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       const name = [payment.firstName, payment.lastName].filter(Boolean).join(" ") || payment.employeeCode || "Employee";
       const amount = payment.status === "PAID" ? payment.amount : payment.calculatedAmount ?? payment.amount;
       const hours = (minutes: number | undefined) => {
-        const safe = Math.max(0, Math.floor(Number(minutes) || 0));
+      const safe = ["=", "+", "-", "@"].includes(raw.trimStart().slice(0, 1)) ? "'" + raw : raw;
         return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
       };
       return [
@@ -321,7 +321,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     };
     const csv = [headers, ...rows]
       .map((row) => row.map(csvCell).join(","))
-      .join("\\r\\n");
+      .join(String.fromCharCode(13, 10));
     const blob = new Blob([String.fromCharCode(0xfeff), csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
@@ -720,7 +720,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                         <label className="block text-xs font-medium text-slate-400 sm:col-span-2">Notes<input maxLength={1000} value={draft.notes} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,notes:event.target.value}}))} className={INPUT} placeholder="Payment note"/></label>
                       </div>
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
-                        <p className="max-w-2xl text-[11px] leading-5 text-slate-500">{payment.payableMinutes <= 0 ? "No payable hours are available for this month." : payment.status === "CURRENCY_MISMATCH" ? "Resolve the currency mismatch in pay-rate history first." : payment.calculatedAmount == null ? "A valid effective pay rate is required before payment can be recorded." : "The payable amount is calculated from attendance, approved overtime, paid absences and effective pay rates."}</p>
+                        <p className="max-w-2xl text-[11px] leading-5 text-slate-500">{(payment.payableMinutes || 0) <= 0 ? "No payable hours are available for this month." : payment.status === "CURRENCY_MISMATCH" ? "Resolve the currency mismatch in pay-rate history first." : payment.calculatedAmount == null ? "A valid effective pay rate is required before payment can be recorded." : "The payable amount is calculated from attendance, approved overtime, paid absences and effective pay rates."}</p>
                         <button type="button" className={BUTTON} disabled={Boolean(saving) || (payment.payableMinutes || 0) <= 0 || payment.calculatedAmount == null} onClick={() => void save(payment.employeeId)}>{saving === payment.employeeId ? <RefreshCw size={14} className="animate-spin"/> : <CheckCircle2 size={14}/>}Save payment</button>
                       </div>
                     </div> : <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
