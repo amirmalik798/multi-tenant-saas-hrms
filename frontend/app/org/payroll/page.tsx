@@ -7,8 +7,8 @@ export default function OrganizationAdminPayrollPage() {
   return (
     <OrganizationAdminHRModuleShell
       activePage="payroll"
-      title="Salary Payments"
-      description="Review monthly earnings calculations and record salary payment status."
+      title="Payroll"
+      description="Monthly payroll and payment control."
     >
       <SalaryPaymentsWorkspace audience="organization-admin" />
     </OrganizationAdminHRModuleShell>
