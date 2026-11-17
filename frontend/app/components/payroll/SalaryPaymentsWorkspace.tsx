@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BadgeDollarSign, CheckCircle2, RefreshCw, Search, SlidersHorizontal, CalendarDays, Clock3, AlertTriangle, CheckCircle, CircleDollarSign } from "lucide-react";
+import { BadgeDollarSign, CheckCircle2, RefreshCw, Search, SlidersHorizontal, CalendarDays, Clock3, AlertTriangle, CheckCircle, CircleDollarSign, Printer, FileDown } from "lucide-react";
+import { buildSalarySlipDocument, type SalarySlipPayload } from "./salary-slip-document";
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
 import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
@@ -56,6 +57,9 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   const [monthReady, setMonthReady] = useState(false);
   const [organizationTimeZone, setOrganizationTimeZone] = useState("");
   const [dateWarning, setDateWarning] = useState("");
+  const [payslipStartMonth, setPayslipStartMonth] = useState("");
+  const [payslipEndMonth, setPayslipEndMonth] = useState("");
+  const [payslipLoading, setPayslipLoading] = useState("");
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
@@ -87,11 +91,15 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         if (!cancelled) {
           setOrganizationTimeZone(typeof payload?.timeZone === "string" ? payload.timeZone : "");
           setMonth(today.slice(0, 7));
+          setPayslipStartMonth(today.slice(0, 7));
+          setPayslipEndMonth(today.slice(0, 7));
           setDateWarning("");
         }
       } catch {
         if (!cancelled) {
           setMonth(monthNow());
+          setPayslipStartMonth(monthNow());
+          setPayslipEndMonth(monthNow());
           setDateWarning("Organization date settings could not be loaded. The payroll month is using your device date; verify the selected month before recording payments.");
         }
       } finally {
@@ -199,6 +207,71 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     });
   }, [payments, searchQuery, paymentFilter, nameSortOrder]);
 
+  async function printSalarySlip(targetEmployeeId: string) {
+    if (!canEdit || !targetEmployeeId || payslipLoading) return;
+    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(payslipStartMonth) ||
+        !/^\\d{4}-(0[1-9]|1[0-2])$/.test(payslipEndMonth)) {
+      setError("Choose a valid start month and end month before printing.");
+      return;
+    }
+    const startOrdinal = Number(payslipStartMonth.slice(0, 4)) * 12 + Number(payslipStartMonth.slice(5, 7)) - 1;
+    const endOrdinal = Number(payslipEndMonth.slice(0, 4)) * 12 + Number(payslipEndMonth.slice(5, 7)) - 1;
+    if (startOrdinal > endOrdinal) {
+      setError("The payslip start month must be before or equal to the end month.");
+      return;
+    }
+    if (endOrdinal - startOrdinal + 1 > 24) {
+      setError("A salary slip can cover at most 24 months at a time.");
+      return;
+    }
+
+    // Open the print tab directly from the click to avoid browser popup blockers.
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      setError("Your browser blocked the salary slip window. Allow pop-ups for this site and try again.");
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write("<!doctype html><html><head><title>Preparing salary slip</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing salary slip…</h2><p>Loading attendance, pay rates and daily earnings.</p></body></html>");
+    printWindow.document.close();
+
+    setPayslipLoading(targetEmployeeId);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(
+        `/api/backend/payroll/payslips/${encodeURIComponent(targetEmployeeId)}?startMonth=${encodeURIComponent(payslipStartMonth)}&endMonth=${encodeURIComponent(payslipEndMonth)}`,
+        { credentials: "same-origin", cache: "no-store" },
+      );
+      const payload = await response.json().catch(() => null) as SalarySlipPayload | { message?: string } | null;
+      if (!response.ok) {
+        const message = payload && "message" in payload && typeof payload.message === "string"
+          ? payload.message
+          : `Unable to generate salary slip (${response.status}).`;
+        throw new Error(message);
+      }
+      if (!payload || !("months" in payload) || !Array.isArray(payload.months) || payload.months.length === 0) {
+        throw new Error("The salary slip response was incomplete. Please try again.");
+      }
+      if (printWindow.closed) return;
+
+      printWindow.document.open();
+      printWindow.document.write(buildSalarySlipDocument(payload));
+      printWindow.document.close();
+      setNotice("Salary slip prepared. Use the print dialog to print or save the monthly pages as a PDF.");
+    } catch (caught) {
+      if (!printWindow.closed) {
+        printWindow.document.open();
+        printWindow.document.write(`<!doctype html><html><head><title>Salary slip unavailable</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Unable to prepare salary slip</h2><p>${String(caught instanceof Error ? caught.message : "Please try again.").replace(/[&<>"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[character] || character)}</p><button onclick='window.close()'>Close</button></body></html>`);
+        printWindow.document.close();
+      }
+      setError(caught instanceof Error ? caught.message : "Unable to generate salary slip.");
+    } finally {
+      setPayslipLoading("");
+    }
+  }
+
   async function save(employeeId: string, confirmed = false) {
     const draft = drafts[employeeId]; if (!draft) return;
     const currentPayment = payments.find((payment) => payment.employeeId === employeeId);
@@ -220,6 +293,17 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   return <section className={`hr-manager-payroll-workspace min-w-0 rounded-2xl border border-white/[0.08] bg-[#141c28] p-4 shadow-lg shadow-black/10 sm:p-6 ${audience === "organization-admin" ? "oa-org-admin-time-pay" : ""}`}>
     <div className="flex flex-wrap items-start justify-between gap-4"><div className="max-w-2xl"><div className="flex items-center gap-2 text-sky-300"><BadgeDollarSign size={18} /><span className="text-xs font-semibold uppercase tracking-[0.14em]">Payroll tracking</span></div><h2 className="mt-1 text-xl font-bold text-white">Monthly salary payments</h2><p className="mt-1 text-sm leading-6 text-slate-400">Review payroll status, investigate missing pay inputs, and record payments. Amounts are calculated from recorded work, approved paid leave, paid public holidays, and effective pay rates.</p></div><div className="flex flex-wrap items-end gap-2"><label className="text-sm font-medium text-slate-300">Payroll month<input type="month" value={month} disabled={!monthReady || Boolean(saving)} onChange={(e) => setMonth(e.target.value)} className={INPUT} /></label>{organizationTimeZone && <span className="pb-2 text-xs text-slate-500">Organization time zone: {organizationTimeZone}</span>}</div></div>
     {dateWarning && <div role="status" className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-3 text-sm leading-6 text-amber-100">{dateWarning}</div>}
+    {canEdit && <div className="mt-5 flex flex-wrap items-end justify-between gap-4 rounded-2xl border border-sky-400/15 bg-sky-400/[0.035] p-4">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 text-sky-300"><FileDown size={17} /><span className="text-xs font-bold uppercase tracking-[0.14em]">Workforce salary slips</span></div>
+        <p className="mt-1 text-sm text-slate-300">Choose a month range, then print a member’s detailed monthly statements. Each month is formatted as its own A4 PDF page.</p>
+      </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-xs font-semibold text-slate-400">Start month<input type="month" value={payslipStartMonth} disabled={!monthReady || Boolean(payslipLoading)} onChange={(event) => setPayslipStartMonth(event.target.value)} className={INPUT} /></label>
+        <label className="text-xs font-semibold text-slate-400">End month<input type="month" value={payslipEndMonth} disabled={!monthReady || Boolean(payslipLoading)} onChange={(event) => setPayslipEndMonth(event.target.value)} className={INPUT} /></label>
+      </div>
+    </div>}
+
     {error && <div role="alert" className="mt-4 flex flex-col gap-3 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span>{error}</span><button type="button" disabled={loading || Boolean(saving)} onClick={() => void load()} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">{loading ? "Retrying…" : "Retry"}</button></div>}{notice && <p role="status" className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-3 text-sm text-emerald-200">{notice}</p>}
     <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <div className="rounded-xl border border-white/[0.08] bg-black/10 p-3"><p className="text-xs text-slate-500">Employees in view</p><p className="mt-1 text-xl font-bold text-white">{loading ? "—" : payments.length}</p></div>
@@ -259,7 +343,10 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       return <article key={p.employeeId} className="group overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#151f2d] to-[#101722] shadow-lg shadow-black/10 transition hover:border-white/[0.13]">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/[0.06] p-4 sm:p-5">
           <div className="flex min-w-0 items-start gap-3"><EmployeeProfilePhoto employeeId={p.employeeId} name={name} className="size-10 rounded-xl border border-sky-400/15 bg-sky-400/[0.07]" textClassName="text-sm font-bold text-sky-200" /><div className="min-w-0"><h3 className="break-words font-semibold text-white">{name}</h3><p className="mt-1 break-words text-xs text-slate-400">{p.employeeCode || "Employee code unavailable"}{p.departmentName ? ` · ${p.departmentName}` : ""}{p.workforceRole ? ` · ${p.workforceRole.replaceAll("_", " ")}` : ""}</p><div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500"><span className="inline-flex items-center gap-1.5"><Clock3 size={12} />{Math.floor(Math.max(0, p.workedMinutes || 0) / 60)}h {String(Math.max(0, p.workedMinutes || 0) % 60).padStart(2, "0")}m recorded</span>{((p.paidLeaveMinutes || 0) + (p.paidHolidayMinutes || 0)) > 0 && <span className="text-emerald-300">{Math.floor(((p.paidLeaveMinutes || 0) + (p.paidHolidayMinutes || 0)) / 60)}h {String(((p.paidLeaveMinutes || 0) + (p.paidHolidayMinutes || 0)) % 60).padStart(2, "0")}m paid leave / holiday</span>}</div></div></div>
-          <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end"><span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${statusStyle}`}>{p.status === "PAID" ? <CheckCircle size={13} /> : isReview ? <AlertTriangle size={13} /> : p.status === "NO_RECORDED_HOURS" ? <Clock3 size={13} /> : <CircleDollarSign size={13} />}{statusLabel}</span><p className="text-xs text-slate-500">{p.paidAt ? `Paid ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(p.paidAt))}` : p.status === "PAID" ? "Payment recorded" : "Payment not completed"}</p></div>
+          <div className="flex min-w-0 flex-wrap items-start justify-end gap-2">
+            <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end"><span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${statusStyle}`}>{p.status === "PAID" ? <CheckCircle size={13} /> : isReview ? <AlertTriangle size={13} /> : p.status === "NO_RECORDED_HOURS" ? <Clock3 size={13} /> : <CircleDollarSign size={13} />}{statusLabel}</span><p className="text-xs text-slate-500">{p.paidAt ? `Paid ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(p.paidAt))}` : p.status === "PAID" ? "Payment recorded" : "Payment not completed"}</p></div>
+            {canEdit && <button type="button" onClick={() => void printSalarySlip(p.employeeId)} disabled={Boolean(payslipLoading) || !payslipStartMonth || !payslipEndMonth} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-sky-300/25 bg-sky-300/[0.09] px-3 py-2 text-xs font-bold text-sky-200 transition hover:border-sky-200/50 hover:bg-sky-300/[0.15] disabled:cursor-wait disabled:opacity-50">{payslipLoading === p.employeeId ? <RefreshCw size={14} className="animate-spin" /> : <Printer size={14} />}{payslipLoading === p.employeeId ? "Preparing…" : "Print salary slip"}</button>}
+          </div>
         </div>
         {canEdit ? <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="rounded-xl border border-white/[0.06] bg-black/10 p-3.5 sm:p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Calculated earnings</p><p className="mt-2 text-2xl font-bold tracking-tight text-white">{money(p.calculatedAmount == null ? null : String(p.calculatedAmount), p.currencyCode)}</p><p className="mt-1 text-xs leading-5 text-slate-500">Based on recorded work, approved paid leave, public holidays, and effective rates.</p><div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3"><div><p className="text-[11px] text-slate-500">Currency</p><p className="mt-1 text-sm font-semibold text-slate-200">{p.currencyCode || "—"}</p></div><div><p className="text-[11px] text-slate-500">Payable time</p><p className="mt-1 text-sm font-semibold text-slate-200">{Math.floor(Math.max(0, p.payableMinutes || 0) / 60)}h {String(Math.max(0, p.payableMinutes || 0) % 60).padStart(2, "0")}m</p></div></div></div>
