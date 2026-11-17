@@ -337,8 +337,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
 
   async function printSalarySlip(targetEmployeeId: string) {
     if (!canEdit || !targetEmployeeId || payslipLoading || payslipDialog) return;
-    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(payslipStartMonth) ||
-        !/^\\d{4}-(0[1-9]|1[0-2])$/.test(payslipEndMonth)) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(payslipStartMonth) ||
+        !/^\d{4}-(0[1-9]|1[0-2])$/.test(payslipEndMonth)) {
       setError("Choose a valid start month and end month before printing.");
       return;
     }
@@ -719,6 +719,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                     </div>
                     {canEdit ? <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-semibold text-white">Payment record</h4><span className="text-[10px] text-slate-500">{payment.paymentRecorded ? `Last updated ${payment.updatedAt ? new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(payment.updatedAt)) : "—"}` : "Not yet recorded"}</span></div>
+                      <div className="mt-2 text-[11px] text-slate-500">Recorded by {payment.recordedBy || "—"}{payment.paidAt ? ` · Paid ${new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(payment.paidAt))}` : ""}</div>
                       <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
                         <label className="block text-xs font-medium text-slate-400">Payment status<select value={draft.status} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,status:event.target.value as "PAID"|"UNPAID"}}))} className={INPUT}><option value="UNPAID">Unpaid</option><option value="PAID">Paid</option></select></label>
                         <label className="block text-xs font-medium text-slate-400">Payment reference<input maxLength={120} value={draft.paymentReference} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,paymentReference:event.target.value}}))} className={INPUT} placeholder="Bank / transfer reference"/></label>
