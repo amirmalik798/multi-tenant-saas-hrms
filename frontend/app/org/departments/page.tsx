@@ -1325,7 +1325,7 @@ export default function DepartmentsPage() {
           <section aria-labelledby="departments-page-title" className="mb-6">
             
             <h1 id="departments-page-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">Departments</h1>
-            <p className="mt-1.5 text-sm leading-6 text-slate-400">Organize teams, assign Department Managers and review workforce coverage.</p>
+            <p className="sr-only">Organize teams, assign Department Managers and review workforce coverage.</p>
           </section>
 
           {/* Metrics Grid */}
