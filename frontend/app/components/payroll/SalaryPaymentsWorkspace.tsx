@@ -25,6 +25,25 @@ const BUTTON = "inline-flex min-h-9 items-center justify-center gap-2 rounded-xl
 function localDate() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function monthNow() { return localDate().slice(0, 7); }
 function money(value: string | number | null, currency: string) { if (value === null || value === "") return "Not recorded"; const n = Number(value); if (!Number.isFinite(n)) return "—"; try { return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n); } catch { return `${currency} ${n.toFixed(2)}`; } }
+function formatPayrollTimestamp(value: string | null | undefined, timeZone: string, withTime = true): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const options: Intl.DateTimeFormatOptions = {
+    dateStyle: "medium",
+    ...(withTime ? { timeStyle: "short" as const } : {}),
+    timeZone: timeZone || "Africa/Kigali",
+  };
+  try {
+    return new Intl.DateTimeFormat(undefined, options).format(date);
+  } catch {
+    const fallbackOptions: Intl.DateTimeFormatOptions = {
+      dateStyle: "medium",
+      ...(withTime ? { timeStyle: "short" as const } : {}),
+    };
+    return new Intl.DateTimeFormat(undefined, fallbackOptions).format(date);
+  }
+}
 export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeEmployeeId }: Props) {
   const canEdit = audience === "hr-manager" || audience === "organization-admin";
   const [month, setMonth] = useState("");
@@ -787,7 +806,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                     <p className="mt-1 text-[10px] text-slate-500">{payment.paymentRecorded ? "Payment record stored" : "No payment record"}</p>
                   </td>
                   <td className="px-4 py-3.5">
-                    <p className="whitespace-nowrap text-xs text-slate-300">{payment.paidAt ? new Intl.DateTimeFormat(undefined,{dateStyle:"medium"}).format(new Date(payment.paidAt)) : "—"}</p>
+                    <p className="whitespace-nowrap text-xs text-slate-300">{formatPayrollTimestamp(payment.paidAt, organizationTimeZone, false)}</p>
                     <p className="mt-1 max-w-[180px] truncate text-[10px] text-slate-500" title={payment.paymentReference || ""}>{payment.paymentReference || "No reference"}</p>
                   </td>
                   <td className="px-4 py-3.5">
@@ -817,8 +836,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                       </div>
                     </div>
                     {canEdit ? <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-semibold text-white">Payment record</h4><span className="text-[10px] text-slate-500">{payment.paymentRecorded ? `Last updated ${payment.updatedAt ? new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(payment.updatedAt)) : "—"}` : "Not yet recorded"}</span></div>
-                      <div className="mt-2 text-[11px] text-slate-500">Recorded by {payment.recordedBy || "—"}{payment.paidAt ? ` · Paid ${new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(payment.paidAt))}` : ""}</div>
+                      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-semibold text-white">Payment record</h4><span className="text-[10px] text-slate-500">{payment.paymentRecorded ? `Last updated ${formatPayrollTimestamp(payment.updatedAt, organizationTimeZone)}` : "Not yet recorded"}</span></div>
+                      <div className="mt-2 text-[11px] text-slate-500">Recorded by {payment.recordedBy || "—"}{payment.paidAt ? ` · Paid ${formatPayrollTimestamp(payment.paidAt, organizationTimeZone)}` : ""}</div>
                       <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
                         <label className="block text-xs font-medium text-slate-400">Payment status<select value={draft.status} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,status:event.target.value as "PAID"|"UNPAID"}}))} className={INPUT}><option value="UNPAID">Unpaid</option><option value="PAID">Paid</option></select></label>
                         <label className="block text-xs font-medium text-slate-400">Payment reference<input maxLength={120} value={draft.paymentReference} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,paymentReference:event.target.value}}))} className={INPUT} placeholder="Bank / transfer reference"/></label>
@@ -831,10 +850,10 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                     </div> : <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
                       <div className="flex items-center justify-between gap-2"><h4 className="text-sm font-semibold text-white">Payment record</h4><span className="inline-flex items-center gap-1 rounded-full border border-slate-600 px-2 py-1 text-[10px] font-semibold text-slate-400"><LockKeyhole size={10}/>Read only</span></div>
                       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                        <div><p className="text-[10px] text-slate-500">Paid at</p><p className="mt-1 text-sm text-slate-200">{payment.paidAt ? new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(payment.paidAt)) : "Not paid"}</p></div>
+                        <div><p className="text-[10px] text-slate-500">Paid at</p><p className="mt-1 text-sm text-slate-200">{payment.paidAt ? formatPayrollTimestamp(payment.paidAt, organizationTimeZone) : "Not paid"}</p></div>
                         <div><p className="text-[10px] text-slate-500">Payment reference</p><p className="mt-1 break-all text-sm text-slate-200">{payment.paymentReference || "—"}</p></div>
                         <div><p className="text-[10px] text-slate-500">Recorded by</p><p className="mt-1 text-sm text-slate-200">{payment.recordedBy || "—"}</p></div>
-                        <div><p className="text-[10px] text-slate-500">Last updated</p><p className="mt-1 text-sm text-slate-200">{payment.updatedAt ? new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(payment.updatedAt)) : "—"}</p></div>
+                        <div><p className="text-[10px] text-slate-500">Last updated</p><p className="mt-1 text-sm text-slate-200">{formatPayrollTimestamp(payment.updatedAt, organizationTimeZone)}</p></div>
                         {payment.notes && <div className="sm:col-span-2"><p className="text-[10px] text-slate-500">Notes</p><p className="mt-1 break-words text-sm text-slate-300">{payment.notes}</p></div>}
                       </div>
                     </div>}
