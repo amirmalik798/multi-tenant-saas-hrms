@@ -97,6 +97,7 @@ const navGroups: NavGroup[] = [
     label: "Time, leave & holidays",
     icon: CalendarClock,
     items: [
+      { label: "My attendance", href: "/hr/my-attendance", icon: CalendarDays },
       { label: "Team schedule calendar", href: "/hr/modules/attendance?section=calendar", icon: CalendarDays },
       { label: "Schedules", href: "/hr/modules/time-schedules", icon: CalendarClock },
       { label: "Leave & public holidays", href: "/hr/modules/leave", icon: CalendarDays },
@@ -106,6 +107,7 @@ const navGroups: NavGroup[] = [
     label: "Pay & reporting",
     icon: BadgeDollarSign,
     items: [
+      { label: "My earnings", href: "/hr/my-earnings", icon: BadgeDollarSign },
       { label: "Salary payments", href: "/hr/modules/payroll", icon: BadgeDollarSign },
       { label: "Employee pay rates", href: "/hr/modules/pay-rates", icon: BadgeDollarSign },
       { label: "Daily attendance report", href: "/hr/reports", icon: FileBarChart },
@@ -759,7 +761,7 @@ export function HRManagerShell({
           <div className="flex shrink-0 items-center gap-3">
             {actions}
 
-            <WorkspaceClock requireOrganizationTimeZone />
+            <WorkspaceClock requireOrganizationTimeZone showAttendanceStatus />
 
             <button
               type="button"

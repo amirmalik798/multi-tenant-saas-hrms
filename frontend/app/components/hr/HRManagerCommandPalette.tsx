@@ -172,6 +172,15 @@ const workspaceItems: PaletteItem[] = [
     href: "/hr/profile",
   },
   {
+    id: "my-attendance",
+    label: "My attendance",
+    description: "Clock in and out and review your personal attendance history",
+    keywords: "my attendance personal clock in clock out time hours shift",
+    section: "Attendance & time",
+    icon: CalendarDays,
+    href: "/hr/my-attendance",
+  },
+  {
     id: "work-queue",
     label: "Work queue",
     description: "Find attendance reviews and other open HR decisions",
@@ -251,6 +260,15 @@ const workspaceItems: PaletteItem[] = [
     section: "Leave & holidays",
     icon: CalendarDays,
     href: "/hr/modules/leave",
+  },
+  {
+    id: "my-earnings",
+    label: "My earnings",
+    description: "Review your assigned pay rates, monthly estimates and payment history",
+    keywords: "my earnings personal salary hourly rate overtime pay payment history",
+    section: "Pay & policies",
+    icon: BadgeDollarSign,
+    href: "/hr/my-earnings",
   },
   {
     id: "salary-payments",

@@ -67,7 +67,8 @@ export async function GET(request: Request) {
          JOIN public.roles wr
            ON wr.id = e.workforce_role_id
           AND wr.organization_id = e.organization_id
-          AND wr.name = 'EMPLOYEE'
+          AND wr.scope = 'ORGANIZATION'
+          AND wr.name IN ('EMPLOYEE', 'DEPARTMENT_MANAGER', 'HR_MANAGER')
          LEFT JOIN public.departments d
            ON d.id = e.department_id AND d.organization_id = e.organization_id
          LEFT JOIN public.organization_settings os
@@ -93,15 +94,52 @@ export async function GET(request: Request) {
            )
          )
        ),
-       event_summary AS (
+       effective_events AS (
          SELECT
-           ae.organization_id, ae.employee_id, ae.work_date,
-           MAX(ae.recorded_at) FILTER (WHERE ae.event_type = 'CLOCK_OUT') AS actual_clock_out,
-           (ARRAY_AGG(ae.event_type ORDER BY ae.recorded_at DESC, ae.id DESC))[1] AS latest_event_type
+           ae.organization_id,
+           ae.employee_id,
+           ae.work_date,
+           ae.event_type,
+           COALESCE(c.requested_at, ae.recorded_at) AS effective_at,
+           ae.id::text AS sort_id
          FROM public.attendance_events ae
+         LEFT JOIN LATERAL (
+           SELECT cr.requested_at
+           FROM public.attendance_correction_requests cr
+           WHERE cr.organization_id = ae.organization_id
+             AND cr.employee_id = ae.employee_id
+             AND cr.original_event_id = ae.id
+             AND cr.status = 'APPROVED'
+           ORDER BY cr.decision_at DESC, cr.id DESC
+           LIMIT 1
+         ) c ON TRUE
          WHERE ae.organization_id = $1::uuid
            AND ae.work_date BETWEEN $2::date AND $3::date
-         GROUP BY ae.organization_id, ae.employee_id, ae.work_date
+
+         UNION ALL
+
+         SELECT
+           cr.organization_id,
+           cr.employee_id,
+           cr.work_date,
+           cr.event_type,
+           cr.requested_at AS effective_at,
+           ('CORRECTION:' || cr.id::text) AS sort_id
+         FROM public.attendance_correction_requests cr
+         WHERE cr.organization_id = $1::uuid
+           AND cr.original_event_id IS NULL
+           AND cr.status = 'APPROVED'
+           AND cr.work_date BETWEEN $2::date AND $3::date
+       ),
+       event_summary AS (
+         SELECT
+           organization_id,
+           employee_id,
+           work_date,
+           MAX(effective_at) FILTER (WHERE event_type = 'CLOCK_OUT') AS actual_clock_out,
+           (ARRAY_AGG(event_type ORDER BY effective_at DESC, sort_id DESC))[1] AS latest_event_type
+         FROM effective_events
+         GROUP BY organization_id, employee_id, work_date
        ),
        candidates AS (
          SELECT

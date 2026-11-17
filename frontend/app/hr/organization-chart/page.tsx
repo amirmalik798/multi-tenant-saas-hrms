@@ -597,6 +597,11 @@ function TreeNode({
                     ? ` · ${employee.employee_code}`
                     : ""}
                 </p>
+                {employee.manager_name && (
+                  <p className="truncate text-[10px] font-medium text-blue-300">
+                    Reports to: {employee.manager_name}
+                  </p>
+                )}
               </div>
             </div>
 

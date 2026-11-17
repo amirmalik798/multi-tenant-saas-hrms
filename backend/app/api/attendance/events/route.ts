@@ -49,7 +49,7 @@ const ATTENDANCE_EVENT_SELECT = `
    AND d.organization_id = e.organization_id
 `;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const actor = await getTenantPermissionActor();
 
@@ -77,6 +77,13 @@ export async function GET() {
       values.push(actor.employeeId);
 
       conditions.push(`ae.employee_id = $${values.length}::uuid`);
+    } else if (
+      actor.kind === "ORGANIZATION_USER" &&
+      actor.roleName === "HR_MANAGER" &&
+      new URL(request.url).searchParams.get("scope") === "self"
+    ) {
+      values.push(actor.employeeId);
+      conditions.push("ae.employee_id = $" + values.length + "::uuid");
     } else if (
       actor.kind === "ORGANIZATION_USER" &&
       actor.roleName === "DEPARTMENT_MANAGER"
@@ -123,7 +130,7 @@ export async function GET() {
 
     if (
       actor.kind === "ORGANIZATION_USER" &&
-      (actor.roleName === "EMPLOYEE" || actor.roleName === "DEPARTMENT_MANAGER")
+      (actor.roleName === "EMPLOYEE" || actor.roleName === "DEPARTMENT_MANAGER" || actor.roleName === "HR_MANAGER")
     ) {
       // Keep the personal punch history independent from the 100-row team feed.
       // Otherwise a busy team's recent activity can push an earlier clock-in
@@ -139,11 +146,47 @@ export async function GET() {
       personalEvents = personalResult.rows;
       // Department Managers can see their team's events, but their own
       // clock status must be calculated from their own punches only.
+      // Derive clock status from the same effective event stream used by
+      // attendance and payroll calculations. Approved missing-punch
+      // corrections must close an open session even though the immutable
+      // attendance_events table does not receive a synthetic punch row.
       const ownLatest = await pool.query<{ eventType: AttendanceEventType }>(
-        `SELECT event_type AS "eventType"
-         FROM public.attendance_events
-         WHERE organization_id = $1::uuid AND employee_id = $2::uuid
-         ORDER BY recorded_at DESC, id DESC
+        `WITH effective_events AS (
+           SELECT
+             ae.event_type,
+             COALESCE(
+               (
+                 SELECT cr.requested_at
+                 FROM public.attendance_correction_requests AS cr
+                 WHERE cr.organization_id = ae.organization_id
+                   AND cr.employee_id = ae.employee_id
+                   AND cr.original_event_id = ae.id
+                   AND cr.status = 'APPROVED'
+                 ORDER BY cr.decision_at DESC, cr.id DESC
+                 LIMIT 1
+               ),
+               ae.recorded_at
+             ) AS effective_at,
+             ae.id::text AS sort_id
+           FROM public.attendance_events AS ae
+           WHERE ae.organization_id = $1::uuid
+             AND ae.employee_id = $2::uuid
+
+           UNION ALL
+
+           SELECT
+             cr.event_type,
+             cr.requested_at AS effective_at,
+             ('CORRECTION:' || cr.id::text) AS sort_id
+           FROM public.attendance_correction_requests AS cr
+           WHERE cr.organization_id = $1::uuid
+             AND cr.employee_id = $2::uuid
+             AND cr.original_event_id IS NULL
+             AND cr.status = 'APPROVED'
+         )
+         SELECT event_type AS "eventType"
+         FROM effective_events
+         ORDER BY effective_at DESC, sort_id DESC
          LIMIT 1`,
         [actor.organizationId, actor.employeeId],
       );
@@ -214,13 +257,13 @@ export async function POST(request: Request) {
     // remain shared and enforced server-side.
     if (
       actor.kind !== "ORGANIZATION_USER" ||
-      (actor.roleName !== "EMPLOYEE" && actor.roleName !== "DEPARTMENT_MANAGER") ||
+      (actor.roleName !== "EMPLOYEE" && actor.roleName !== "DEPARTMENT_MANAGER" && actor.roleName !== "HR_MANAGER") ||
       !actor.employeeId
     ) {
       return jsonResponse(
         {
           message:
-            "Clock-in and clock-out are available to employees and Department Managers for their own account",
+            "Clock-in and clock-out are available to employees, Department Managers, and HR Managers for their own account",
         },
         403,
       );
@@ -329,24 +372,60 @@ export async function POST(request: Request) {
         );
       }
 
-      // Get the latest immutable time event, if any.
+      // Use the effective punch stream for both clock-state validation and
+      // session metadata. Approved missing-punch corrections are virtual
+      // events, so querying only immutable attendance_events can otherwise
+      // allow duplicate clock-outs or incorrectly block a new clock-in.
       const latestResult = await client.query<{
-        id: string;
+        id: string | null;
         event_type: AttendanceEventType;
         work_date: string;
         time_zone: string;
         schedule_assignment_id: string | null;
       }>(
-        `SELECT
-           id,
-           event_type,
-           work_date,
-           time_zone,
-           schedule_assignment_id
-         FROM public.attendance_events
-         WHERE organization_id = $1
-           AND employee_id = $2
-         ORDER BY recorded_at DESC, id DESC
+        `WITH effective_events AS (
+           SELECT
+             ae.id,
+             ae.event_type,
+             ae.work_date,
+             ae.time_zone,
+             ae.schedule_assignment_id,
+             COALESCE(c.requested_at, ae.recorded_at) AS effective_at,
+             ae.id::text AS sort_id
+           FROM public.attendance_events ae
+           LEFT JOIN LATERAL (
+             SELECT cr.requested_at
+             FROM public.attendance_correction_requests cr
+             WHERE cr.organization_id = ae.organization_id
+               AND cr.employee_id = ae.employee_id
+               AND cr.original_event_id = ae.id
+               AND cr.status = 'APPROVED'
+             ORDER BY cr.decision_at DESC, cr.id DESC
+             LIMIT 1
+           ) c ON TRUE
+           WHERE ae.organization_id = $1
+             AND ae.employee_id = $2
+
+           UNION ALL
+
+           SELECT
+             NULL::uuid AS id,
+             cr.event_type,
+             cr.work_date,
+             cr.time_zone,
+             NULL::uuid AS schedule_assignment_id,
+             cr.requested_at AS effective_at,
+             ('CORRECTION:' || cr.id::text) AS sort_id
+           FROM public.attendance_correction_requests cr
+           WHERE cr.organization_id = $1
+             AND cr.employee_id = $2
+             AND cr.original_event_id IS NULL
+             AND cr.status = 'APPROVED'
+         )
+         SELECT id, event_type, work_date::text AS work_date, time_zone,
+                schedule_assignment_id
+         FROM effective_events
+         ORDER BY effective_at DESC, sort_id DESC
          LIMIT 1`,
         [actor.organizationId, actor.employeeId],
       );

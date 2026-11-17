@@ -5,14 +5,15 @@ import { BadgeDollarSign, CheckCircle2, RefreshCw, Search, SlidersHorizontal, Ca
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
 import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
-type Payment = { id?: string | null; employeeId: string; employeeCode?: string | null; firstName?: string | null; lastName?: string | null; departmentName?: string | null; payMonth: string; amount: string | number | null; calculatedAmount?: string | number | null; workedMinutes?: number; payableMinutes?: number; paidLeaveMinutes?: number; paidHolidayMinutes?: number; currencyCode: string; status: "PAID" | "UNPAID" | "NO_RECORDED_HOURS" | "RATE_REQUIRED" | "CURRENCY_MISMATCH"; currencyMismatch?: boolean; paidAt?: string | null; paymentReference?: string | null; notes?: string | null };
+type Payment = { id?: string | null; employeeId: string; employeeCode?: string | null; firstName?: string | null; lastName?: string | null; departmentName?: string | null; workforceRole?: string | null; payMonth: string; amount: string | number | null; calculatedAmount?: string | number | null; workedMinutes?: number; payableMinutes?: number; paidLeaveMinutes?: number; paidHolidayMinutes?: number; currencyCode: string; status: "PAID" | "UNPAID" | "NO_RECORDED_HOURS" | "RATE_REQUIRED" | "CURRENCY_MISMATCH"; currencyMismatch?: boolean; paidAt?: string | null; paymentReference?: string | null; notes?: string | null };
 type EmployeeRoleRecord = { id?: string; workforce_role?: unknown; workforceRole?: unknown; roleName?: unknown; role_name?: unknown; role?: unknown; userRole?: unknown; user_role?: unknown; user?: { role?: unknown } };
-type Props = { audience: "hr-manager" | "department-manager" | "employee"; employeeId?: string; excludeEmployeeId?: string };
+type Props = { audience: "hr-manager" | "organization-admin" | "department-manager" | "employee"; employeeId?: string; excludeEmployeeId?: string };
 const INPUT = "mt-1.5 w-full rounded-xl border border-slate-700 bg-[#0b111b] px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-sky-400";
 const BUTTON = "inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold !text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 [&>svg]:!text-white";
-function monthNow() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
+function localDate() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+function monthNow() { return localDate().slice(0, 7); }
 function money(value: string | number | null, currency: string) { if (value === null || value === "") return "Not recorded"; const n = Number(value); if (!Number.isFinite(n)) return "—"; try { return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n); } catch { return `${currency} ${n.toFixed(2)}`; } }
-function isExcludedHrTarget(employee: EmployeeRoleRecord) {
+function isExcludedHrTarget(employee: EmployeeRoleRecord, allowHrManager = false) {
   const normalize = (value: unknown): string[] => {
     if (typeof value === "string") return [value.toUpperCase().trim().replace(/[^A-Z0-9]+/g, "_")];
     if (value && typeof value === "object") {
@@ -27,9 +28,11 @@ function isExcludedHrTarget(employee: EmployeeRoleRecord) {
     ...normalize(employee.role), ...normalize(employee.userRole),
     ...normalize(employee.user_role), ...normalize(employee.user?.role),
   ];
-  return roles.some((role) => ["ORGANIZATION_ADMIN", "ORG_ADMIN", "ORGANIZATIONADMIN", "ORGANIZATION_ADMINISTRATOR", "ORGANIZATION_OWNER", "ORG_OWNER", "TENANT_ADMIN", "ADMINISTRATOR", "HR_MANAGER", "HRMANAGER"].includes(role) || role.startsWith("ORGANIZATION_ADMIN_") || role.startsWith("ORGANIZATIONADMIN_") || role.startsWith("ORG_ADMIN_") || role.startsWith("ORGANIZATION_OWNER_") || role.startsWith("ORG_OWNER_") || role.startsWith("TENANT_ADMIN_") || role.startsWith("HR_MANAGER_") || role.startsWith("HRMANAGER_"));
+  const isOrganizationAdmin = roles.some((role) => ["ORGANIZATION_ADMIN", "ORG_ADMIN", "ORGANIZATIONADMIN", "ORGANIZATION_ADMINISTRATOR", "ORGANIZATION_OWNER", "ORG_OWNER", "TENANT_ADMIN", "ADMINISTRATOR"].includes(role) || role.startsWith("ORGANIZATION_ADMIN_") || role.startsWith("ORGANIZATIONADMIN_") || role.startsWith("ORG_ADMIN_") || role.startsWith("ORGANIZATION_OWNER_") || role.startsWith("ORG_OWNER_") || role.startsWith("TENANT_ADMIN_"));
+  const isHrManager = roles.some((role) => ["HR_MANAGER", "HRMANAGER"].includes(role) || role.startsWith("HR_MANAGER_") || role.startsWith("HRMANAGER_"));
+  return isOrganizationAdmin || (!allowHrManager && isHrManager);
 }
-async function loadEligibleEmployeeIds() {
+async function loadEligibleEmployeeIds(audience: Props["audience"]) {
   const fetchPage = async (page: number) => {
     const response = await fetch(`/api/backend/employees?page=${page}&limit=100&sortBy=name&sortOrder=asc`, { credentials: "same-origin", cache: "no-store" });
     const payload = await response.json().catch(() => null);
@@ -44,35 +47,75 @@ async function loadEligibleEmployeeIds() {
     const result = await fetchPage(page);
     allRows.push(...result.rows);
   }
-  return new Set(allRows.filter((employee) => typeof employee.id === "string" && !isExcludedHrTarget(employee)).map((employee) => employee.id as string));
+  return new Set(allRows.filter((employee) => typeof employee.id === "string" && !isExcludedHrTarget(employee, audience === "organization-admin")).map((employee) => employee.id as string));
 }
 
 export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeEmployeeId }: Props) {
-  const canEdit = audience === "hr-manager";
-  const [month, setMonth] = useState(monthNow);
+  const canEdit = audience === "hr-manager" || audience === "organization-admin";
+  const [month, setMonth] = useState("");
+  const [monthReady, setMonthReady] = useState(false);
+  const [organizationTimeZone, setOrganizationTimeZone] = useState("");
+  const [dateWarning, setDateWarning] = useState("");
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [paymentConfirmation, setPaymentConfirmation] = useState<Payment | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<"ALL" | "UNPAID" | "PAID" | "REVIEW" | "NO_HOURS">("ALL");
   const [nameSortOrder, setNameSortOrder] = useState<"asc" | "desc">("asc");
   const [drafts, setDrafts] = useState<Record<string, { amount: string; currencyCode: string; status: "PAID" | "UNPAID"; paymentReference: string; notes: string }>>({});
   const loadRequestId = useRef(0);
+  const paymentConfirmationRef = useRef<HTMLElement | null>(null);
+  const paymentDialogPreviousFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    async function resolveOrganizationMonth() {
+      try {
+        const seedDate = localDate();
+        const response = await fetch(
+          `/api/backend/attendance/calendar?fromDate=${encodeURIComponent(seedDate)}&toDate=${encodeURIComponent(seedDate)}`,
+          { credentials: "same-origin", cache: "no-store" },
+        );
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(payload?.message || "Unable to load organization date settings.");
+        const today = typeof payload?.today === "string" && /^\d{4}-\d{2}-\d{2}$/.test(payload.today)
+          ? payload.today
+          : "";
+        if (!today) throw new Error("The organization work date was unavailable.");
+        if (!cancelled) {
+          setOrganizationTimeZone(typeof payload?.timeZone === "string" ? payload.timeZone : "");
+          setMonth(today.slice(0, 7));
+          setDateWarning("");
+        }
+      } catch {
+        if (!cancelled) {
+          setMonth(monthNow());
+          setDateWarning("Organization date settings could not be loaded. The payroll month is using your device date; verify the selected month before recording payments.");
+        }
+      } finally {
+        if (!cancelled) setMonthReady(true);
+      }
+    }
+    void resolveOrganizationMonth();
+    return () => { cancelled = true; };
+  }, []);
+
   const load = useCallback(async (silent = false) => {
+    if (!monthReady || !month) return;
     const requestId = ++loadRequestId.current;
     if (!silent) setLoading(true); setError("");
     try {
       const paymentRequest = fetch(`/api/backend/payroll/payments?month=${encodeURIComponent(month)}`, { credentials: "same-origin", cache: "no-store" });
-      const eligibleIdsRequest = canEdit ? loadEligibleEmployeeIds() : Promise.resolve(null);
+      const eligibleIdsRequest = canEdit ? loadEligibleEmployeeIds(audience) : Promise.resolve(null);
       const [response, eligibleIds] = await Promise.all([paymentRequest, eligibleIdsRequest]);
       const payload = await response.json().catch(() => null);
       if (requestId !== loadRequestId.current) return;
       if (!response.ok) throw new Error(payload?.message || `Request failed (${response.status})`);
       const responseRows = Array.isArray(payload?.payments) ? payload.payments as Payment[] : [];
-      // HR Manager payroll views must never include Organization Admin or HR Manager records.
-      // Verify roles against the tenant-scoped employee API before displaying or editing payments.
+      // Verify target roles against the tenant-scoped employee API before displaying or editing payments.
+      // Organization Admin can include HR Manager records; HR Manager cannot manage its own role record.
       const eligibleRows = eligibleIds ? responseRows.filter((payment) => eligibleIds.has(payment.employeeId)) : responseRows;
       // Department Managers may view team payroll on the team page, but their
       // personal earnings page must show only their own payment record.
@@ -85,22 +128,41 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       setDrafts(Object.fromEntries(rows.map((p) => [p.employeeId, { amount: p.amount == null ? "" : String(p.amount), currencyCode: p.currencyCode || "RWF", status: p.status === "PAID" ? "PAID" : "UNPAID", paymentReference: p.paymentReference || "", notes: p.notes || "" }])));
     } catch (e) {
       if (requestId === loadRequestId.current) {
-        setPayments([]);
-        setDrafts({});
+        // A background refresh failure must not erase the last known payroll view.
+        if (!silent) {
+          setPayments([]);
+          setDrafts({});
+        }
         setError(e instanceof Error ? e.message : "Unable to load salary payments.");
       }
     }
     finally { if (requestId === loadRequestId.current) setLoading(false); }
-  }, [month, audience, employeeId, excludeEmployeeId]);
+  }, [month, monthReady, audience, employeeId, excludeEmployeeId]);
   useEffect(() => {
     void load();
     return () => { loadRequestId.current += 1; };
   }, [load]);
 
+  useEffect(() => {
+    if (!paymentConfirmation) return;
+    paymentDialogPreviousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    paymentConfirmationRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !saving) { event.preventDefault(); setPaymentConfirmation(null); }
+      if (event.key !== "Tab" || !paymentConfirmationRef.current) return;
+      const items = Array.from(paymentConfirmationRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!items.length) return;
+      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items[items.length - 1].focus(); }
+      else if (!event.shiftKey && document.activeElement === items[items.length - 1]) { event.preventDefault(); items[0].focus(); }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => { document.removeEventListener("keydown", handleKeyDown); paymentDialogPreviousFocusRef.current?.focus(); };
+  }, [paymentConfirmation, saving]);
+
   useWorkspaceAutoRefresh(() => load(true), {
     enabled: true,
     intervalMs: 60_000,
-    shouldRefresh: () => !loading && !saving && (!canEdit || !payments.some((payment) => {
+    shouldRefresh: () => monthReady && Boolean(month) && !loading && !saving && !paymentConfirmation && (!canEdit || !payments.some((payment) => {
       const draft = drafts[payment.employeeId];
       return !draft ||
         draft.amount !== (payment.amount == null ? "" : String(payment.amount)) ||
@@ -137,8 +199,15 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     });
   }, [payments, searchQuery, paymentFilter, nameSortOrder]);
 
-  async function save(employeeId: string) {
+  async function save(employeeId: string, confirmed = false) {
     const draft = drafts[employeeId]; if (!draft) return;
+    const currentPayment = payments.find((payment) => payment.employeeId === employeeId);
+    const currentStatus = currentPayment?.status === "PAID" ? "PAID" : "UNPAID";
+    if (draft.status !== currentStatus && (draft.status === "PAID" || currentStatus === "PAID") && !confirmed) {
+      setPaymentConfirmation(currentPayment || null);
+      return;
+    }
+    if (confirmed) setPaymentConfirmation(null);
     setSaving(employeeId); setError(""); setNotice("");
     try {
       const response = await fetch("/api/backend/payroll/payments", { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ employeeId, month, ...draft }) });
@@ -148,9 +217,10 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to save salary payment."); }
     finally { setSaving(""); }
   }
-  return <section className="hr-manager-payroll-workspace min-w-0 rounded-2xl border border-white/[0.08] bg-[#141c28] p-4 shadow-lg shadow-black/10 sm:p-6">
-    <div className="flex flex-wrap items-start justify-between gap-4"><div className="max-w-2xl"><div className="flex items-center gap-2 text-sky-300"><BadgeDollarSign size={18} /><span className="text-xs font-semibold uppercase tracking-[0.14em]">Payroll tracking</span></div><h2 className="mt-1 text-xl font-bold text-white">Monthly salary payments</h2><p className="mt-1 text-sm leading-6 text-slate-400">Review payroll status, investigate missing pay inputs, and record payments. Amounts are calculated from recorded work, approved paid leave, paid public holidays, and effective pay rates.</p></div><div className="flex flex-wrap items-end gap-2"><label className="text-sm font-medium text-slate-300">Payroll month<input type="month" value={month} disabled={Boolean(saving)} onChange={(e) => setMonth(e.target.value)} className={INPUT} /></label></div></div>
-    {error && <p role="alert" className="mt-4 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200">{error}</p>}{notice && <p role="status" className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-3 text-sm text-emerald-200">{notice}</p>}
+  return <section className={`hr-manager-payroll-workspace min-w-0 rounded-2xl border border-white/[0.08] bg-[#141c28] p-4 shadow-lg shadow-black/10 sm:p-6 ${audience === "organization-admin" ? "oa-org-admin-time-pay" : ""}`}>
+    <div className="flex flex-wrap items-start justify-between gap-4"><div className="max-w-2xl"><div className="flex items-center gap-2 text-sky-300"><BadgeDollarSign size={18} /><span className="text-xs font-semibold uppercase tracking-[0.14em]">Payroll tracking</span></div><h2 className="mt-1 text-xl font-bold text-white">Monthly salary payments</h2><p className="mt-1 text-sm leading-6 text-slate-400">Review payroll status, investigate missing pay inputs, and record payments. Amounts are calculated from recorded work, approved paid leave, paid public holidays, and effective pay rates.</p></div><div className="flex flex-wrap items-end gap-2"><label className="text-sm font-medium text-slate-300">Payroll month<input type="month" value={month} disabled={!monthReady || Boolean(saving)} onChange={(e) => setMonth(e.target.value)} className={INPUT} /></label>{organizationTimeZone && <span className="pb-2 text-xs text-slate-500">Organization time zone: {organizationTimeZone}</span>}</div></div>
+    {dateWarning && <div role="status" className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-3 text-sm leading-6 text-amber-100">{dateWarning}</div>}
+    {error && <div role="alert" className="mt-4 flex flex-col gap-3 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span>{error}</span><button type="button" disabled={loading || Boolean(saving)} onClick={() => void load()} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">{loading ? "Retrying…" : "Retry"}</button></div>}{notice && <p role="status" className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-3 text-sm text-emerald-200">{notice}</p>}
     <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <div className="rounded-xl border border-white/[0.08] bg-black/10 p-3"><p className="text-xs text-slate-500">Employees in view</p><p className="mt-1 text-xl font-bold text-white">{loading ? "—" : payments.length}</p></div>
       <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-3"><p className="text-xs text-slate-500">Paid</p><p className="mt-1 text-xl font-bold text-emerald-200">{loading ? "—" : paidCount}</p></div>
@@ -158,7 +228,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       <div className="rounded-xl border border-white/[0.08] bg-black/10 p-3"><p className="text-xs text-slate-500">No recorded hours</p><p className="mt-1 text-xl font-bold text-slate-200">{loading ? "—" : noHoursCount}</p></div>
       <div className="rounded-xl border border-rose-400/15 bg-rose-400/[0.04] p-3"><p className="text-xs text-slate-500">Needs review</p><p className="mt-1 text-xl font-bold text-rose-200">{loading ? "—" : needsReviewCount}</p></div>
     </div>
-    <div className="mt-5 rounded-2xl border border-white/[0.07] bg-[#101722]/80 p-3 sm:p-4">
+    <div className="payroll-filter-panel mt-5 rounded-2xl border border-white/[0.07] bg-[#101722]/80 p-3 sm:p-4">
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <label className="block text-sm font-medium text-slate-300">
           <span className="flex items-center gap-2"><Search size={15} className="text-slate-500" />Find an employee</span>
@@ -172,8 +242,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             ["PAID", "Paid", paidCount],
             ["REVIEW", "Needs review", needsReviewCount],
             ["NO_HOURS", "No hours", noHoursCount],
-          ] as const).map(([value, label, count]) => <button key={value} type="button" onClick={() => setPaymentFilter(value)} aria-pressed={paymentFilter === value} className={`inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition ${paymentFilter === value ? "border-sky-400/30 bg-sky-400/10 text-sky-200" : "border-slate-700 bg-white/[0.02] text-slate-400 hover:text-slate-200"}`}>{label}<span className="rounded-md bg-black/20 px-1.5 py-0.5 tabular-nums">{loading ? "—" : count}</span></button>)}
-          <button type="button" onClick={() => setNameSortOrder((current) => current === "asc" ? "desc" : "asc")} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-white/[0.02] px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.06]" aria-label={`Sort employee names ${nameSortOrder === "asc" ? "descending" : "ascending"}`}>Name {nameSortOrder === "asc" ? "A–Z" : "Z–A"}</button>
+          ] as const).map(([value, label, count]) => <button key={value} type="button" onClick={() => setPaymentFilter(value)} aria-pressed={paymentFilter === value} className={`payroll-filter-option inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition ${paymentFilter === value ? "border-sky-400/30 bg-sky-400/10 text-sky-200" : "border-slate-700 bg-white/[0.02] text-slate-400 hover:text-slate-200"}`}>{label}<span className="rounded-md bg-black/20 px-1.5 py-0.5 tabular-nums">{loading ? "—" : count}</span></button>)}
+          <button type="button" onClick={() => setNameSortOrder((current) => current === "asc" ? "desc" : "asc")} className="payroll-sort-option inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-white/[0.02] px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.06]" aria-label={`Sort employee names ${nameSortOrder === "asc" ? "descending" : "ascending"}`}>Name {nameSortOrder === "asc" ? "A–Z" : "Z–A"}</button>
 
         </div>
       </div>
@@ -188,7 +258,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       const statusStyle = p.status === "PAID" ? "border-emerald-400/20 bg-emerald-400/[0.07] text-emerald-200" : p.status === "NO_RECORDED_HOURS" ? "border-slate-600 bg-slate-700/30 text-slate-300" : isReview ? "border-rose-400/20 bg-rose-400/[0.07] text-rose-200" : "border-amber-400/20 bg-amber-400/[0.07] text-amber-200";
       return <article key={p.employeeId} className="group overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#151f2d] to-[#101722] shadow-lg shadow-black/10 transition hover:border-white/[0.13]">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/[0.06] p-4 sm:p-5">
-          <div className="flex min-w-0 items-start gap-3"><EmployeeProfilePhoto employeeId={p.employeeId} name={name} className="size-10 rounded-xl border border-sky-400/15 bg-sky-400/[0.07]" textClassName="text-sm font-bold text-sky-200" /><div className="min-w-0"><h3 className="break-words font-semibold text-white">{name}</h3><p className="mt-1 break-words text-xs text-slate-400">{p.employeeCode || "Employee code unavailable"}{p.departmentName ? ` · ${p.departmentName}` : ""}</p><div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500"><span className="inline-flex items-center gap-1.5"><Clock3 size={12} />{Math.floor(Math.max(0, p.workedMinutes || 0) / 60)}h {String(Math.max(0, p.workedMinutes || 0) % 60).padStart(2, "0")}m recorded</span>{((p.paidLeaveMinutes || 0) + (p.paidHolidayMinutes || 0)) > 0 && <span className="text-emerald-300">{Math.floor(((p.paidLeaveMinutes || 0) + (p.paidHolidayMinutes || 0)) / 60)}h {String(((p.paidLeaveMinutes || 0) + (p.paidHolidayMinutes || 0)) % 60).padStart(2, "0")}m paid leave / holiday</span>}</div></div></div>
+          <div className="flex min-w-0 items-start gap-3"><EmployeeProfilePhoto employeeId={p.employeeId} name={name} className="size-10 rounded-xl border border-sky-400/15 bg-sky-400/[0.07]" textClassName="text-sm font-bold text-sky-200" /><div className="min-w-0"><h3 className="break-words font-semibold text-white">{name}</h3><p className="mt-1 break-words text-xs text-slate-400">{p.employeeCode || "Employee code unavailable"}{p.departmentName ? ` · ${p.departmentName}` : ""}{p.workforceRole ? ` · ${p.workforceRole.replaceAll("_", " ")}` : ""}</p><div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500"><span className="inline-flex items-center gap-1.5"><Clock3 size={12} />{Math.floor(Math.max(0, p.workedMinutes || 0) / 60)}h {String(Math.max(0, p.workedMinutes || 0) % 60).padStart(2, "0")}m recorded</span>{((p.paidLeaveMinutes || 0) + (p.paidHolidayMinutes || 0)) > 0 && <span className="text-emerald-300">{Math.floor(((p.paidLeaveMinutes || 0) + (p.paidHolidayMinutes || 0)) / 60)}h {String(((p.paidLeaveMinutes || 0) + (p.paidHolidayMinutes || 0)) % 60).padStart(2, "0")}m paid leave / holiday</span>}</div></div></div>
           <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end"><span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${statusStyle}`}>{p.status === "PAID" ? <CheckCircle size={13} /> : isReview ? <AlertTriangle size={13} /> : p.status === "NO_RECORDED_HOURS" ? <Clock3 size={13} /> : <CircleDollarSign size={13} />}{statusLabel}</span><p className="text-xs text-slate-500">{p.paidAt ? `Paid ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(p.paidAt))}` : p.status === "PAID" ? "Payment recorded" : "Payment not completed"}</p></div>
         </div>
         {canEdit ? <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -197,6 +267,31 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         </div> : <div className="grid gap-3 p-4 sm:grid-cols-3 sm:p-5"><div className="rounded-xl border border-white/[0.06] bg-black/10 p-3"><p className="text-xs text-slate-500">{p.status === "PAID" ? "Paid amount" : "Calculated amount"}</p><p className="mt-1 break-words font-semibold text-white">{money(p.amount, p.currencyCode)}</p></div><div className="rounded-xl border border-white/[0.06] bg-black/10 p-3"><p className="text-xs text-slate-500">Payment date</p><p className="mt-1 text-sm text-slate-200">{p.paidAt ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(p.paidAt)) : "Not paid yet"}</p></div><div className="rounded-xl border border-white/[0.06] bg-black/10 p-3"><p className="text-xs text-slate-500">Reference</p><p className="mt-1 break-words text-sm text-slate-200">{p.paymentReference || "—"}</p></div>{p.notes && <p className="text-sm text-slate-400 sm:col-span-3">{p.notes}</p>}</div>}
       </article>;
     })}</div>}
+    {paymentConfirmation && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setPaymentConfirmation(null); }}>
+        <section ref={paymentConfirmationRef} tabIndex={-1} role="alertdialog" aria-modal="true" aria-labelledby="payroll-confirm-title" aria-describedby="payroll-confirm-description" className="w-full max-w-md rounded-2xl border border-amber-300/20 bg-[#111a28] p-5 text-white shadow-2xl sm:p-6">
+          <span className="flex size-11 items-center justify-center rounded-xl border border-amber-300/20 bg-amber-300/10 text-amber-200"><AlertTriangle size={20}/></span>
+          <h2 id="payroll-confirm-title" className="mt-4 text-lg font-bold">Confirm payment status change</h2>
+          <p id="payroll-confirm-description" className="mt-2 text-sm leading-6 text-slate-300">
+            {drafts[paymentConfirmation.employeeId]?.status === "PAID" ? "You are about to mark the calculated salary for " + ([paymentConfirmation.firstName, paymentConfirmation.lastName].filter(Boolean).join(" ") || paymentConfirmation.employeeCode || "this employee") + " as paid for " + month + ". Confirm that the payment has actually been made before recording this status." : "You are about to change the payment record for " + ([paymentConfirmation.firstName, paymentConfirmation.lastName].filter(Boolean).join(" ") || paymentConfirmation.employeeCode || "this employee") + " to unpaid for " + month + ". Confirm that this correction is intentional."}
+          </p>
+          <div className="mt-4 rounded-xl border border-white/[0.08] bg-black/15 p-4">
+            <p className="text-xs text-slate-500">Calculated amount</p>
+            <p className="mt-1 text-2xl font-bold text-white">{money(paymentConfirmation.calculatedAmount == null ? null : String(paymentConfirmation.calculatedAmount), paymentConfirmation.currencyCode)}</p>
+            <p className="mt-2 text-xs text-slate-400">Employee: {[paymentConfirmation.firstName, paymentConfirmation.lastName].filter(Boolean).join(" ") || paymentConfirmation.employeeCode || "Employee"}</p>
+            <p className="mt-1 text-xs text-slate-400">Period: {month}</p>
+            {drafts[paymentConfirmation.employeeId]?.paymentReference && <p className="mt-1 break-all text-xs text-slate-400">Reference: {drafts[paymentConfirmation.employeeId].paymentReference}</p>}
+          </div>
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" disabled={Boolean(saving)} onClick={() => setPaymentConfirmation(null)} className="min-h-10 rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/[0.05] disabled:opacity-50">Go back</button>
+            <button type="button" disabled={Boolean(saving)} onClick={() => void save(paymentConfirmation.employeeId, true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-2 text-sm font-bold text-[#07111d] hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-50">
+              {saving ? <RefreshCw size={15} className="animate-spin"/> : <CheckCircle2 size={15}/>}
+              {saving ? "Saving…" : drafts[paymentConfirmation.employeeId]?.status === "PAID" ? "Confirm marked as paid" : "Confirm marked as unpaid"}
+            </button>
+          </div>
+        </section>
+      </div>
+    )}
     {canEdit && <p className="mt-4 text-xs leading-5 text-slate-500">Salary amounts and currency are calculated from recorded working time, approved paid leave, paid public holidays, and effective pay rates. Only the payment status and reference/notes are editable here. Employees with no payable hours cannot be marked paid.</p>}
   </section>;
 }

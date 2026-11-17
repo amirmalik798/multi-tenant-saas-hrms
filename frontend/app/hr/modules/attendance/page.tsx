@@ -44,7 +44,7 @@ function HRManagerAttendancePageContent() {
       loggingOut={auth.loggingOut}
       logoutError={auth.error}
     >
-      <AttendanceManagementWorkspace key={initialSection} audience="hr-manager" initialSection={initialSection} />
+      <AttendanceManagementWorkspace key={initialSection} audience="hr-manager" initialSection={initialSection} actorEmployeeId={auth.user.employeeId} />
     </HRManagerShell>
   );
 }

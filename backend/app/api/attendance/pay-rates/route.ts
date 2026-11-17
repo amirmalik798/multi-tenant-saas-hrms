@@ -56,7 +56,15 @@ export async function GET(request: Request) {
                 JOIN public.roles target_account_role ON target_account_role.id = target_account.role_id AND target_account_role.organization_id = target_account.organization_id
                 WHERE target_account.organization_id = e.organization_id AND target_account.employee_id = e.id
                   AND target_account.account_scope = 'ORGANIZATION'
-                  AND regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR')
+                  AND (
+  regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR', 'ORGANIZATION_OWNER', 'ORG_OWNER', 'TENANT_ADMIN', 'ADMINISTRATOR')
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_ADMIN_%'
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_ADMIN_%'
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATIONADMIN_%'
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_OWNER_%'
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_OWNER_%'
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'TENANT_ADMIN_%'
+)
               ) AS is_organization_admin
        FROM public.employees e
        LEFT JOIN public.roles r ON r.id = e.workforce_role_id AND r.organization_id = e.organization_id
@@ -65,8 +73,8 @@ export async function GET(request: Request) {
       [actor.organizationId, employeeId],
     );
     if (!target.rowCount) return json({ message: "Employee not found in this organization" }, 404);
-    if (isExcludedHrTargetRole(target.rows[0].workforce_role) || target.rows[0].is_organization_admin) {
-      return json({ message: "Organization Admin and HR Manager records are not eligible for employee pay rates" }, 403);
+    if (isExcludedHrTargetRole(target.rows[0].workforce_role, { allowHrManager: actor.kind === "ORGANIZATION_ADMIN" }) || target.rows[0].is_organization_admin) {
+      return json({ message: "The selected workforce record cannot receive employee pay rates." }, 403);
     }
 
     const [result, settings] = await Promise.all([
@@ -108,9 +116,17 @@ export async function PUT(request: Request) {
     const body: unknown = parsedBody.body;
     if (!body || typeof body !== "object" || Array.isArray(body)) return json({ message: "Provide a valid request body" }, 400);
     const input = body as Record<string, unknown>;
+    const allowedKeys = new Set(["employeeId", "hourlyRate", "overtimeRate", "currencyCode", "effectiveFrom", "effectiveTo"]);
+    const unknownKeys = Object.keys(input).filter((key) => !allowedKeys.has(key));
+    if (unknownKeys.length) return json({ message: "Unsupported field: " + unknownKeys.join(", ") }, 400);
     const employeeId = typeof input.employeeId === "string" ? input.employeeId : "";
-    const hourlyRate = typeof input.hourlyRate === "number" ? input.hourlyRate : Number(input.hourlyRate);
-    const overtimeRate = typeof input.overtimeRate === "number" ? input.overtimeRate : Number(input.overtimeRate);
+    // Do not coerce null, undefined, or an empty string to zero: a missing
+    // rate must never silently become a valid zero-pay rate.
+    const parseRate = (value: unknown) =>
+      typeof value === "number" ? value :
+      typeof value === "string" && value.trim() !== "" ? Number(value) : Number.NaN;
+    const hourlyRate = parseRate(input.hourlyRate);
+    const overtimeRate = parseRate(input.overtimeRate);
     const currencyCode = typeof input.currencyCode === "string" ? input.currencyCode.trim().toUpperCase() : "";
     const effectiveFrom = input.effectiveFrom;
     const effectiveTo = input.effectiveTo === null || input.effectiveTo === "" ? null : input.effectiveTo;
@@ -122,6 +138,7 @@ export async function PUT(request: Request) {
         (typeof effectiveTo === "string" && effectiveTo < effectiveFrom)) {
       return json({ message: "Provide an employee, valid non-negative rates, a three-letter currency code, and valid effective dates" }, 400);
     }
+
 
     if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER" && employeeId === actor.employeeId) {
       return json({ message: "The current HR Manager is not eligible for employee pay-rate management" }, 403);
@@ -148,7 +165,15 @@ export async function PUT(request: Request) {
                 JOIN public.roles target_account_role ON target_account_role.id = target_account.role_id AND target_account_role.organization_id = target_account.organization_id
                 WHERE target_account.organization_id = e.organization_id AND target_account.employee_id = e.id
                   AND target_account.account_scope = 'ORGANIZATION'
-                  AND regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR')
+                  AND (
+  regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR', 'ORGANIZATION_OWNER', 'ORG_OWNER', 'TENANT_ADMIN', 'ADMINISTRATOR')
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_ADMIN_%'
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_ADMIN_%'
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATIONADMIN_%'
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_OWNER_%'
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_OWNER_%'
+  OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'TENANT_ADMIN_%'
+)
               ) AS is_organization_admin
        FROM public.employees e
        LEFT JOIN public.roles r ON r.id = e.workforce_role_id AND r.organization_id = e.organization_id
@@ -160,19 +185,21 @@ export async function PUT(request: Request) {
       await client.query("ROLLBACK");
       return json({ message: "Employee not found in this organization" }, 404);
     }
-    if (isExcludedHrTargetRole(employee.rows[0].workforce_role) || employee.rows[0].is_organization_admin) {
+    if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: actor.kind === "ORGANIZATION_ADMIN" }) || employee.rows[0].is_organization_admin) {
       await client.query("ROLLBACK");
-      return json({ message: "Organization Admin and HR Manager records are not eligible for employee pay rates" }, 403);
+      return json({ message: "The selected workforce record cannot receive employee pay rates." }, 403);
     }
 
-    const currencyHistory = await client.query<{ currency_code: string }>(
-      `SELECT DISTINCT currency_code
+    const currencyHistory = await client.query(
+      `SELECT 1
        FROM public.employee_pay_rates
-       WHERE organization_id = $1::uuid AND employee_id = $2::uuid
-       LIMIT 2`,
-      [actor.organizationId, employeeId],
+       WHERE organization_id = $1::uuid
+         AND employee_id = $2::uuid
+         AND currency_code <> $3
+       LIMIT 1`,
+      [actor.organizationId, employeeId, currencyCode],
     );
-    if (currencyHistory.rows.some((row) => row.currency_code !== currencyCode)) {
+    if (currencyHistory.rowCount) {
       await client.query("ROLLBACK");
       return json({ message: "An employee's currency cannot be changed across pay-rate history. Use one currency for consistent monthly totals." }, 409);
     }

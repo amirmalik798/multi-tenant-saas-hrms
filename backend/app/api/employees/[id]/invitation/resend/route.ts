@@ -174,6 +174,27 @@ export async function POST(request: Request, context: RouteContext) {
       expires_at: expiresAt,
     };
 
+    // Deliver the rotated link before committing the token change. If the
+    // mail provider fails, rolling back preserves the previous usable token.
+    try {
+      await sendEmployeeInvitationEmail({
+        to: invitation.email,
+        organizationName: invitation.organization_name,
+        employeeName: invitation.employee_name,
+        workforceRole: invitation.role_name,
+        invitationUrl: invitationUrl.toString(),
+        expiresAt: expiresAt.toISOString(),
+      });
+    } catch (emailError) {
+      await client.query("ROLLBACK");
+      console.error("Failed to deliver resent workforce invitation:", emailError);
+      return json({
+        status: "error",
+        message: "The invitation email could not be delivered. The previous invitation link remains valid; check email configuration and try again.",
+        invitationId: invitation.id,
+      }, 502);
+    }
+
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
@@ -185,22 +206,5 @@ export async function POST(request: Request, context: RouteContext) {
 
   if (!invitation) return json({ message: "Unable to prepare the invitation resend." }, 500);
 
-  try {
-    await sendEmployeeInvitationEmail({
-      to: invitation.email,
-      organizationName: invitation.organization_name,
-      employeeName: invitation.employee_name,
-      workforceRole: invitation.role_name,
-      invitationUrl: invitationUrl.toString(),
-      expiresAt: expiresAt.toISOString(),
-    });
-    return json({ status: "ok", message: "Invitation email sent again.", invitationId: invitation.id });
-  } catch (error) {
-    console.error("Failed to deliver resent workforce invitation:", error);
-    return json({
-      status: "error",
-      message: "The invitation token was refreshed, but the email could not be delivered. Please retry the resend after checking email configuration.",
-      invitationId: invitation.id,
-    }, 502);
-  }
+  return json({ status: "ok", message: "Invitation email sent again.", invitationId: invitation.id });
 }

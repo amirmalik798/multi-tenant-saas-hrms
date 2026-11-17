@@ -656,7 +656,7 @@ export default function EmployeesPage() {
     () => setReloadKey((value) => value + 1),
     {
       enabled: Boolean(user),
-      shouldRefresh: () => !loading && !saving && !drawerMode && !formIsDirty && !bulkStatusProcessing,
+      shouldRefresh: () => !loading && !saving && !drawerMode && !formIsDirty && !bulkStatusProcessing && !bulkStatusConfirmOpen && !revokeConfirmationEmployee && !confirmDiscard && !confirmWorkflowChanges,
     },
   );
   const eligibleDepartmentOptions = useMemo(
@@ -1974,7 +1974,7 @@ export default function EmployeesPage() {
     <div className="org-admin-workspace relative min-h-screen bg-[#0b0f17] text-[#f8fafc] font-sans scheme-dark selection:bg-[#75c7ff]/20 selection:text-white">
       <OrganizationAdminSidebar activePage="employees" />
 
-      <main className="relative z-10 min-h-screen lg:ml-64">
+      <main id="org-admin-main-content" tabIndex={-1} className="relative z-10 min-h-screen lg:ml-64">
         <OrganizationAdminHeader
           activePage="employees"
           organizationName={user.organizationName}
@@ -2003,6 +2003,12 @@ export default function EmployeesPage() {
         <div className="mx-auto w-full max-w-[1600px] px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pt-8">
           {(logoutError || noticeError) && <div role="alert" className="mb-5 rounded-xl border border-rose-400/30 bg-rose-500/15 p-4 text-sm font-medium text-rose-200">{logoutError || noticeError}</div>}
           {notice && <div role="status" aria-live="polite" className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-emerald-400/30 bg-emerald-500/15 p-4 text-sm font-medium text-emerald-200"><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Dismiss success message"><Icon name="close" size={16} /></button></div>}
+
+          <section aria-labelledby="employees-page-title" className="mb-6">
+            
+            <h1 id="employees-page-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">Employees</h1>
+            <p className="mt-1.5 text-sm leading-6 text-slate-400">Manage workforce records, roles, reporting lines and employee access.</p>
+          </section>
 
           {/* Metrics Grid */}
           <section aria-label="Employee metrics" className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -2051,7 +2057,7 @@ export default function EmployeesPage() {
             </article>
           </section>
 
-          {error && <div role="alert" className="mb-5 flex items-start gap-3 rounded-xl border border-rose-400/30 bg-rose-500/15 p-4 text-sm font-medium text-rose-200"><Icon name="alert" size={18} /><div className="flex-1"><p>{error}</p></div></div>}
+          {error && <div role="alert" className="mb-5 flex flex-col gap-3 rounded-xl border border-rose-400/30 bg-rose-500/15 p-4 text-sm font-medium text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span className="flex min-w-0 items-start gap-3"><Icon name="alert" size={18} /><span>{error}</span></span><button type="button" onClick={() => setReloadKey((key) => key + 1)} disabled={loading || saving} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">Retry</button></div>}
 
           {/* Employee directory — dense table by default, optional cards for individual review. */}
           <section className="overflow-hidden rounded-xl border border-[#29384b] bg-[#141f2e]/90">

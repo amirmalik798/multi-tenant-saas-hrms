@@ -601,7 +601,7 @@ export default function OrganizationSettingsPage() {
 
       <OrganizationAdminSidebar activePage="settings" />
 
-      <main className="relative z-10 min-h-screen lg:ml-64">
+      <main id="org-admin-main-content" tabIndex={-1} className="relative z-10 min-h-screen lg:ml-64">
         <OrganizationAdminHeader
           activePage="settings"
           organizationName={user.organizationName}
@@ -627,6 +627,7 @@ export default function OrganizationSettingsPage() {
             </div>
           )}
 
+          
           <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-[#29384b] bg-[#141f2e]/80 px-5 py-5 shadow-sm backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex min-w-0 items-center gap-3.5">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#75c7ff]/30 bg-[#75c7ff]/10 text-sm font-extrabold text-[#75c7ff]">

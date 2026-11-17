@@ -50,7 +50,8 @@ const CORRECTION_SELECT = `
     e.first_name AS "firstName",
     e.last_name AS "lastName",
     e.department_id AS "departmentId",
-    d.name AS "departmentName"
+    d.name AS "departmentName",
+    workforce_role.name AS "workforceRole"
   FROM public.attendance_correction_requests AS r
   JOIN public.employees AS e
     ON e.id = r.employee_id
@@ -58,13 +59,17 @@ const CORRECTION_SELECT = `
   LEFT JOIN public.departments AS d
     ON d.id = e.department_id
    AND d.organization_id = e.organization_id
+  LEFT JOIN public.roles AS workforce_role
+    ON workforce_role.id = e.workforce_role_id
+   AND workforce_role.organization_id = e.organization_id
+   AND workforce_role.scope = 'ORGANIZATION'
   LEFT JOIN public.attendance_events AS original_event
     ON original_event.id = r.original_event_id
    AND original_event.organization_id = r.organization_id
    AND original_event.employee_id = r.employee_id
 `;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const actor = await getTenantPermissionActor();
 
@@ -103,6 +108,13 @@ export async function GET() {
             AND managed_department.manager_id = $${values.length}::uuid
         )
       )`);
+    } else if (
+      actor.kind === "ORGANIZATION_USER" &&
+      actor.roleName === "HR_MANAGER" &&
+      new URL(request.url).searchParams.get("scope") === "self"
+    ) {
+      values.push(actor.employeeId);
+      conditions.push(`r.employee_id = $${values.length}::uuid`);
     } else if (
       !(
         actor.kind === "ORGANIZATION_ADMIN" ||
@@ -254,12 +266,12 @@ export async function POST(request: Request) {
 
     if (
       actor.kind !== "ORGANIZATION_USER" ||
-      !(actor.roleName === "EMPLOYEE" || actor.roleName === "DEPARTMENT_MANAGER")
+      !(actor.roleName === "EMPLOYEE" || actor.roleName === "DEPARTMENT_MANAGER" || actor.roleName === "HR_MANAGER")
     ) {
       return jsonResponse(
         {
           message:
-            "Employees and Department Managers can submit correction requests for their own attendance",
+            "Employees, Department Managers, and HR Managers can submit correction requests for their own attendance",
         },
         403,
       );
@@ -376,6 +388,24 @@ export async function POST(request: Request) {
         storedTimeZone = original.rows[0].time_zone;
       } else {
         workDate = body.workDate as string;
+      }
+
+      // Keep the requested instant and the immutable work date consistent.
+      // Otherwise a correction can move a punch into a different local day
+      // while payroll and attendance still attribute it to the original date.
+      const requestedLocalDateResult = await client.query<{ local_date: string }>(
+        `SELECT ($1::timestamptz AT TIME ZONE $2)::date::text AS local_date`,
+        [body.requestedAt, storedTimeZone],
+      );
+      if (requestedLocalDateResult.rows[0]?.local_date !== workDate) {
+        await client.query("ROLLBACK");
+        return jsonResponse(
+          {
+            message:
+              "The requested attendance time must fall on the selected work date in the organization's time zone.",
+          },
+          400,
+        );
       }
 
       const inserted = await client.query(

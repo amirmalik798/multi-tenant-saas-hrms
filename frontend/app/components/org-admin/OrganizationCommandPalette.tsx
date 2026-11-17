@@ -11,7 +11,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 
-type PaletteContext = "dashboard" | "employees" | "departments" | "organization-chart" | "invitations" | "communications" | "support" | "settings" | "profile";
+type PaletteContext = "dashboard" | "employees" | "departments" | "organization-chart" | "invitations" | "attendance" | "schedules" | "leave" | "pay-rates" | "payroll" | "reports" | "communications" | "support" | "settings" | "profile";
 
 type IconName =
   | "dashboard"
@@ -195,6 +195,60 @@ const workspaceCommands: Command[] = [
     href: "/org/invitations",
   },
   {
+    id: "attendance",
+    label: "Attendance & Time",
+    description: "Review organization attendance, clock events and monthly hours",
+    keywords: "attendance calendar clock in clock out working hours overtime",
+    icon: "dashboard",
+    section: "Workspace",
+    href: "/org/attendance",
+  },
+  {
+    id: "schedules",
+    label: "Schedules",
+    description: "Create work schedules and assign employees and Department Managers",
+    keywords: "schedule shifts work calendar assign employee department manager",
+    icon: "layers",
+    section: "Workspace",
+    href: "/org/schedules",
+  },
+  {
+    id: "leave",
+    label: "Leave & public holidays",
+    description: "Review leave requests and manage the public holiday calendar",
+    keywords: "leave holidays time off approve reject",
+    icon: "layers",
+    section: "Workspace",
+    href: "/org/leave",
+  },
+  {
+    id: "pay-rates",
+    label: "Employee pay rates",
+    description: "Configure hourly and overtime rates, including the HR Manager",
+    keywords: "salary compensation hourly overtime rate pay",
+    icon: "credit-card",
+    section: "Workspace",
+    href: "/org/pay-rates",
+  },
+  {
+    id: "payroll",
+    label: "Salary payments",
+    description: "Review monthly salary calculations and record payment status",
+    keywords: "salary payroll payment paid unpaid monthly earnings",
+    icon: "credit-card",
+    section: "Workspace",
+    href: "/org/payroll",
+  },
+  {
+    id: "reports",
+    label: "Attendance reports",
+    description: "Review and export daily organization attendance reports",
+    keywords: "attendance report daily export hours overtime",
+    icon: "dashboard",
+    section: "Workspace",
+    href: "/org/reports",
+  },
+  {
     id: "communications",
     label: "Messages",
     description: "Reply to conversations from your HR Manager",
@@ -272,7 +326,19 @@ export function OrganizationCommandPalette({
                   ? "/org/support"
                   : context === "profile"
                     ? "/org/profile"
-                    : "/org/settings";
+                    : context === "attendance"
+                      ? "/org/attendance"
+                      : context === "schedules"
+                        ? "/org/schedules"
+                        : context === "leave"
+                          ? "/org/leave"
+                          : context === "pay-rates"
+                            ? "/org/pay-rates"
+                            : context === "payroll"
+                              ? "/org/payroll"
+                              : context === "reports"
+                                ? "/org/reports"
+                                : "/org/settings";
 
   const commands = useMemo(() => {
     const actions: Command[] = [];
@@ -505,11 +571,8 @@ export function OrganizationCommandPalette({
                   >
                     Command palette
                   </h2>
-                  <p
-                    id="organization-command-description"
-                    className="mt-0.5 text-[11px] text-slate-500"
-                  >
-                    Navigate your workspace or run a page action.
+                  <p id="organization-command-description" className="sr-only">
+                    Search and open workspace pages or actions.
                   </p>
                 </div>
 
@@ -536,7 +599,7 @@ export function OrganizationCommandPalette({
                     ref={inputRef}
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Search dashboard, employees, departments, invitations, settings, actions…"
+                    placeholder="Search pages, people, actions…"
                     className="h-10 w-full rounded-lg border border-white/10 bg-[#0b111b] py-2 pl-9 pr-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#75c7ff]/60 focus:ring-2 focus:ring-[#75c7ff]/10"
                     aria-label="Search workspace commands"
                     aria-controls="organization-command-results"

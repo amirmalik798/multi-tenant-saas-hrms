@@ -182,7 +182,8 @@ export default function EmployeeEarningsWorkspace({ employeeId, showTitle = true
     } catch (caught) {
       if (requestId === loadRequestId.current) {
         setError(caught instanceof Error ? caught.message : "Unable to load your earnings.");
-        setData(null);
+        // Keep the last successful month visible after a silent refresh failure.
+        if (!silent) setData(null);
       }
     } finally {
       if (requestId === loadRequestId.current) setLoading(false);

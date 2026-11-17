@@ -24,8 +24,9 @@ export async function GET() {
     const actor = await getTenantPermissionActor();
     if (!actor) return jsonResponse({ message: "Authentication required." }, 401);
 
-    const result = await pool.query<{ timeZone: string }>(
-      `SELECT COALESCE(NULLIF(BTRIM(os.time_zone), ''), 'Africa/Kigali') AS "timeZone"
+    const result = await pool.query<{ timeZone: string; currencyCode: string | null }>(
+      `SELECT COALESCE(NULLIF(BTRIM(os.time_zone), ''), 'Africa/Kigali') AS "timeZone",
+              UPPER(NULLIF(BTRIM(os.currency_code), '')) AS "currencyCode"
        FROM public.organizations AS o
        LEFT JOIN public.organization_settings AS os
          ON os.organization_id = o.id
@@ -45,7 +46,7 @@ export async function GET() {
       return jsonResponse({ message: "The organization's configured time zone is invalid." }, 500);
     }
 
-    return jsonResponse({ status: "ok", timeZone });
+    return jsonResponse({ status: "ok", timeZone, currencyCode: result.rows[0].currencyCode ?? null });
   } catch (error) {
     console.error("Failed to load tenant workspace context:", error);
     return jsonResponse({ message: "Unable to load workspace context." }, 500);

@@ -22,7 +22,16 @@ export async function POST(request: Request) {
     if (!(await organizationIsActive(pool, actor.organizationId))) return jsonResponse({ message: "This organization is not active" }, 403);
     const parsed = await parseJsonRequestBody(request); if (!parsed.ok) return parsed.response;
     if (!isRecord(parsed.body)) return jsonResponse({ message: "Provide a valid holiday" }, 400);
-    const date = parsed.body.holidayDate; const name = typeof parsed.body.name === "string" ? parsed.body.name.trim() : ""; const notes = typeof parsed.body.notes === "string" ? parsed.body.notes.trim() : ""; const isPaid = parsed.body.isPaid !== false;
+    const allowedKeys = new Set(["holidayDate", "name", "notes", "isPaid"]);
+    const unknownKeys = Object.keys(parsed.body).filter((key) => !allowedKeys.has(key));
+    if (unknownKeys.length) return jsonResponse({ message: "Unsupported field: " + unknownKeys.join(", ") }, 400);
+    if (parsed.body.isPaid !== undefined && typeof parsed.body.isPaid !== "boolean") {
+      return jsonResponse({ message: "isPaid must be a boolean" }, 400);
+    }
+    if (parsed.body.notes !== undefined && parsed.body.notes !== null && typeof parsed.body.notes !== "string") {
+      return jsonResponse({ message: "notes must be a string or null" }, 400);
+    }
+    const date = parsed.body.holidayDate; const name = typeof parsed.body.name === "string" ? parsed.body.name.trim() : ""; const notes = typeof parsed.body.notes === "string" ? parsed.body.notes.trim() : ""; const isPaid = parsed.body.isPaid ?? true;
     if (!isValidDateString(date) || name.length < 2 || name.length > 160 || notes.length > 500) return jsonResponse({ message: "Provide a valid date, a holiday name of 2–160 characters, and notes up to 500 characters" }, 400);
     const result = await pool.query(`INSERT INTO public.public_holidays (organization_id, holiday_date, name, is_paid, notes, created_by_user_id) VALUES ($1::uuid,$2::date,$3,$4,NULLIF($5,''),$6::uuid) ON CONFLICT (organization_id, holiday_date) DO UPDATE SET name=EXCLUDED.name,is_paid=EXCLUDED.is_paid,notes=EXCLUDED.notes,updated_at=now() RETURNING id, holiday_date::text AS "holidayDate", name, is_paid AS "isPaid", notes`, [actor.organizationId, date, name, isPaid, notes, actor.userId]);
     return jsonResponse({ status: "ok", holiday: result.rows[0] }, 201);
