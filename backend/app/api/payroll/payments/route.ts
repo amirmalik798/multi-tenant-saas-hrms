@@ -183,8 +183,6 @@ export async function PUT(request: Request) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(employeeId) || !validMonth(month) || (currencyCode && !/^[A-Z]{3}$/.test(currencyCode)) || !status || reference.length > 120 || notes.length > 1000) {
       return json({ message: "Provide a valid employee, month, payment status, and optional reference/notes within the limits" }, 400);
     }
-    const monthCalculation = await calculateOrganizationMonthlyPay(pool, actor.organizationId, month);
-    const calculatedEmployee = monthCalculation.get(employeeId);
     await client.query("BEGIN");
     transactionStarted = true;
     const employee = await client.query(
@@ -207,6 +205,13 @@ export async function PUT(request: Request) {
       await client.query("ROLLBACK");
       return json({ message: "Organization Admin records are not eligible for salary payments" }, 403);
     }
+
+    // Calculate after locking the employee row. Pay-rate changes use the
+    // same employee lock, preventing a payment from being saved using a
+    // stale calculation while a concurrent rate update commits.
+    const monthCalculation = await calculateOrganizationMonthlyPay(pool, actor.organizationId, month);
+    const calculatedEmployee = monthCalculation.get(employeeId);
+
     if (!calculatedEmployee || calculatedEmployee.payableMinutes <= 0) {
       await client.query("ROLLBACK");
       return json({ message: "No payable working hours are available for this employee in the selected month. Approved paid leave or paid public holidays can qualify when they cover scheduled workdays." }, 409);
