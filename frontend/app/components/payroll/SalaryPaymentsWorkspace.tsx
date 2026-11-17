@@ -199,7 +199,11 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !savingPayslipStatuses) {
         event.preventDefault();
-        cancelSalarySlipPreparation();
+        if (payslipPrintWindowRef.current && !payslipPrintWindowRef.current.closed) {
+          payslipPrintWindowRef.current.close();
+        }
+        payslipPrintWindowRef.current = null;
+        setPayslipDialog(null);
       }
     };
     window.addEventListener("keydown", handleEscape);
@@ -277,6 +281,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     printWindow.document.open();
     printWindow.document.write("<!doctype html><html><head><title>Preparing salary slip</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing salary slip…</h2><p>Loading attendance, pay rates and monthly payment records.</p></body></html>");
     printWindow.document.close();
+    window.focus();
 
     setPayslipLoading(targetEmployeeId);
     setError("");
@@ -426,8 +431,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         <p className="mt-1 text-sm text-slate-300">Choose a month range (up to 24 months), then print a member’s detailed monthly statements. Each month is formatted as its own A4 PDF page.</p>
       </div>
       <div className="flex flex-wrap items-end gap-3">
-        <label className="text-xs font-semibold text-slate-400">Start month<input type="month" value={payslipStartMonth} disabled={!monthReady || Boolean(payslipLoading)} onChange={(event) => setPayslipStartMonth(event.target.value)} className={INPUT} /></label>
-        <label className="text-xs font-semibold text-slate-400">End month<input type="month" value={payslipEndMonth} disabled={!monthReady || Boolean(payslipLoading)} onChange={(event) => setPayslipEndMonth(event.target.value)} className={INPUT} /></label>
+        <label className="text-xs font-semibold text-slate-400">Start month<input type="month" value={payslipStartMonth} disabled={!monthReady || Boolean(payslipLoading) || Boolean(payslipDialog)} onChange={(event) => setPayslipStartMonth(event.target.value)} className={INPUT} /></label>
+        <label className="text-xs font-semibold text-slate-400">End month<input type="month" value={payslipEndMonth} disabled={!monthReady || Boolean(payslipLoading) || Boolean(payslipDialog)} onChange={(event) => setPayslipEndMonth(event.target.value)} className={INPUT} /></label>
       </div>
     </div>}
 
