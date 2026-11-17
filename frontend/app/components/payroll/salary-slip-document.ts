@@ -51,6 +51,7 @@ export type SalarySlipMonth = {
   }>;
   payment: {
     status: string;
+    recorded: boolean;
     paidAt: string | null;
     reference: string | null;
   };
@@ -144,10 +145,9 @@ function statusLabel(value: string): string {
   return labels[value] || value.replaceAll("_", " ").toLowerCase();
 }
 
-function paymentLabel(value: string): string {
-  if (value === "PAID") return "Payment recorded · PAID";
-  if (value === "UNPAID") return "Payment recorded · UNPAID";
-  return "Payment status not recorded";
+function paymentLabel(month: SalarySlipMonth): string {
+  const status = month.payment.status === "PAID" ? "PAID" : "UNPAID";
+  return month.payment.recorded ? `Payment status · ${status} (stored)` : `Payment status · ${status} (not yet stored)`;
 }
 
 function monthlyEarningsSummary(month: SalarySlipMonth): string {
@@ -236,6 +236,7 @@ function buildMonthPage(
       <div class="period-block">
         <span class="eyebrow">PAY PERIOD</span>
         <strong>${escapeHtml(monthLabel(month.month))}</strong>
+        <span class="payment-status ${month.payment.status === "PAID" ? "paid" : "unpaid"}">${escapeHtml(month.payment.status === "PAID" ? "PAID" : "UNPAID")}${month.payment.recorded ? "" : " · NOT SAVED"}</span>
         <span class="page-number">Page ${index + 1} of ${totalPages}</span>
       </div>
     </div>
@@ -254,7 +255,7 @@ function buildMonthPage(
     </div>
 
     <div class="summary-grid">
-      <div class="summary-card highlight"><span>Monthly earnings</span><strong class="summary-amount">${currencySummary}</strong><small>${escapeHtml(paymentLabel(month.payment.status))}</small></div>
+      <div class="summary-card highlight"><span>Monthly earnings</span><strong class="summary-amount">${currencySummary}</strong><small>${escapeHtml(paymentLabel(month))}</small></div>
       <div class="summary-card"><span>Worked time</span><strong>${escapeHtml(duration(month.totals.workedMinutes))}</strong><small>${month.totals.daysWorked} days with recorded work</small></div>
       <div class="summary-card"><span>Approved overtime</span><strong>${escapeHtml(duration(month.totals.payableOvertimeMinutes))}</strong><small>Pre-authorized and payable</small></div>
       <div class="summary-card"><span>Paid leave / holiday</span><strong>${escapeHtml(paidTimeLabel)}</strong><small>Credited scheduled time</small></div>
@@ -325,6 +326,9 @@ export function buildSalarySlipDocument(payload: SalarySlipPayload): string {
   .brand-copy .muted { margin: 3px 0 0; color: #718096; font-size: 9px; }
   .period-block { display: flex; min-width: 135px; flex-direction: column; align-items: flex-end; }
   .period-block strong { color: #102b4c; font-size: 14px; }
+  .payment-status { display: inline-flex; margin-top: 5px; padding: 3px 7px; border-radius: 999px; font-size: 7px; font-weight: 800; letter-spacing: .08em; }
+  .payment-status.paid { color: #17613e; background: #e4f5ea; border: 1px solid #b8e3c8; }
+  .payment-status.unpaid { color: #9a5417; background: #fff1df; border: 1px solid #f4d4ae; }
   .page-number { margin-top: 4px; color: #7a8799; font-size: 8px; }
   .employee-panel { display: flex; justify-content: space-between; gap: 14px; padding: 12px 14px; margin-top: 11px; border: 1px solid #dce5ef; border-radius: 9px; background: #f7f9fc; }
   .employee-panel h2 { margin: 2px 0 3px; color: #14263e; font-size: 14px; }
