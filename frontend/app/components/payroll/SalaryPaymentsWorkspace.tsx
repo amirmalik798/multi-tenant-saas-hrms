@@ -912,7 +912,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
 
           <div className="mt-4 grid gap-3 rounded-xl border border-sky-300/15 bg-sky-300/[0.05] p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
             <label className="block text-xs font-semibold text-slate-300">
-              Payroll period · from
+              From month
               <input
                 type="month"
                 value={payslipDialog.startMonth}
@@ -922,7 +922,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
               />
             </label>
             <label className="block text-xs font-semibold text-slate-300">
-              Payroll period · to
+              To month
               <input
                 type="month"
                 value={payslipDialog.endMonth}
@@ -950,8 +950,9 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
 
           <div className="mt-4 space-y-2">
             {payslipDialog.payload.months.map((monthRecord) => {
-              const status = payslipDialog.statuses[monthRecord.month] || "UNPAID";
               const originalStatus = monthRecord.payment.status === "PAID" ? "PAID" : "UNPAID";
+              const status = payslipDialog.statuses[monthRecord.month] ?? originalStatus;
+              const isPaidAndLocked = monthRecord.payment.recorded && monthRecord.payment.status === "PAID";
               const hasSavedSelection = monthRecord.payment.recorded && status === originalStatus;
               const monthLabel = new Intl.DateTimeFormat("en", {
                 month: "long",
@@ -969,33 +970,43 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                           ? "Changed — will be saved before printing"
                           : "Not stored yet — will be saved before printing"}
                     </p>
-                    {monthRecord.payment.status === "PAID" ? (
+                    {isPaidAndLocked ? (
                       <p className="mt-1 text-xs text-emerald-200">Already paid · locked to prevent an unpaid salary slip.</p>
                     ) : status === "PAID" ? (
                       <p className="mt-1 text-xs text-amber-200">PAID is accepted only when complete payable earnings and valid rates are available.</p>
                     ) : null}
                   </div>
-                  <label className="block text-xs font-semibold text-slate-400">
-                    Payment status
-                    <select
-                      value={status}
-                      disabled={savingPayslipStatuses || Boolean(payslipLoading) || monthRecord.payment.status === "PAID"}
-                      onChange={(event) => {
-                        const nextStatus = event.target.value as PayslipPaymentStatus;
-                        setPayslipDialog((current) => current ? {
-                          ...current,
-                          statuses: {
-                            ...current.statuses,
-                            [monthRecord.month]: nextStatus,
-                          },
-                        } : current);
-                      }}
-                      className={INPUT}
-                    >
-                      <option value="UNPAID">UNPAID</option>
-                      <option value="PAID">PAID</option>
-                    </select>
-                  </label>
+                  {isPaidAndLocked ? (
+                    <div aria-label="Payment status: PAID, locked" className="min-w-0">
+                      <span className="block text-xs font-semibold text-slate-400">Payment status</span>
+                      <div role="status" className="mt-1.5 flex min-h-11 items-center justify-between gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.07] px-3 py-2">
+                        <span className="inline-flex items-center gap-2 text-sm font-bold text-emerald-200"><LockKeyhole size={14}/>PAID</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300/80">Locked</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="block text-xs font-semibold text-slate-400">
+                      Payment status
+                      <select
+                        value={status}
+                        disabled={savingPayslipStatuses || Boolean(payslipLoading)}
+                        onChange={(event) => {
+                          const nextStatus = event.target.value as PayslipPaymentStatus;
+                          setPayslipDialog((current) => current ? {
+                            ...current,
+                            statuses: {
+                              ...current.statuses,
+                              [monthRecord.month]: nextStatus,
+                            },
+                          } : current);
+                        }}
+                        className={INPUT}
+                      >
+                        <option value="UNPAID">UNPAID</option>
+                        <option value="PAID">PAID</option>
+                      </select>
+                    </label>
+                  )}
                 </div>
               );
             })}
