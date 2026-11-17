@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { BadgeDollarSign, CheckCircle2, RefreshCw, Search, Clock3, AlertTriangle, CheckCircle, CircleDollarSign, Printer, FileDown, Download, ChevronDown, ChevronLeft, ChevronRight, Eye, Pencil, LockKeyhole } from "lucide-react";
+import { BadgeDollarSign, CheckCircle2, RefreshCw, Search, Clock3, AlertTriangle, CheckCircle, CircleDollarSign, Printer, FileDown, Download, ChevronDown, ChevronLeft, ChevronRight, Eye, Pencil, LockKeyhole, Users } from "lucide-react";
 import { buildSalarySlipDocument, type SalarySlipPayload } from "./salary-slip-document";
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
 import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
