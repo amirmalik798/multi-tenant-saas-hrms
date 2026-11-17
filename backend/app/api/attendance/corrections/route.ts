@@ -385,6 +385,24 @@ export async function POST(request: Request) {
         workDate = body.workDate as string;
       }
 
+      // Keep the requested instant and the immutable work date consistent.
+      // Otherwise a correction can move a punch into a different local day
+      // while payroll and attendance still attribute it to the original date.
+      const requestedLocalDateResult = await client.query<{ local_date: string }>(
+        `SELECT ($1::timestamptz AT TIME ZONE $2)::date::text AS local_date`,
+        [body.requestedAt, storedTimeZone],
+      );
+      if (requestedLocalDateResult.rows[0]?.local_date !== workDate) {
+        await client.query("ROLLBACK");
+        return jsonResponse(
+          {
+            message:
+              "The requested attendance time must fall on the selected work date in the organization's time zone.",
+          },
+          400,
+        );
+      }
+
       const inserted = await client.query(
         `INSERT INTO public.attendance_correction_requests (
            organization_id,
