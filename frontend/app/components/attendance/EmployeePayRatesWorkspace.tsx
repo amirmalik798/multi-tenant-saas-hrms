@@ -197,9 +197,11 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
     return () => { rateRequestId.current += 1; };
   }, [loadRates]);
 
+  const normalizedEmployeeSearch = employeeSearch.trim().toLocaleLowerCase();
   const visibleEmployees = employees.filter((employee) =>
+    employee.id === employeeId || !normalizedEmployeeSearch ||
     [name(employee), employee.employee_code, employee.department_name]
-      .some((value) => String(value ?? "").toLocaleLowerCase().includes(employeeSearch.trim().toLocaleLowerCase())),
+      .some((value) => String(value ?? "").toLocaleLowerCase().includes(normalizedEmployeeSearch)),
   );
 
   useEffect(() => {
