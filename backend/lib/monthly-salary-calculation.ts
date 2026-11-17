@@ -31,6 +31,12 @@ function amountForMinutes(minutes: number, rate: number): number {
   return Math.round((minutes / 60) * rate * 100) / 100;
 }
 
+function validRate(value: string | number | null): number | null {
+  if (value === null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
 /**
  * Calculates estimated monthly pay from effective attendance events, approved paid leave,
  * paid public holidays, approved overtime, and the pay rate active on each work date.
@@ -143,8 +149,8 @@ export async function calculateOrganizationMonthlyPay(pool: Pool, organizationId
       scheduledBreakMinutes: row.scheduledBreakMinutes,
       approvedOvertimeMinutes: row.approvedOvertimeMinutes,
     });
-    const hourlyRate = row.hourlyRate == null ? null : Number(row.hourlyRate);
-    const overtimeRate = row.overtimeRate == null ? null : Number(row.overtimeRate);
+    const hourlyRate = validRate(row.hourlyRate);
+    const overtimeRate = validRate(row.overtimeRate);
     const startMs = row.expectedStart == null ? NaN : row.expectedStart instanceof Date ? row.expectedStart.getTime() : Date.parse(row.expectedStart);
     const endMs = row.expectedEnd == null ? NaN : row.expectedEnd instanceof Date ? row.expectedEnd.getTime() : Date.parse(row.expectedEnd);
     const scheduledMinutes = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs
