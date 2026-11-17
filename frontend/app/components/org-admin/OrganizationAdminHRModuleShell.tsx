@@ -166,7 +166,9 @@ export default function OrganizationAdminHRModuleShell({
             <p className="sr-only">{description}</p>
           </section>
           <AttendanceAlerts />
-          {children}
+          <div className={["attendance", "schedules", "leave", "pay-rates", "payroll", "reports"].includes(activePage) ? "oa-org-admin-time-pay" : undefined}>
+            {children}
+          </div>
         </div>
       </main>
     </div>
