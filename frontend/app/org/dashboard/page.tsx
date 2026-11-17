@@ -680,7 +680,7 @@ export default function OrganizationDashboardPage() {
           <section aria-labelledby="organization-dashboard-title" className="mb-5">
             
             <h1 id="organization-dashboard-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">Dashboard</h1>
-            <p className="mt-1.5 text-sm leading-6 text-slate-400">A live overview of your organization’s workforce and daily operations.</p>
+            <p className="sr-only">A live overview of your organization’s workforce and daily operations.</p>
           </section>
 
           {/* Organization context and quick actions */}
