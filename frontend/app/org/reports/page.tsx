@@ -127,7 +127,7 @@ export default function OrganizationAdminReportsPage() {
       title="Attendance Reports"
       description="Generate organization-wide daily attendance reports using the organization's configured timezone and attendance records."
     >
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="oa-daily-attendance-report mx-auto max-w-5xl space-y-6">
         <section className="relative overflow-hidden rounded-3xl border border-[#344357] bg-gradient-to-br from-[#24354A] via-[#151C28] to-[#111827] p-5 shadow-xl shadow-black/20 sm:p-7">
           <div className="pointer-events-none absolute -right-12 -top-16 size-60 rounded-full bg-blue-500/[0.08] blur-3xl" />
           <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start">
