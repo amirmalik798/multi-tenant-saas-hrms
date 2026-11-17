@@ -11,14 +11,12 @@ import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
 type Payment = { id?: string | null; employeeId: string; employeeCode?: string | null; firstName?: string | null; lastName?: string | null; departmentName?: string | null; workforceRole?: string | null; payMonth: string; amount: string | number | null; calculatedAmount?: string | number | null; workedMinutes?: number; payableMinutes?: number; paidLeaveMinutes?: number; paidHolidayMinutes?: number; calculatedRegularAmount?: string | number | null; calculatedOvertimeAmount?: string | number | null; calculatedPaidAbsenceAmount?: string | number | null; currencyCode: string; status: "PAID" | "UNPAID" | "NO_RECORDED_HOURS" | "RATE_REQUIRED" | "CURRENCY_MISMATCH"; currencyMismatch?: boolean; paidAt?: string | null; paymentReference?: string | null; notes?: string | null; paymentRecorded?: boolean; recordedByUserId?: string | null; recordedBy?: string | null; createdAt?: string | null; updatedAt?: string | null };
 type Props = { audience: "hr-manager" | "organization-admin" | "department-manager" | "employee"; employeeId?: string; excludeEmployeeId?: string };
-type PayslipPaymentStatus = "PAID" | "UNPAID";
 type PayslipDialogState = {
   employeeId: string;
   employeeName: string;
   startMonth: string;
   endMonth: string;
   payload: SalarySlipPayload;
-  statuses: Record<string, PayslipPaymentStatus>;
 };
 const INPUT = "mt-1.5 w-full rounded-xl border border-slate-700 bg-[#0b111b] px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-sky-400";
 const BUTTON = "inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold !text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 [&>svg]:!text-white";
@@ -52,7 +50,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   const [dateWarning, setDateWarning] = useState("");
   const [payslipLoading, setPayslipLoading] = useState("");
   const [payslipDialog, setPayslipDialog] = useState<PayslipDialogState | null>(null);
-  const [savingPayslipStatuses, setSavingPayslipStatuses] = useState(false);
+  const [generatingPayslip, setGeneratingPayslip] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
@@ -171,8 +169,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
 
   const payslipDialogOpen = Boolean(payslipDialog);
   useEffect(() => {
-    payslipDialogBusyRef.current = savingPayslipStatuses || Boolean(payslipLoading);
-  }, [savingPayslipStatuses, payslipLoading]);
+    payslipDialogBusyRef.current = generatingPayslip || Boolean(payslipLoading);
+  }, [generatingPayslip, payslipLoading]);
 
   useEffect(() => {
     if (!payslipDialogOpen) return;
@@ -393,16 +391,12 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         throw new Error("The salary slip response was incomplete. Please try again.");
       }
       const employeeName = [payload.employee.firstName, payload.employee.lastName].filter(Boolean).join(" ") || "Workforce member";
-      const statuses = Object.fromEntries(
-        payload.months.map((item) => [item.month, item.payment.status === "PAID" ? "PAID" : "UNPAID" as PayslipPaymentStatus]),
-      ) as Record<string, PayslipPaymentStatus>;
       setPayslipDialog({
         employeeId: targetEmployeeId,
         employeeName,
         startMonth: month,
         endMonth: month,
         payload,
-        statuses,
       });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to generate salary slip.");
@@ -413,7 +407,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
 
   async function loadSalarySlipPeriod() {
     const dialog = payslipDialog;
-    if (!dialog || payslipLoading || savingPayslipStatuses) return;
+    if (!dialog || payslipLoading || generatingPayslip) return;
     const validMonth = (value: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
     if (!validMonth(dialog.startMonth) || !validMonth(dialog.endMonth)) {
       setError("Choose valid start and end months for the salary slip.");
@@ -449,25 +443,35 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       if (!payload || !("months" in payload) || !Array.isArray(payload.months) || payload.months.length === 0) {
         throw new Error("The selected salary slip period returned no monthly records.");
       }
-      const statuses = Object.fromEntries(
-        payload.months.map((item) => [item.month, item.payment.status === "PAID" ? "PAID" : "UNPAID" as PayslipPaymentStatus]),
-      ) as Record<string, PayslipPaymentStatus>;
       setPayslipDialog((current) => current && current.employeeId === dialog.employeeId
-        ? { ...current, payload, statuses }
+        ? { ...current, payload }
         : current);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load the selected payroll period.");
     } finally {
-      payslipDialogBusyRef.current = Boolean(savingPayslipStatuses);
+      payslipDialogBusyRef.current = Boolean(generatingPayslip);
       setPayslipLoading("");
     }
   }
 
-  async function saveSalarySlipStatusesAndPrint() {
+  async function generateAndPrintSalarySlip() {
     const dialog = payslipDialog;
-    if (!dialog || savingPayslipStatuses) return;
+    if (!dialog || generatingPayslip || payslipLoading) return;
     if (dialog.startMonth !== dialog.payload.startMonth || dialog.endMonth !== dialog.payload.endMonth) {
-      setError("Load the selected payroll period before printing the salary slip.");
+      setError("Load the selected payroll period before generating the salary slip.");
+      return;
+    }
+
+    const validMonth = (value: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+    const monthOrdinal = (value: string) => Number(value.slice(0, 4)) * 12 + Number(value.slice(5, 7)) - 1;
+    if (!validMonth(dialog.startMonth) || !validMonth(dialog.endMonth)) {
+      setError("Choose valid start and end months for the salary slip.");
+      return;
+    }
+    const startOrdinal = monthOrdinal(dialog.startMonth);
+    const endOrdinal = monthOrdinal(dialog.endMonth);
+    if (startOrdinal > endOrdinal || endOrdinal - startOrdinal + 1 > 24) {
+      setError("Choose a valid payroll period of no more than 24 months.");
       return;
     }
 
@@ -479,42 +483,19 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     }
     payslipPrintWindowRef.current = printWindow;
     printWindow.document.open();
-    printWindow.document.write("<!doctype html><html><head><title>Preparing salary slip</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing salary slip…</h2><p>Saving and verifying monthly payment statuses.</p></body></html>");
+    printWindow.document.write("<!doctype html><html><head><title>Preparing salary slip</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing salary slip…</h2><p>Reading the latest payroll payment statuses.</p></body></html>");
     printWindow.document.close();
 
     payslipDialogBusyRef.current = true;
-    setSavingPayslipStatuses(true);
+    setGeneratingPayslip(true);
     setError("");
     setNotice("");
     try {
-      const statuses = dialog.payload.months.map((item) => ({
-        month: item.month,
-        status: item.payment.status === "PAID"
-          ? "PAID"
-          : dialog.statuses[item.month] || "UNPAID",
-        expectedRecorded: item.payment.recorded,
-        expectedStatus: item.payment.recorded
-          ? item.payment.status === "PAID" ? "PAID" : "UNPAID"
-          : null,
-      }));
-      const saveResponse = await fetch(
-        `/api/backend/payroll/payslips/${encodeURIComponent(dialog.employeeId)}`,
-        {
-          method: "PUT",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ statuses }),
-        },
-      );
-      const savePayload = await saveResponse.json().catch(() => null);
-      if (!saveResponse.ok) {
-        throw new Error(savePayload?.message || `Unable to save monthly payment statuses (${saveResponse.status}).`);
-      }
-
-      // Re-read the ledger so the PDF only contains persisted, authoritative payment states.
+      // Read the ledger again immediately before printing. This keeps the slip current
+      // without writing or changing any monthly salary payment records.
       const query = new URLSearchParams({
-        startMonth: dialog.payload.startMonth,
-        endMonth: dialog.payload.endMonth,
+        startMonth: dialog.startMonth,
+        endMonth: dialog.endMonth,
       });
       const response = await fetch(
         `/api/backend/payroll/payslips/${encodeURIComponent(dialog.employeeId)}?${query.toString()}`,
@@ -524,14 +505,19 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       if (!response.ok) {
         throw new Error(payload && "message" in payload && typeof payload.message === "string"
           ? payload.message
-          : `Unable to reload saved salary slips (${response.status}).`);
+          : `Unable to generate salary slip (${response.status}).`);
       }
-      if (!payload || !("months" in payload) || !Array.isArray(payload.months) ||
-          payload.months.length === 0 || payload.months.some((item) => !item.payment.recorded)) {
-        throw new Error("The monthly payment statuses were not all confirmed as stored. Reload the salary slip before printing.");
-      }
-      if (payload.months.some((item) => item.payment.status === "PAID" && dialog.statuses[item.month] !== "PAID")) {
-        throw new Error("A payroll month already recorded as PAID cannot be printed as UNPAID.");
+      if (
+        !payload ||
+        !("months" in payload) ||
+        !payload.employee ||
+        payload.employee.id !== dialog.employeeId ||
+        payload.startMonth !== dialog.startMonth ||
+        payload.endMonth !== dialog.endMonth ||
+        !Array.isArray(payload.months) ||
+        payload.months.length !== endOrdinal - startOrdinal + 1
+      ) {
+        throw new Error("The latest payroll data was incomplete. Reload the selected period and try again.");
       }
 
       if (!printWindow.closed) {
@@ -555,24 +541,27 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         } else {
           printWindow.addEventListener("load", () => window.setTimeout(printWhenReady, 250), { once: true });
         }
-        setNotice("Salary slip prepared. Every month's payment status is stored, and already-paid months remain marked PAID.");
+
+        const paidCount = payload.months.filter((item) => item.payment.status === "PAID").length;
+        const unpaidCount = payload.months.length - paidCount;
+        setNotice(`Salary slip generated from current payroll statuses: ${paidCount} PAID and ${unpaidCount} UNPAID. No payroll records were changed.`);
       } else {
-        setNotice("Monthly payment statuses were saved, but the print window was closed. Select Print salary slip again to print.");
+        setNotice("Salary slip data was loaded, but the print window was closed. Select Generate & print again.");
       }
       setPayslipDialog(null);
       payslipPrintWindowRef.current = null;
     } catch (caught) {
       if (!printWindow.closed) printWindow.close();
       payslipPrintWindowRef.current = null;
-      setError(caught instanceof Error ? caught.message : "Unable to save monthly salary statuses.");
+      setError(caught instanceof Error ? caught.message : "Unable to generate the salary slip.");
     } finally {
       payslipDialogBusyRef.current = Boolean(payslipLoading);
-      setSavingPayslipStatuses(false);
+      setGeneratingPayslip(false);
     }
   }
 
   function cancelSalarySlipPreparation() {
-    if (savingPayslipStatuses || payslipLoading) return;
+    if (generatingPayslip || payslipLoading) return;
     if (payslipPrintWindowRef.current && !payslipPrintWindowRef.current.closed) {
       payslipPrintWindowRef.current.close();
     }
@@ -880,13 +869,13 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       <div
         className="fixed inset-0 z-[10000] flex items-center justify-center overflow-y-auto bg-slate-950/55 p-3 sm:p-5"
         onMouseDown={(event) => {
-          if (event.target === event.currentTarget && !savingPayslipStatuses && !payslipLoading) cancelSalarySlipPreparation();
+          if (event.target === event.currentTarget && !generatingPayslip && !payslipLoading) cancelSalarySlipPreparation();
         }}
       >
         <section
           role="dialog"
           aria-modal="true"
-          aria-labelledby="salary-slip-status-title"
+          aria-labelledby="salary-slip-title"
           aria-describedby="salary-slip-status-description"
           ref={payslipDialogRef}
           tabIndex={-1}
@@ -895,14 +884,14 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
           <div className="flex items-start justify-between gap-4">
             <div>
               <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-sky-300"><FileDown size={15} /> Salary slip · PDF</span>
-              <h2 id="salary-slip-status-title" className="mt-2 text-xl font-bold">Prepare salary slip</h2>
+              <h2 id="salary-slip-title" className="mt-2 text-xl font-bold">Prepare salary slip</h2>
               <p className="mt-1 text-sm text-slate-300">{payslipDialog.employeeName}</p>
             </div>
             <button
               type="button"
               onClick={cancelSalarySlipPreparation}
-              disabled={savingPayslipStatuses || Boolean(payslipLoading)}
-              aria-label="Close salary slip status confirmation"
+              disabled={generatingPayslip || Boolean(payslipLoading)}
+              aria-label="Close salary slip preparation"
               className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-700 text-slate-400 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
             >
               <span aria-hidden="true">×</span>
@@ -915,7 +904,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
               <input
                 type="month"
                 value={payslipDialog.startMonth}
-                disabled={savingPayslipStatuses || Boolean(payslipLoading)}
+                disabled={generatingPayslip || Boolean(payslipLoading)}
                 onChange={(event) => setPayslipDialog((current) => current ? { ...current, startMonth: event.target.value } : current)}
                 className={INPUT}
               />
@@ -925,7 +914,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
               <input
                 type="month"
                 value={payslipDialog.endMonth}
-                disabled={savingPayslipStatuses || Boolean(payslipLoading)}
+                disabled={generatingPayslip || Boolean(payslipLoading)}
                 onChange={(event) => setPayslipDialog((current) => current ? { ...current, endMonth: event.target.value } : current)}
                 className={INPUT}
               />
@@ -933,7 +922,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             <button
               type="button"
               onClick={() => void loadSalarySlipPeriod()}
-              disabled={savingPayslipStatuses || Boolean(payslipLoading)}
+              disabled={generatingPayslip || Boolean(payslipLoading)}
               className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-sky-300/25 px-3 py-2 text-xs font-bold text-sky-100 transition hover:bg-sky-300/10 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {payslipLoading === payslipDialog.employeeId ? <RefreshCw size={13} className="animate-spin"/> : <Clock3 size={13}/>}
@@ -944,15 +933,14 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             </p>
           </div>
           <p id="salary-slip-status-description" className="mt-3 text-sm leading-6 text-slate-300">
-            Review each month's recorded payment status. An already-paid month stays PAID and cannot be changed to UNPAID for printing. Unrecorded months are saved as UNPAID unless you explicitly mark them PAID and the payroll calculation is complete.
+            Each salary slip uses the current status from the payroll ledger. PAID months print as PAID; UNPAID or unrecorded months print as UNPAID. Generating a slip does not save or change any payroll payment record.
           </p>
 
           <div className="mt-4 space-y-2">
             {payslipDialog.payload.months.map((monthRecord) => {
-              const originalStatus = monthRecord.payment.status === "PAID" ? "PAID" : "UNPAID";
-              const status = payslipDialog.statuses[monthRecord.month] ?? originalStatus;
-              const isPaidAndLocked = monthRecord.payment.recorded && monthRecord.payment.status === "PAID";
-              const hasSavedSelection = monthRecord.payment.recorded && status === originalStatus;
+              const status = monthRecord.payment.status === "PAID" ? "PAID" : "UNPAID";
+              const isPaid = status === "PAID";
+              const isRecorded = monthRecord.payment.recorded;
               const monthLabel = new Intl.DateTimeFormat("en", {
                 month: "long",
                 year: "numeric",
@@ -963,49 +951,21 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                   <div className="min-w-0">
                     <p className="font-semibold text-slate-100">{monthLabel}</p>
                     <p className="mt-1 text-xs text-slate-400">
-                      {hasSavedSelection
+                      {isRecorded
                         ? "Status already stored in payroll"
-                        : monthRecord.payment.recorded
-                          ? "Changed — will be saved before printing"
-                          : "Not stored yet — will be saved before printing"}
+                        : "No payment record · this salary slip will show UNPAID"}
                     </p>
-                    {isPaidAndLocked ? (
-                      <p className="mt-1 text-xs text-emerald-200">Already paid · locked to prevent an unpaid salary slip.</p>
-                    ) : status === "PAID" ? (
-                      <p className="mt-1 text-xs text-amber-200">PAID is accepted only when complete payable earnings and valid rates are available.</p>
-                    ) : null}
+                    {isPaid && (
+                      <p className="mt-1 text-xs text-emerald-200">Already paid · this salary slip will show PAID.</p>
+                    )}
                   </div>
-                  {isPaidAndLocked ? (
-                    <div aria-label="Payment status: PAID, locked" className="min-w-0">
-                      <span className="block text-xs font-semibold text-slate-400">Payment status</span>
-                      <div role="status" className="mt-1.5 flex min-h-11 items-center justify-between gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.07] px-3 py-2">
-                        <span className="inline-flex items-center gap-2 text-sm font-bold text-emerald-200"><LockKeyhole size={14}/>PAID</span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300/80">Locked</span>
-                      </div>
+                  <div aria-label={`Payment status: ${status}, read only`} className="min-w-0">
+                    <span className="block text-xs font-semibold text-slate-400">Payment status · read only</span>
+                    <div role="status" className={`mt-1.5 flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-2 ${isPaid ? "border-emerald-400/20 bg-emerald-400/[0.07]" : "border-amber-400/20 bg-amber-400/[0.06]"}`}>
+                      <span className={`text-sm font-bold ${isPaid ? "text-emerald-200" : "text-amber-200"}`}>{status}</span>
+                      <span className={`text-[10px] font-semibold uppercase tracking-wide ${isRecorded ? "text-slate-300" : "text-amber-200"}`}>{isRecorded ? "Recorded" : "Not recorded"}</span>
                     </div>
-                  ) : (
-                    <label className="block text-xs font-semibold text-slate-400">
-                      Payment status
-                      <select
-                        value={status}
-                        disabled={savingPayslipStatuses || Boolean(payslipLoading)}
-                        onChange={(event) => {
-                          const nextStatus = event.target.value as PayslipPaymentStatus;
-                          setPayslipDialog((current) => current ? {
-                            ...current,
-                            statuses: {
-                              ...current.statuses,
-                              [monthRecord.month]: nextStatus,
-                            },
-                          } : current);
-                        }}
-                        className={INPUT}
-                      >
-                        <option value="UNPAID">UNPAID</option>
-                        <option value="PAID">PAID</option>
-                      </select>
-                    </label>
-                  )}
+                  </div>
                 </div>
               );
             })}
@@ -1021,19 +981,19 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             <button
               type="button"
               onClick={cancelSalarySlipPreparation}
-              disabled={savingPayslipStatuses || Boolean(payslipLoading)}
+              disabled={generatingPayslip || Boolean(payslipLoading)}
               className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.05] disabled:opacity-40"
             >
               Cancel
             </button>
             <button
               type="button"
-              onClick={() => void saveSalarySlipStatusesAndPrint()}
-              disabled={savingPayslipStatuses || Boolean(payslipLoading) || payslipDialog.startMonth !== payslipDialog.payload.startMonth || payslipDialog.endMonth !== payslipDialog.payload.endMonth}
+              onClick={() => void generateAndPrintSalarySlip()}
+              disabled={generatingPayslip || Boolean(payslipLoading) || payslipDialog.startMonth !== payslipDialog.payload.startMonth || payslipDialog.endMonth !== payslipDialog.payload.endMonth}
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 disabled:cursor-wait disabled:opacity-50"
             >
-              {savingPayslipStatuses ? <RefreshCw size={15} className="animate-spin" /> : <Printer size={15} />}
-              {savingPayslipStatuses ? "Saving statuses…" : payslipDialog.startMonth !== payslipDialog.payload.startMonth || payslipDialog.endMonth !== payslipDialog.payload.endMonth ? "Load selected period first" : "Save statuses & print"}
+              {generatingPayslip ? <RefreshCw size={15} className="animate-spin" /> : <Printer size={15} />}
+              {generatingPayslip ? "Generating slip…" : payslipDialog.startMonth !== payslipDialog.payload.startMonth || payslipDialog.endMonth !== payslipDialog.payload.endMonth ? "Load selected period first" : "Generate & print salary slip"}
             </button>
           </div>
         </section>
