@@ -492,6 +492,10 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         status: item.payment.status === "PAID"
           ? "PAID"
           : dialog.statuses[item.month] || "UNPAID",
+        expectedRecorded: item.payment.recorded,
+        expectedStatus: item.payment.recorded
+          ? item.payment.status === "PAID" ? "PAID" : "UNPAID"
+          : null,
       }));
       const saveResponse = await fetch(
         `/api/backend/payroll/payslips/${encodeURIComponent(dialog.employeeId)}`,
@@ -930,11 +934,11 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             <button
               type="button"
               onClick={() => void loadSalarySlipPeriod()}
-              disabled={savingPayslipStatuses || Boolean(payslipLoading) || (payslipDialog.startMonth === payslipDialog.payload.startMonth && payslipDialog.endMonth === payslipDialog.payload.endMonth)}
+              disabled={savingPayslipStatuses || Boolean(payslipLoading)}
               className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-sky-300/25 px-3 py-2 text-xs font-bold text-sky-100 transition hover:bg-sky-300/10 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {payslipLoading === payslipDialog.employeeId ? <RefreshCw size={13} className="animate-spin"/> : <Clock3 size={13}/>}
-              Load period
+              Reload period
             </button>
             <p className="text-xs leading-5 text-slate-300 sm:col-span-3">
               Choose a start and end month (maximum 24 months). The selected months and their payment states are loaded from the payroll ledger before printing.
