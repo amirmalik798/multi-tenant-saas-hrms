@@ -758,7 +758,7 @@ export async function PUT(request: Request, context: RouteContext) {
     const savedStatuses: Array<{ month: string; status: "PAID" | "UNPAID"; amount: string; currencyCode: string }> = [];
 
     for (const requested of requestedStatuses) {
-      const calculation = await calculateOrganizationMonthlyPay(pool, actor.organizationId, requested.month);
+      const calculation = await calculateOrganizationMonthlyPay(pool, actor.organizationId, requested.month, employeeId);
       const monthlyEstimate = calculation.get(employeeId);
       const existingResult = await client.query<{
         amount: string;
