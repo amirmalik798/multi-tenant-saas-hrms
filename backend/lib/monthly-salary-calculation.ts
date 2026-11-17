@@ -31,6 +31,12 @@ function amountForMinutes(minutes: number, rate: number): number {
   return Math.round((minutes / 60) * rate * 100) / 100;
 }
 
+function validRate(value: string | number | null): number | null {
+  if (value === null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
 /**
  * Calculates estimated monthly pay from effective attendance events, approved paid leave,
  * paid public holidays, approved overtime, and the pay rate active on each work date.
@@ -38,7 +44,12 @@ function amountForMinutes(minutes: number, rate: number): number {
  * attendance events. They never create clock events or double-count a day. This function
  * does not create or mark a payment paid.
  */
-export async function calculateOrganizationMonthlyPay(pool: Pool, organizationId: string, month: string) {
+export async function calculateOrganizationMonthlyPay(
+  pool: Pool,
+  organizationId: string,
+  month: string,
+  employeeId?: string,
+) {
   const [year, monthNumber] = month.split("-").map(Number);
   const fromDate = `${month}-01`;
   const toDate = new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10);
@@ -52,6 +63,7 @@ export async function calculateOrganizationMonthlyPay(pool: Pool, organizationId
        FROM public.employees e
        LEFT JOIN public.organization_settings os ON os.organization_id = e.organization_id
        WHERE e.organization_id = $1::uuid
+         AND ($4::uuid IS NULL OR e.id = $4::uuid)
      ),
      scheduled_days AS (
        SELECT DISTINCT ON (ec.id, cd.work_date)
@@ -131,7 +143,7 @@ export async function calculateOrganizationMonthlyPay(pool: Pool, organizationId
        ORDER BY pr.effective_from DESC, pr.created_at DESC LIMIT 1
      ) rate ON TRUE
      ORDER BY ec.id, cd.work_date`,
-    [organizationId, fromDate, toDate],
+    [organizationId, fromDate, toDate, employeeId ?? null],
   );
 
   const totals = new Map<string, { workedMinutes: number; regularMinutes: number; overtimeMinutes: number; paidLeaveMinutes: number; paidHolidayMinutes: number; payableMinutes: number; amount: number | null; regularAmount: number; overtimeAmount: number; paidAbsenceAmount: number; currencyCode: string | null; hasRate: boolean; currencyMismatch: boolean }>();
@@ -143,8 +155,8 @@ export async function calculateOrganizationMonthlyPay(pool: Pool, organizationId
       scheduledBreakMinutes: row.scheduledBreakMinutes,
       approvedOvertimeMinutes: row.approvedOvertimeMinutes,
     });
-    const hourlyRate = row.hourlyRate == null ? null : Number(row.hourlyRate);
-    const overtimeRate = row.overtimeRate == null ? null : Number(row.overtimeRate);
+    const hourlyRate = validRate(row.hourlyRate);
+    const overtimeRate = validRate(row.overtimeRate);
     const startMs = row.expectedStart == null ? NaN : row.expectedStart instanceof Date ? row.expectedStart.getTime() : Date.parse(row.expectedStart);
     const endMs = row.expectedEnd == null ? NaN : row.expectedEnd instanceof Date ? row.expectedEnd.getTime() : Date.parse(row.expectedEnd);
     const scheduledMinutes = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs

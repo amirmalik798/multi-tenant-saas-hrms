@@ -290,9 +290,9 @@ const workspaceItems: PaletteItem[] = [
   },
   {
     id: "daily-attendance-report",
-    label: "Daily attendance report",
-    description: "Generate the existing organization-scoped attendance PDF",
-    keywords: "reports analytics daily attendance pdf report records",
+    label: "Attendance reports",
+    description: "Generate PDF attendance reports for Department Managers and Employees",
+    keywords: "attendance reports pdf department manager employee monthly hours records",
     section: "Reports & governance",
     icon: FileBarChart,
     href: "/hr/reports",

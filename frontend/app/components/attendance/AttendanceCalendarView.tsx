@@ -428,7 +428,9 @@ export default function AttendanceCalendarView({ audience, compact = false, acto
     ? "Review your assigned shifts and recorded punches."
     : audience === "department-manager"
       ? "Review schedule coverage and recorded attendance for employees in your assigned departments."
-      : "Review organization attendance records and schedule coverage.";
+      : audience === "hr-manager"
+        ? "Review attendance and schedule coverage for Employees and Department Managers in your permitted workforce scope."
+        : "Review organization attendance records and schedule coverage.";
 
   function setWeekRange(offset: number) {
     const baseDate = offset === 0

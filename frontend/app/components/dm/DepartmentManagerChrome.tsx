@@ -180,11 +180,11 @@ const commandItems: CommandItem[] = [
 
   {
     id: "reports",
-    label: "Reporting, audit, imports & data governance",
-    description: "Department-scoped reporting tools are not enabled yet",
-    keywords: "reports audit imports data governance analytics",
+    label: "Attendance reports",
+    description: "Generate PDF attendance reports for employees in your assigned departments",
+    keywords: "attendance reports pdf employees monthly hours records department",
+    href: "/dm/reports",
     icon: FileBarChart,
-    comingSoon: true,
   },
   {
     id: "account",
@@ -466,7 +466,7 @@ export function DepartmentManagerShell({
 
   const navigationGroups: { id: string; label: string; itemIds: string[] }[] = [
     { id: "overview", label: "Overview & people", itemIds: ["overview", "team", "profile", "departments"] },
-    { id: "time", label: "Time & requests", itemIds: ["schedule", "attendance", "reviews", "leave"] },
+    { id: "time", label: "Time & requests", itemIds: ["schedule", "attendance", "reports", "reviews", "leave"] },
     { id: "operations", label: "Pay & communication", itemIds: ["my-earnings", "payroll", "communications"] },
   ];
 

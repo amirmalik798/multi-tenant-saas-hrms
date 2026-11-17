@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Clock3, RefreshCw, Users } from "lucide-react";
 import { formatDate, formatTime } from "../../../lib/attendance-format";
+import AttendanceReportsWorkspace from "./AttendanceReportsWorkspace";
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
 import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
@@ -34,7 +35,6 @@ type Entry = {
   publicHoliday?: { name?: string; isPaid?: boolean } | null;
 };
 type Props = { audience: "employee" | "hr-manager-self" | "department-manager" | "hr-manager" | "organization-admin"; actorEmployeeId?: string };
-
 function monthInTimeZone(date: Date, timeZone: string): string {
   try {
     const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit" }).formatToParts(date);
@@ -273,7 +273,9 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
   }, { regular: 0, overtime: 0, missingRateDays: 0, currency: "" }), [visible, payRates]);
   const money = (value: number, currency: string) => currency ? `${currency} ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—";
 
+
   return <div className="space-y-4">
+    {audience === "employee" && <AttendanceReportsWorkspace audience="employee" />}
     <section className={PANEL}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div><h3 className="flex items-center gap-2 text-base font-semibold text-slate-100"><CalendarDays size={18} className="text-sky-300"/>Monthly hours</h3><p className="mt-1 text-sm leading-5 text-slate-400">Daily hours are calculated by the server from attendance records, shift rules and approved overtime.</p></div>
