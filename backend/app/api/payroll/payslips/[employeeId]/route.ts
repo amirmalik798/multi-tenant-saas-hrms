@@ -146,7 +146,7 @@ export async function GET(request: Request, context: RouteContext) {
          e.last_name AS "lastName",
          e.email,
          d.name AS "departmentName",
-         workforce_role.name AS "workforceRole",
+         COALESCE(account_role.name, workforce_role.name) AS "workforceRole",
          e.employment_status AS "employmentStatus",
          o.name AS "organizationName",
          COALESCE(NULLIF(os.time_zone, ''), 'Africa/Kigali') AS "timeZone",
@@ -183,6 +183,23 @@ export async function GET(request: Request, context: RouteContext) {
        LEFT JOIN public.roles AS workforce_role
          ON workforce_role.id = e.workforce_role_id
         AND workforce_role.organization_id = e.organization_id
+       LEFT JOIN LATERAL (
+         SELECT linked_role.name
+         FROM public.users AS workforce_account
+         JOIN public.roles AS linked_role
+           ON linked_role.id = workforce_account.role_id
+          AND linked_role.organization_id = workforce_account.organization_id
+          AND linked_role.scope = 'ORGANIZATION'
+         WHERE workforce_account.employee_id = e.id
+           AND workforce_account.organization_id = e.organization_id
+           AND workforce_account.account_scope = 'ORGANIZATION'
+         ORDER BY
+           CASE WHEN workforce_account.status = 'ACTIVE' THEN 0 ELSE 1 END,
+           workforce_account.updated_at DESC NULLS LAST,
+           workforce_account.created_at DESC NULLS LAST,
+           workforce_account.id
+         LIMIT 1
+       ) AS account_role ON TRUE
        WHERE e.id = $1::uuid
          AND e.organization_id = $2::uuid
        LIMIT 1`,
@@ -657,7 +674,7 @@ export async function PUT(request: Request, context: RouteContext) {
     }>(
       `SELECT
          e.id,
-         workforce_role.name AS "workforceRole",
+         COALESCE(account_role.name, workforce_role.name) AS "workforceRole",
          EXISTS (
            SELECT 1
            FROM public.users AS target_account
@@ -684,6 +701,23 @@ export async function PUT(request: Request, context: RouteContext) {
        LEFT JOIN public.roles AS workforce_role
          ON workforce_role.id = e.workforce_role_id
         AND workforce_role.organization_id = e.organization_id
+       LEFT JOIN LATERAL (
+         SELECT linked_role.name
+         FROM public.users AS workforce_account
+         JOIN public.roles AS linked_role
+           ON linked_role.id = workforce_account.role_id
+          AND linked_role.organization_id = workforce_account.organization_id
+          AND linked_role.scope = 'ORGANIZATION'
+         WHERE workforce_account.employee_id = e.id
+           AND workforce_account.organization_id = e.organization_id
+           AND workforce_account.account_scope = 'ORGANIZATION'
+         ORDER BY
+           CASE WHEN workforce_account.status = 'ACTIVE' THEN 0 ELSE 1 END,
+           workforce_account.updated_at DESC NULLS LAST,
+           workforce_account.created_at DESC NULLS LAST,
+           workforce_account.id
+         LIMIT 1
+       ) AS account_role ON TRUE
        WHERE e.id = $1::uuid
          AND e.organization_id = $2::uuid
        FOR UPDATE OF e`,
