@@ -215,7 +215,7 @@ export async function GET(request: Request) {
              AND cr.employee_id = ae.employee_id
              AND cr.original_event_id = ae.id
              AND cr.status = 'APPROVED'
-           ORDER BY cr.decision_at DESC
+           ORDER BY cr.decision_at DESC, cr.id DESC
            LIMIT 1
          ) AS c ON TRUE
          WHERE ae.organization_id = $1::uuid
