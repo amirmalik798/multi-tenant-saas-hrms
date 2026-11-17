@@ -947,7 +947,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             <button
               type="button"
               onClick={cancelSalarySlipPreparation}
-              disabled={savingPayslipStatuses || Boolean(payslipLoading) || payslipDialog.startMonth !== payslipDialog.payload.startMonth || payslipDialog.endMonth !== payslipDialog.payload.endMonth}
+              disabled={savingPayslipStatuses || Boolean(payslipLoading)}
               className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.05] disabled:opacity-40"
             >
               Cancel
@@ -955,7 +955,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             <button
               type="button"
               onClick={() => void saveSalarySlipStatusesAndPrint()}
-              disabled={savingPayslipStatuses}
+              disabled={savingPayslipStatuses || Boolean(payslipLoading) || payslipDialog.startMonth !== payslipDialog.payload.startMonth || payslipDialog.endMonth !== payslipDialog.payload.endMonth}
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 disabled:cursor-wait disabled:opacity-50"
             >
               {savingPayslipStatuses ? <RefreshCw size={15} className="animate-spin" /> : <Printer size={15} />}
