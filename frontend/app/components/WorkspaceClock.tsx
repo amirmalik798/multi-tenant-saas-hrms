@@ -1,11 +1,45 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Clock3 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertCircle, ArrowRight, CheckCircle2, Clock3, LoaderCircle, LogIn, LogOut, X } from "lucide-react";
 
 type ClockSnapshot = { time: string; date: string; zone: string };
 type ContextStatus = "loading" | "ready" | "unavailable";
 type AttendanceStatus = "CLOCKED_IN" | "CLOCKED_OUT" | "loading" | "unavailable";
+type ConfirmedAttendanceStatus = Extract<AttendanceStatus, "CLOCKED_IN" | "CLOCKED_OUT">;
+type ClockAction = "CLOCK_IN" | "CLOCK_OUT";
+type AttendanceStatusResponse = {
+  clockStatus?: unknown;
+  data?: { clockStatus?: unknown };
+  message?: unknown;
+};
+type AttendanceEventResponse = {
+  message?: unknown;
+  event?: { recordedAt?: unknown } | null;
+};
+
+async function readAttendanceStatus(): Promise<ConfirmedAttendanceStatus> {
+  const response = await fetch("/api/backend/attendance/events", {
+    method: "GET",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  const payload = await response.json().catch(() => null) as AttendanceStatusResponse | null;
+
+  if (!response.ok) {
+    throw new Error(
+      typeof payload?.message === "string"
+        ? payload.message
+        : "Attendance status is unavailable. Please try again.",
+    );
+  }
+
+  const status = payload?.clockStatus ?? payload?.data?.clockStatus;
+  if (status !== "CLOCKED_IN" && status !== "CLOCKED_OUT") {
+    throw new Error("Your current attendance status could not be confirmed.");
+  }
+  return status;
+}
 
 function readClock(timeZone: string | null): ClockSnapshot | null {
   const now = new Date();
@@ -54,6 +88,15 @@ export default function WorkspaceClock({
   const [attendanceStatus, setAttendanceStatus] = useState<AttendanceStatus>(
     showAttendanceStatus ? "loading" : "unavailable",
   );
+  const [clockModalOpen, setClockModalOpen] = useState(false);
+  const [modalStatusLoading, setModalStatusLoading] = useState(false);
+  const [clockSubmitting, setClockSubmitting] = useState(false);
+  const [clockStatusError, setClockStatusError] = useState("");
+  const [clockActionError, setClockActionError] = useState("");
+  const [clockActionResult, setClockActionResult] = useState<"success" | null>(null);
+  const [completedAction, setCompletedAction] = useState<ClockAction | null>(null);
+  const [recordedAtLabel, setRecordedAtLabel] = useState("");
+  const attendanceStatusRevisionRef = useRef(0);
 
   useEffect(() => {
     if (!showAttendanceStatus) return;
@@ -66,23 +109,11 @@ export default function WorkspaceClock({
       requestInFlight = true;
 
       try {
-        const response = await fetch("/api/backend/attendance/events", {
-          method: "GET",
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-        if (!response.ok) throw new Error("Attendance status unavailable");
-
-        const payload = await response.json().catch(() => null) as
-          | { clockStatus?: unknown; data?: { clockStatus?: unknown } }
-          | null;
-        const status = payload?.clockStatus ?? payload?.data?.clockStatus;
-
-        if (status !== "CLOCKED_IN" && status !== "CLOCKED_OUT") {
-          throw new Error("Attendance status was not confirmed");
+        const revision = attendanceStatusRevisionRef.current;
+        const status = await readAttendanceStatus();
+        if (active && revision === attendanceStatusRevisionRef.current) {
+          setAttendanceStatus(status);
         }
-
-        if (active) setAttendanceStatus(status);
       } catch {
         if (active) setAttendanceStatus("unavailable");
       } finally {
@@ -160,6 +191,155 @@ export default function WorkspaceClock({
     return () => window.clearInterval(timer);
   }, [contextStatus, requireOrganizationTimeZone, timeZone]);
 
+  async function refreshModalAttendanceStatus() {
+    setModalStatusLoading(true);
+    setClockStatusError("");
+    try {
+      const status = await readAttendanceStatus();
+      attendanceStatusRevisionRef.current += 1;
+      setAttendanceStatus(status);
+    } catch (caught) {
+      setClockStatusError(
+        caught instanceof Error
+          ? caught.message
+          : "Your attendance status could not be loaded. Please try again.",
+      );
+    } finally {
+      setModalStatusLoading(false);
+    }
+  }
+
+  async function openClockConfirmation() {
+    if (!showAttendanceStatus) return;
+    setClockModalOpen(true);
+    setClockStatusError("");
+    setClockActionError("");
+    setClockActionResult(null);
+    setCompletedAction(null);
+    setRecordedAtLabel("");
+
+    if (attendanceStatus === "loading" || attendanceStatus === "unavailable") {
+      await refreshModalAttendanceStatus();
+    }
+  }
+
+  function closeClockConfirmation() {
+    if (clockSubmitting) return;
+    setClockModalOpen(false);
+    setClockStatusError("");
+    setClockActionError("");
+    setClockActionResult(null);
+    setCompletedAction(null);
+    setRecordedAtLabel("");
+  }
+
+  async function confirmClockAction() {
+    const action: ClockAction | null =
+      attendanceStatus === "CLOCKED_IN"
+        ? "CLOCK_OUT"
+        : attendanceStatus === "CLOCKED_OUT"
+          ? "CLOCK_IN"
+          : null;
+
+    if (!action) {
+      setClockStatusError("Your current attendance status could not be confirmed. Refresh it before continuing.");
+      return;
+    }
+
+    if (!snapshot || (requireOrganizationTimeZone && contextStatus !== "ready")) {
+      setClockStatusError("The organization's current time is unavailable. Please try again when it has loaded.");
+      return;
+    }
+
+    setClockSubmitting(true);
+    setClockActionError("");
+    try {
+      const response = await fetch("/api/backend/attendance/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        cache: "no-store",
+        body: JSON.stringify({ action }),
+      });
+      const payload = await response.json().catch(() => null) as AttendanceEventResponse | null;
+
+      if (!response.ok) {
+        throw new Error(
+          typeof payload?.message === "string"
+            ? payload.message
+            : "Your attendance action could not be recorded. Please try again.",
+        );
+      }
+
+      attendanceStatusRevisionRef.current += 1;
+      setAttendanceStatus(action === "CLOCK_IN" ? "CLOCKED_IN" : "CLOCKED_OUT");
+      setCompletedAction(action);
+      setClockActionResult("success");
+
+      if (typeof payload?.event?.recordedAt === "string") {
+        const recordedAt = new Date(payload.event.recordedAt);
+        if (!Number.isNaN(recordedAt.getTime())) {
+          try {
+            setRecordedAtLabel(
+              new Intl.DateTimeFormat("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: true,
+                ...(timeZone ? { timeZone } : {}),
+              }).format(recordedAt),
+            );
+          } catch {
+            setRecordedAtLabel(snapshot.time);
+          }
+        }
+      }
+
+      window.dispatchEvent(new Event("hrms:attendance-status-changed"));
+    } catch (caught) {
+      setClockActionError(
+        caught instanceof Error
+          ? caught.message
+          : "Your attendance action could not be recorded. Please try again.",
+      );
+      try {
+        const latestStatus = await readAttendanceStatus();
+        attendanceStatusRevisionRef.current += 1;
+        setAttendanceStatus(latestStatus);
+      } catch {
+        // Keep the original action error visible; the regular status refresh will retry.
+      }
+    } finally {
+      setClockSubmitting(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!clockModalOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !clockSubmitting) {
+        setClockModalOpen(false);
+        setClockStatusError("");
+        setClockActionError("");
+        setClockActionResult(null);
+        setCompletedAction(null);
+        setRecordedAtLabel("");
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [clockModalOpen, clockSubmitting]);
+
+  const currentClockAction: ClockAction | null =
+    attendanceStatus === "CLOCKED_IN"
+      ? "CLOCK_OUT"
+      : attendanceStatus === "CLOCKED_OUT"
+        ? "CLOCK_IN"
+        : null;
+  const displayedAction = clockActionResult === "success" && completedAction
+    ? completedAction
+    : currentClockAction;
+  const displayedActionName = displayedAction === "CLOCK_IN" ? "clock-in" : "clock-out";
   const attendanceLabel =
     attendanceStatus === "CLOCKED_IN" ? "CLOCKED IN" :
     attendanceStatus === "CLOCKED_OUT" ? "CLOCKED OUT" :
@@ -190,32 +370,279 @@ export default function WorkspaceClock({
     ? contextStatus === "loading" ? "Loading organization time…" : "Organization time unavailable"
     : "Workspace time";
 
-  return (
-    <div
-      aria-label={showAttendanceStatus
-        ? `${attendanceLabel}. ${snapshot ? `${snapshot.time}, ${snapshot.date}, ${snapshot.zone}` : statusLabel}`
-        : snapshot ? `Workspace time ${snapshot.time}, ${snapshot.date}, ${snapshot.zone}` : statusLabel}
-      title={snapshot ? `${snapshot.date} · ${snapshot.zone}` : statusLabel}
-      className={`sa-workspace-clock flex min-w-[112px] shrink-0 items-center gap-1.5 rounded-xl border px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:min-w-[150px] sm:gap-2 sm:px-3 sm:py-2 ${containerTone}`} data-workspace-clock="true"
-    >
-      <span className={`flex size-7 items-center justify-center rounded-lg border sm:size-8 ${iconTone}`}>
+  const clockContent = (
+    <>
+      <span className={"flex size-7 items-center justify-center rounded-lg border sm:size-8 " + iconTone}>
         <Clock3 size={14} className="sm:hidden" />
         <Clock3 size={16} className="hidden sm:block" />
       </span>
-      <span className="min-w-0">
+      <span className="min-w-0 text-left">
         <span className="sa-clock-time flex items-center gap-1.5 whitespace-nowrap font-mono text-[11px] font-bold tabular-nums tracking-tight text-slate-100 sm:text-sm">
           {snapshot?.time ?? "--:--:--"}
           {showAttendanceStatus && (
-            <span className={`inline-flex items-center gap-1 rounded-md border border-current/15 bg-black/10 px-1.5 py-0.5 font-sans text-[8px] font-extrabold tracking-[0.08em] sm:text-[9px] ${attendanceTone.label}`}>
-              <span className={`size-1.5 rounded-full ${attendanceTone.dot}`} />
+            <span className={"inline-flex items-center gap-1 rounded-md border border-current/15 bg-black/10 px-1.5 py-0.5 font-sans text-[8px] font-extrabold tracking-[0.08em] sm:text-[9px] " + attendanceTone.label}>
+              <span className={"size-1.5 rounded-full " + attendanceTone.dot} />
               {attendanceLabel}
             </span>
           )}
         </span>
         <span className="sa-clock-date hidden max-w-44 truncate text-[10px] font-medium text-slate-400 md:block">
-          {snapshot ? `${snapshot.date} · ${snapshot.zone}` : statusLabel}
+          {snapshot ? snapshot.date + " · " + snapshot.zone : statusLabel}
         </span>
       </span>
-    </div>
+    </>
+  );
+
+  const modalCanConfirm = Boolean(
+    currentClockAction &&
+    snapshot &&
+    (!requireOrganizationTimeZone || contextStatus === "ready") &&
+    !modalStatusLoading &&
+    !clockSubmitting &&
+    clockActionResult !== "success" &&
+    !clockStatusError
+  );
+
+  return (
+    <>
+      {showAttendanceStatus ? (
+        <button
+          type="button"
+          onClick={() => { void openClockConfirmation(); }}
+          aria-label={
+            currentClockAction
+              ? "Attendance clock. Click to confirm " + displayedActionName + ". Current status " + attendanceLabel + "."
+              : "Attendance clock. " + attendanceLabel + ". Click to check attendance status."
+          }
+          title={
+            currentClockAction
+              ? "Click to confirm " + displayedActionName
+              : "Click to check your attendance status"
+          }
+          aria-haspopup="dialog"
+          aria-expanded={clockModalOpen}
+          data-workspace-clock="true"
+          data-workspace-clock-interactive="true"
+          className={
+            "sa-workspace-clock group flex min-w-[112px] shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border px-2 py-1.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition duration-200 hover:-translate-y-0.5 hover:border-sky-300/50 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-sky-300/80 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 active:translate-y-0 sm:min-w-[150px] sm:gap-2 sm:px-3 sm:py-2 " +
+            containerTone
+          }
+        >
+          {clockContent}
+          <ArrowRight
+            size={13}
+            aria-hidden="true"
+            className="ml-auto shrink-0 text-sky-200/60 transition-transform group-hover:translate-x-0.5 group-hover:text-sky-100"
+          />
+        </button>
+      ) : (
+        <div
+          aria-label={
+            snapshot
+              ? "Workspace time " + snapshot.time + ", " + snapshot.date + ", " + snapshot.zone
+              : statusLabel
+          }
+          title={snapshot ? snapshot.date + " · " + snapshot.zone : statusLabel}
+          data-workspace-clock="true"
+          className={
+            "sa-workspace-clock flex min-w-[112px] shrink-0 items-center gap-1.5 rounded-xl border px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:min-w-[150px] sm:gap-2 sm:px-3 sm:py-2 " +
+            containerTone
+          }
+        >
+          {clockContent}
+        </div>
+      )}
+
+      {showAttendanceStatus && clockModalOpen && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-md"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeClockConfirmation();
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="workspace-clock-dialog-title"
+            aria-describedby="workspace-clock-dialog-description"
+            onMouseDown={(event) => event.stopPropagation()}
+            className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-700/80 bg-[#0b1220] shadow-[0_28px_100px_rgba(0,0,0,0.6)]"
+          >
+            <div className="h-1 w-full bg-gradient-to-r from-sky-400 via-indigo-400 to-cyan-300" />
+            <div className="p-5 sm:p-7">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className={
+                    "flex size-12 shrink-0 items-center justify-center rounded-2xl border " +
+                    (clockActionResult === "success"
+                      ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200"
+                      : displayedAction === "CLOCK_OUT"
+                        ? "border-rose-300/25 bg-rose-400/10 text-rose-200"
+                        : "border-sky-300/25 bg-sky-400/10 text-sky-200")
+                  }>
+                    {clockActionResult === "success" ? (
+                      <CheckCircle2 size={24} />
+                    ) : displayedAction === "CLOCK_OUT" ? (
+                      <LogOut size={23} />
+                    ) : displayedAction === "CLOCK_IN" ? (
+                      <LogIn size={23} />
+                    ) : (
+                      <Clock3 size={23} />
+                    )}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-300/80">
+                      Attendance confirmation
+                    </p>
+                    <h2 id="workspace-clock-dialog-title" className="mt-1 text-lg font-bold tracking-tight text-white sm:text-xl">
+                      {clockActionResult === "success"
+                        ? (completedAction === "CLOCK_IN" ? "Clock-in recorded" : "Clock-out recorded")
+                        : modalStatusLoading
+                          ? "Checking attendance"
+                          : clockStatusError && !currentClockAction
+                            ? "Attendance status unavailable"
+                            : currentClockAction === "CLOCK_IN"
+                              ? "Confirm clock-in"
+                              : currentClockAction === "CLOCK_OUT"
+                                ? "Confirm clock-out"
+                                : "Attendance clock"}
+                    </h2>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeClockConfirmation}
+                  disabled={clockSubmitting}
+                  aria-label="Close attendance confirmation"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-white/[0.03] text-slate-400 transition hover:border-slate-500 hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <X size={17} />
+                </button>
+              </div>
+
+              <p id="workspace-clock-dialog-description" className="mt-5 text-sm leading-relaxed text-slate-300">
+                {clockActionResult === "success"
+                  ? "Your attendance event has been saved successfully."
+                  : currentClockAction === "CLOCK_IN"
+                    ? "Please confirm that you are starting your work shift now."
+                    : currentClockAction === "CLOCK_OUT"
+                      ? "Please confirm that you are ending your current work session now."
+                      : "We are checking your latest attendance record before allowing a clock action."}
+              </p>
+
+              <div className="mt-5 rounded-2xl border border-slate-700/80 bg-gradient-to-br from-slate-800/90 to-slate-900/90 p-4 sm:p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                    Current organization time
+                  </span>
+                  <span className="rounded-full border border-sky-300/20 bg-sky-300/[0.08] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-sky-200">
+                    Live
+                  </span>
+                </div>
+                <p className="mt-2 font-mono text-3xl font-bold tabular-nums tracking-tight text-white sm:text-4xl">
+                  {snapshot?.time ?? "--:--:--"}
+                </p>
+                <p className="mt-1 text-xs font-medium text-slate-400">
+                  {snapshot ? snapshot.date + " · " + snapshot.zone : statusLabel}
+                </p>
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/[0.08] pt-3">
+                  <span className="text-xs text-slate-400">Current attendance status</span>
+                  <span className={"inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[10px] font-extrabold tracking-wider " + attendanceTone.label + " " + attendanceTone.container}>
+                    <span className={"size-1.5 rounded-full " + attendanceTone.dot} />
+                    {attendanceLabel}
+                  </span>
+                </div>
+              </div>
+
+              {modalStatusLoading && (
+                <div role="status" className="mt-4 flex items-center gap-2 text-xs font-medium text-sky-200">
+                  <LoaderCircle size={15} className="animate-spin" />
+                  Checking your latest attendance status…
+                </div>
+              )}
+
+              {clockStatusError && (
+                <div role="alert" className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-400/25 bg-amber-400/[0.08] p-3 text-xs leading-relaxed text-amber-100">
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  <span>{clockStatusError}</span>
+                </div>
+              )}
+
+              {clockActionError && (
+                <div role="alert" className="mt-4 flex items-start gap-2.5 rounded-xl border border-rose-400/25 bg-rose-400/[0.08] p-3 text-xs leading-relaxed text-rose-100">
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  <span>{clockActionError}</span>
+                </div>
+              )}
+
+              {clockActionResult === "success" && (
+                <div className="mt-4 rounded-xl border border-emerald-400/25 bg-emerald-400/[0.08] p-3 text-xs leading-relaxed text-emerald-100">
+                  {completedAction === "CLOCK_IN"
+                    ? "You are now clocked in."
+                    : "You are now clocked out."}
+                  {recordedAtLabel ? " Recorded at " + recordedAtLabel + " (" + (timeZone || "organization time") + ")." : ""}
+                </div>
+              )}
+
+              <div className="mt-6 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
+                {clockActionResult === "success" ? (
+                  <button
+                    type="button"
+                    onClick={closeClockConfirmation}
+                    autoFocus
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 active:scale-[0.98]"
+                  >
+                    Done
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={closeClockConfirmation}
+                      disabled={clockSubmitting}
+                      autoFocus
+                      className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-700 bg-white/[0.03] px-5 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Cancel
+                    </button>
+                    {clockStatusError && !currentClockAction ? (
+                      <button
+                        type="button"
+                        onClick={() => { void refreshModalAttendanceStatus(); }}
+                        disabled={modalStatusLoading}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-500 px-5 text-sm font-bold text-white shadow-lg shadow-sky-500/20 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {modalStatusLoading && <LoaderCircle size={15} className="animate-spin" />}
+                        Retry status
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { void confirmClockAction(); }}
+                        disabled={!modalCanConfirm}
+                        aria-busy={clockSubmitting}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-500 px-5 text-sm font-bold text-white shadow-lg shadow-sky-500/20 transition hover:bg-sky-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
+                      >
+                        {clockSubmitting ? (
+                          <>
+                            <LoaderCircle size={16} className="animate-spin" />
+                            Recording…
+                          </>
+                        ) : (
+                          <>
+                            {currentClockAction === "CLOCK_OUT" ? <LogOut size={16} /> : <LogIn size={16} />}
+                            Confirm {currentClockAction === "CLOCK_OUT" ? "CLOCK-OUT" : "CLOCK-IN"}
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+    </>
   );
 }
