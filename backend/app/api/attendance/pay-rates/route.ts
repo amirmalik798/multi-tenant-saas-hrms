@@ -116,10 +116,13 @@ export async function PUT(request: Request) {
     const body: unknown = parsedBody.body;
     if (!body || typeof body !== "object" || Array.isArray(body)) return json({ message: "Provide a valid request body" }, 400);
     const input = body as Record<string, unknown>;
-    const allowedKeys = new Set(["employeeId", "hourlyRate", "overtimeRate", "currencyCode", "effectiveFrom", "effectiveTo"]);
+    const allowedKeys = new Set(["employeeId", "rateId", "hourlyRate", "overtimeRate", "currencyCode", "effectiveFrom", "effectiveTo"]);
     const unknownKeys = Object.keys(input).filter((key) => !allowedKeys.has(key));
     if (unknownKeys.length) return json({ message: "Unsupported field: " + unknownKeys.join(", ") }, 400);
     const employeeId = typeof input.employeeId === "string" ? input.employeeId : "";
+    const rateId = input.rateId === undefined || input.rateId === null
+      ? null
+      : typeof input.rateId === "string" ? input.rateId.trim() : "";
     // Do not coerce null, undefined, or an empty string to zero: a missing
     // rate must never silently become a valid zero-pay rate.
     const parseRate = (value: unknown) =>
@@ -131,7 +134,7 @@ export async function PUT(request: Request) {
     const effectiveFrom = input.effectiveFrom;
     const effectiveTo = input.effectiveTo === null || input.effectiveTo === "" ? null : input.effectiveTo;
 
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(employeeId) || !Number.isFinite(hourlyRate) || hourlyRate < 0 || hourlyRate > 99999999 ||
+    if ((rateId !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(rateId)) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(employeeId) || !Number.isFinite(hourlyRate) || hourlyRate < 0 || hourlyRate > 99999999 ||
         !Number.isFinite(overtimeRate) || overtimeRate < 0 || overtimeRate > 99999999 ||
         !/^[A-Z]{3}$/.test(currencyCode) || !validDate(effectiveFrom) ||
         (effectiveTo !== null && !validDate(effectiveTo)) ||
@@ -190,6 +193,22 @@ export async function PUT(request: Request) {
       return json({ message: "The selected workforce record cannot receive employee pay rates." }, 403);
     }
 
+    if (rateId) {
+      const selectedRate = await client.query(
+        `SELECT id
+         FROM public.employee_pay_rates
+         WHERE id = $1::uuid
+           AND organization_id = $2::uuid
+           AND employee_id = $3::uuid
+         FOR UPDATE`,
+        [rateId, actor.organizationId, employeeId],
+      );
+      if (!selectedRate.rowCount) {
+        await client.query("ROLLBACK");
+        return json({ message: "The selected pay-rate period was not found for this employee." }, 404);
+      }
+    }
+
     const currencyHistory = await client.query(
       `SELECT 1
        FROM public.employee_pay_rates
@@ -209,34 +228,55 @@ export async function PUT(request: Request) {
        FROM public.employee_pay_rates
        WHERE organization_id = $1::uuid
          AND employee_id = $2::uuid
-         AND effective_from <> $3::date
+         AND (
+           ($6::uuid IS NULL AND effective_from <> $3::date)
+           OR ($6::uuid IS NOT NULL AND id <> $6::uuid)
+         )
          AND effective_from <= COALESCE($5::date, 'infinity'::date)
          AND COALESCE(effective_to, 'infinity'::date) >= $4::date
        LIMIT 1`,
-      [actor.organizationId, employeeId, effectiveFrom, effectiveFrom, effectiveTo],
+      [actor.organizationId, employeeId, effectiveFrom, effectiveFrom, effectiveTo, rateId],
     );
     if (overlap.rowCount) {
       await client.query("ROLLBACK");
       return json({ message: "This effective period overlaps another saved pay-rate period. Choose non-overlapping dates." }, 409);
     }
 
-    const saved = await client.query(
-      `INSERT INTO public.employee_pay_rates
-         (organization_id, employee_id, hourly_rate, overtime_rate, currency_code,
-          effective_from, effective_to, created_by_user_id)
-       VALUES ($1::uuid, $2::uuid, $3::numeric, $4::numeric, $5, $6::date, $7::date, $8::uuid)
-       ON CONFLICT (organization_id, employee_id, effective_from)
-       DO UPDATE SET hourly_rate = EXCLUDED.hourly_rate,
-                     overtime_rate = EXCLUDED.overtime_rate,
-                     currency_code = EXCLUDED.currency_code,
-                     effective_to = EXCLUDED.effective_to,
-                     updated_at = now()
-       RETURNING id, employee_id AS "employeeId", hourly_rate::text AS "hourlyRate",
-                 overtime_rate::text AS "overtimeRate", currency_code AS "currencyCode",
-                 effective_from::text AS "effectiveFrom", effective_to::text AS "effectiveTo",
-                 updated_at AS "updatedAt"`,
-      [actor.organizationId, employeeId, hourlyRate, overtimeRate, currencyCode, effectiveFrom, effectiveTo, actor.userId],
-    );
+    const saved = rateId
+      ? await client.query(
+          `UPDATE public.employee_pay_rates
+           SET hourly_rate = $3::numeric,
+               overtime_rate = $4::numeric,
+               currency_code = $5,
+               effective_from = $6::date,
+               effective_to = $7::date,
+               updated_at = now()
+           WHERE organization_id = $1::uuid
+             AND employee_id = $2::uuid
+             AND id = $8::uuid
+           RETURNING id, employee_id AS "employeeId", hourly_rate::text AS "hourlyRate",
+                     overtime_rate::text AS "overtimeRate", currency_code AS "currencyCode",
+                     effective_from::text AS "effectiveFrom", effective_to::text AS "effectiveTo",
+                     updated_at AS "updatedAt"`,
+          [actor.organizationId, employeeId, hourlyRate, overtimeRate, currencyCode, effectiveFrom, effectiveTo, rateId],
+        )
+      : await client.query(
+          `INSERT INTO public.employee_pay_rates
+             (organization_id, employee_id, hourly_rate, overtime_rate, currency_code,
+              effective_from, effective_to, created_by_user_id)
+           VALUES ($1::uuid, $2::uuid, $3::numeric, $4::numeric, $5, $6::date, $7::date, $8::uuid)
+           ON CONFLICT (organization_id, employee_id, effective_from)
+           DO UPDATE SET hourly_rate = EXCLUDED.hourly_rate,
+                         overtime_rate = EXCLUDED.overtime_rate,
+                         currency_code = EXCLUDED.currency_code,
+                         effective_to = EXCLUDED.effective_to,
+                         updated_at = now()
+           RETURNING id, employee_id AS "employeeId", hourly_rate::text AS "hourlyRate",
+                     overtime_rate::text AS "overtimeRate", currency_code AS "currencyCode",
+                     effective_from::text AS "effectiveFrom", effective_to::text AS "effectiveTo",
+                     updated_at AS "updatedAt"`,
+          [actor.organizationId, employeeId, hourlyRate, overtimeRate, currencyCode, effectiveFrom, effectiveTo, actor.userId],
+        );
     await client.query("COMMIT");
     return json({ status: "ok", rate: saved.rows[0] });
   } catch (error) {
