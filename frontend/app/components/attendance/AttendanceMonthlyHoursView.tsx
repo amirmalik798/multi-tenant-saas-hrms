@@ -346,8 +346,8 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
 
   async function printAttendanceReport() {
     if (!canPrintAttendance || reportLoading) return;
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(reportFromDate) ||
-        !/^\\d{4}-\\d{2}-\\d{2}$/.test(reportToDate) ||
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(reportFromDate) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(reportToDate) ||
         reportFromDate > reportToDate) {
       setReportError("Choose a valid start date and end date. The start date must not be after the end date.");
       return;
