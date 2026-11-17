@@ -50,7 +50,8 @@ const CORRECTION_SELECT = `
     e.first_name AS "firstName",
     e.last_name AS "lastName",
     e.department_id AS "departmentId",
-    d.name AS "departmentName"
+    d.name AS "departmentName",
+    workforce_role.name AS "workforceRole"
   FROM public.attendance_correction_requests AS r
   JOIN public.employees AS e
     ON e.id = r.employee_id
@@ -58,6 +59,10 @@ const CORRECTION_SELECT = `
   LEFT JOIN public.departments AS d
     ON d.id = e.department_id
    AND d.organization_id = e.organization_id
+  LEFT JOIN public.roles AS workforce_role
+    ON workforce_role.id = e.workforce_role_id
+   AND workforce_role.organization_id = e.organization_id
+   AND workforce_role.scope = 'ORGANIZATION'
   LEFT JOIN public.attendance_events AS original_event
     ON original_event.id = r.original_event_id
    AND original_event.organization_id = r.organization_id
