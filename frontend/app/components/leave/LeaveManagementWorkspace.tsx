@@ -160,7 +160,7 @@ export default function LeaveManagementWorkspace({ audience }: { audience: Audie
     finally { setSaving(false); }
   }
 
-  return <section className="hr-manager-leave-workspace space-y-6 text-slate-100">
+  return <section className={`hr-manager-leave-workspace space-y-6 text-slate-100 ${audience === "organization-admin" ? "oa-org-admin-leave" : ""}`}>
     <div className="grid gap-3 sm:grid-cols-3">
       <div className="rounded-2xl border border-white/10 bg-[#111a28] p-4"><p className="text-xs uppercase tracking-[.14em] text-slate-500">Requests in scope</p><p className="mt-2 text-2xl font-semibold">{requests.length}</p><p className="mt-1 text-xs text-slate-500">Leave requests in your permitted scope</p></div>
       <div className="rounded-2xl border border-amber-300/15 bg-[#111a28] p-4"><p className="text-xs uppercase tracking-[.14em] text-slate-500">Awaiting review</p><p className="mt-2 text-2xl font-semibold text-amber-200">{pendingCount}</p><p className="mt-1 text-xs text-slate-500">Pending requests</p></div>
@@ -169,7 +169,7 @@ export default function LeaveManagementWorkspace({ audience }: { audience: Audie
     {error && <div role="alert" className="flex flex-col gap-3 rounded-xl border border-rose-400/25 bg-rose-400/10 px-4 py-3 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span>{error}</span><button type="button" onClick={() => void load()} disabled={loading || saving} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">{loading ? "Retrying…" : "Retry"}</button></div>}
     {notice && <div role="status" className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">{notice}</div>}
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3">
-      <div className="flex gap-2"><button type="button" onClick={() => setTab("requests")} aria-pressed={tab === "requests"} className={`rounded-xl px-4 py-2 text-sm font-medium ${tab === "requests" ? "bg-sky-400/15 text-sky-200" : "text-slate-400 hover:bg-white/5"}`}>Leave requests</button><button type="button" onClick={() => setTab("holidays")} aria-pressed={tab === "holidays"} className={`rounded-xl px-4 py-2 text-sm font-medium ${tab === "holidays" ? "bg-sky-400/15 text-sky-200" : "text-slate-400 hover:bg-white/5"}`}>Public holidays</button></div>
+      <div className="oa-leave-tabs flex gap-2"><button type="button" onClick={() => setTab("requests")} aria-pressed={tab === "requests"} className={`oa-leave-tab rounded-xl border px-4 py-2 text-sm font-semibold transition ${tab === "requests" ? "border-blue-700 bg-blue-700 text-white shadow-sm" : "border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200"}`}>Leave requests</button><button type="button" onClick={() => setTab("holidays")} aria-pressed={tab === "holidays"} className={`oa-leave-tab rounded-xl border px-4 py-2 text-sm font-semibold transition ${tab === "holidays" ? "border-blue-700 bg-blue-700 text-white shadow-sm" : "border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200"}`}>Public holidays</button></div>
 
     </div>
     {tab === "requests" ? <div className={`grid gap-5 ${isHr ? "grid-cols-1" : "xl:grid-cols-[minmax(0,1fr)_340px]"}`}>
