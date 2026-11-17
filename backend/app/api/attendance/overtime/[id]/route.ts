@@ -321,12 +321,25 @@ export async function PATCH(
          SET status = $1,
              approved_minutes = $2,
              decided_by_user_id = $3,
-             decision_at = NOW(),
+             decision_at = clock_timestamp(),
              reviewer_note = $4,
              updated_at = NOW()
          WHERE id = $5
            AND organization_id = $6
            AND status = 'PENDING'
+           AND (
+             $1 <> 'APPROVED'
+             OR work_date > (
+               clock_timestamp() AT TIME ZONE COALESCE(
+                 (
+                   SELECT NULLIF(os.time_zone, '')
+                   FROM public.organization_settings AS os
+                   WHERE os.organization_id = attendance_overtime_requests.organization_id
+                 ),
+                 'Africa/Kigali'
+               )
+             )::date
+           )
          RETURNING
            id,
            organization_id AS "organizationId",
@@ -356,7 +369,12 @@ export async function PATCH(
         await client.query("ROLLBACK");
 
         return jsonResponse(
-          { message: "This overtime request has already been reviewed" },
+          {
+            message:
+              decision === "APPROVE"
+                ? "This overtime request can no longer be approved because its work date has arrived or passed. Overtime must be approved in advance."
+                : "This overtime request has already been reviewed",
+          },
           409,
         );
       }
