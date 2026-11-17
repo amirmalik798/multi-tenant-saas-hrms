@@ -32,7 +32,7 @@ function escapeHtml(value: unknown): string {
 }
 
 function monthLabel(value: string): string {
-  if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(value)) return value;
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return value;
   const [year, month] = value.split("-").map(Number);
   return new Intl.DateTimeFormat("en", {
     month: "long",
