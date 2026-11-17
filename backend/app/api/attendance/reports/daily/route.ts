@@ -44,10 +44,8 @@ export async function GET(request: Request) {
     }
 
     const isOrganizationAdmin = actor.kind === "ORGANIZATION_ADMIN";
-    const isHrManager = actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER";
-    const isDepartmentManager = actor.kind === "ORGANIZATION_USER" && actor.roleName === "DEPARTMENT_MANAGER";
 
-    if (!isOrganizationAdmin && !isHrManager && !isDepartmentManager) {
+    if (!isOrganizationAdmin) {
       return jsonResponse(
         { message: "You do not have permission to generate a daily attendance report" },
         403,
@@ -68,8 +66,6 @@ export async function GET(request: Request) {
       );
     }
 
-    const scope: "ALL" | "DEPARTMENT" =
-      isDepartmentManager ? "DEPARTMENT" : "ALL";
 
     const metadataResult = await pool.query<{
       organizationName: string;
@@ -120,21 +116,7 @@ export async function GET(request: Request) {
       );
     }
 
-    let reportScope = "Organization-wide";
-    if (isDepartmentManager && actor.kind === "ORGANIZATION_USER") {
-      const departments = await pool.query<{ name: string }>(
-        `SELECT d.name
-         FROM public.departments AS d
-         WHERE d.organization_id = $1::uuid
-           AND d.manager_id = $2::uuid
-         ORDER BY d.name`,
-        [actor.organizationId, actor.employeeId],
-      );
-
-      reportScope = departments.rows.length
-        ? `Assigned departments: ${departments.rows.map((row) => row.name).join(", ")}`
-        : "Assigned departments: none currently assigned";
-    }
+    const reportScope = "Organization-wide";
 
     // Start from the active employee list, then LEFT JOIN today's schedule,
     // attendance and timesheet. This deliberately retains active
@@ -177,7 +159,7 @@ export async function GET(request: Request) {
          ) AS account_role ON TRUE
          WHERE e.organization_id = $1::uuid
            AND e.employment_status = 'ACTIVE'
-           AND regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g') IN ('EMPLOYEE', 'DEPARTMENT_MANAGER', 'HR_MANAGER')
+           AND regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g') IN ('EMPLOYEE', 'DEPARTMENT_MANAGER', 'HR_MANAGER')
            -- Exclude organization administrators independently of the
            -- workforce role, which may be stale or incorrectly assigned.
            AND NOT EXISTS (
@@ -348,14 +330,7 @@ export async function GET(request: Request) {
        ) AS overtime ON TRUE
        ORDER BY e.department_name NULLS LAST, e.last_name, e.first_name
        LIMIT 5001`,
-      [
-        actor.organizationId,
-        reportDate,
-        scope,
-        isDepartmentManager && actor.kind === "ORGANIZATION_USER"
-          ? actor.employeeId
-          : null,
-      ],
+      [actor.organizationId, reportDate, "ALL", null],
     );
 
     if (reportResult.rows.length > 5000) {
