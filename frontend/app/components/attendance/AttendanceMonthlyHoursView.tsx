@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Clock3, RefreshCw, Users, FileDown, Printer } from "lucide-react";
-import { buildAttendanceReportDocument, type AttendanceReportPayload } from "./attendance-report-document";
+import { CalendarDays, Clock3, RefreshCw, Users } from "lucide-react";
 import { formatDate, formatTime } from "../../../lib/attendance-format";
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
 import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
@@ -35,16 +34,6 @@ type Entry = {
   publicHoliday?: { name?: string; isPaid?: boolean } | null;
 };
 type Props = { audience: "employee" | "hr-manager-self" | "department-manager" | "hr-manager" | "organization-admin"; actorEmployeeId?: string };
-type ReportTarget = {
-  employeeId: string;
-  employeeCode: string | null;
-  firstName: string | null;
-  lastName: string | null;
-  departmentName: string | null;
-  workforceRole: string | null;
-  employmentStatus: string | null;
-};
-
 function monthInTimeZone(date: Date, timeZone: string): string {
   try {
     const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit" }).formatToParts(date);
@@ -97,70 +86,9 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
   const [payrollEstimate, setPayrollEstimate] = useState<PayrollEstimate | null>(null);
   const [payrollEstimateLoading, setPayrollEstimateLoading] = useState(false);
   const [payrollEstimateError, setPayrollEstimateError] = useState("");
-  const [reportTargets, setReportTargets] = useState<ReportTarget[]>([]);
-  const [reportTargetsLoading, setReportTargetsLoading] = useState(false);
-  const [reportTargetId, setReportTargetId] = useState(actorEmployeeId || "");
-  const [reportFromDate, setReportFromDate] = useState(() => monthBounds(monthValue()).from);
-  const [reportToDate, setReportToDate] = useState(() => monthBounds(monthValue()).to);
-  const [reportLoading, setReportLoading] = useState(false);
-  const [reportError, setReportError] = useState("");
-  const reportDateTouched = useRef(false);
-  const reportWindowRef = useRef<Window | null>(null);
   const loadRequestId = useRef(0);
   const isEmployee = audience === "employee" || audience === "hr-manager-self";
   const isHr = audience === "hr-manager" || audience === "organization-admin";
-  const canPrintAttendance = audience !== "hr-manager-self";
-
-  useEffect(() => {
-    if (!canPrintAttendance) return;
-    let cancelled = false;
-    setReportTargetsLoading(true);
-    setReportError("");
-    fetch("/api/backend/attendance/reports/monthly?mode=targets", {
-      credentials: "same-origin",
-      cache: "no-store",
-    })
-      .then(async (response) => {
-        const payload: unknown = await response.json().catch(() => null);
-        if (!response.ok) {
-          const message = typeof payload === "object" && payload !== null && "message" in payload && typeof payload.message === "string"
-            ? payload.message
-            : "Unable to load workforce members for attendance reports.";
-          throw new Error(message);
-        }
-        const targets = typeof payload === "object" && payload !== null && "targets" in payload && Array.isArray(payload.targets)
-          ? payload.targets as ReportTarget[]
-          : [];
-        if (!cancelled) {
-          setReportTargets(targets);
-          if (isEmployee) {
-            const ownTarget = targets.find((target) => target.employeeId === actorEmployeeId) || targets[0];
-            setReportTargetId(ownTarget?.employeeId || "");
-          } else {
-            setReportTargetId((current) => targets.some((target) => target.employeeId === current) ? current : "");
-          }
-        }
-      })
-      .catch((cause) => {
-        if (!cancelled) {
-          setReportTargets([]);
-          setReportTargetId("");
-          setReportError(cause instanceof Error ? cause.message : "Unable to load workforce members for attendance reports.");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setReportTargetsLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [canPrintAttendance, isEmployee, actorEmployeeId]);
-
-  useEffect(() => {
-    if (!reportDateTouched.current) {
-      const range = monthBounds(month);
-      setReportFromDate(range.from);
-      setReportToDate(range.to);
-    }
-  }, [month]);
 
   const load = useCallback(async (silent = false) => {
     const requestId = ++loadRequestId.current;
@@ -344,128 +272,8 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
   }, { regular: 0, overtime: 0, missingRateDays: 0, currency: "" }), [visible, payRates]);
   const money = (value: number, currency: string) => currency ? `${currency} ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—";
 
-  async function printAttendanceReport() {
-    if (!canPrintAttendance || reportLoading) return;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(reportFromDate) ||
-        !/^\d{4}-\d{2}-\d{2}$/.test(reportToDate) ||
-        reportFromDate > reportToDate) {
-      setReportError("Choose a valid start date and end date. The start date must not be after the end date.");
-      return;
-    }
-    const monthCount =
-      (Number(reportToDate.slice(0, 4)) * 12 + Number(reportToDate.slice(5, 7))) -
-      (Number(reportFromDate.slice(0, 4)) * 12 + Number(reportFromDate.slice(5, 7))) + 1;
-    if (monthCount > 24) {
-      setReportError("An attendance PDF can cover at most 24 calendar months at a time.");
-      return;
-    }
-    const targetId = isEmployee ? actorEmployeeId || reportTargetId : reportTargetId;
-    if (!targetId) {
-      setReportError("Select a workforce member before printing the attendance report.");
-      return;
-    }
-
-    // Open the tab directly from the user action to avoid popup-blocker failures
-    // after the attendance report has been loaded.
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      setReportError("Your browser blocked the attendance PDF window. Allow pop-ups for this site and try again.");
-      return;
-    }
-    reportWindowRef.current = printWindow;
-    printWindow.document.open();
-    printWindow.document.write("<!doctype html><html><head><title>Preparing attendance report</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing attendance report…</h2><p>Loading attendance records and monthly hours for the selected dates.</p></body></html>");
-    printWindow.document.close();
-
-    setReportLoading(true);
-    setReportError("");
-    try {
-      const query = new URLSearchParams({
-        employeeId: targetId,
-        fromDate: reportFromDate,
-        toDate: reportToDate,
-      });
-      const response = await fetch(`/api/backend/attendance/reports/monthly?${query.toString()}`, {
-        credentials: "same-origin",
-        cache: "no-store",
-      });
-      const payload = await response.json().catch(() => null) as AttendanceReportPayload | { message?: string } | null;
-      if (!response.ok) {
-        throw new Error(payload && "message" in payload && typeof payload.message === "string"
-          ? payload.message
-          : response.status === 404
-            ? "No attendance records were found within the selected dates."
-            : `Unable to generate the attendance report (${response.status}).`);
-      }
-      if (!payload || !("entries" in payload) || !Array.isArray(payload.entries) ||
-          !("months" in payload) || !Array.isArray(payload.months) || payload.months.length === 0 ||
-          Number(payload.attendanceRecordCount) <= 0) {
-        throw new Error("No attendance records were found within the selected dates. Choose another date range.");
-      }
-      if (printWindow.closed) return;
-
-      printWindow.document.open();
-      printWindow.document.write(buildAttendanceReportDocument(payload));
-      printWindow.document.close();
-
-      const printWhenReady = () => {
-        if (printWindow.closed) return;
-        printWindow.focus();
-        printWindow.document.getElementById("attendance-report-print")?.addEventListener("click", () => {
-          if (!printWindow.closed) {
-            printWindow.focus();
-            printWindow.print();
-          }
-        });
-        printWindow.print();
-      };
-      if (printWindow.document.readyState === "complete") {
-        window.setTimeout(printWhenReady, 250);
-      } else {
-        printWindow.addEventListener("load", () => window.setTimeout(printWhenReady, 250), { once: true });
-      }
-      setReportError("");
-    } catch (cause) {
-      if (!printWindow.closed) printWindow.close();
-      reportWindowRef.current = null;
-      setReportError(cause instanceof Error ? cause.message : "Unable to generate the attendance report.");
-    } finally {
-      setReportLoading(false);
-    }
-  }
 
   return <div className="space-y-4">
-    {canPrintAttendance && <section className={PANEL}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="flex items-center gap-2 text-base font-semibold text-slate-100"><FileDown size={18} className="text-sky-300" />Attendance records & monthly hours PDF</h3>
-          <p className="mt-1 max-w-3xl text-sm leading-5 text-slate-400">Print one combined report for a workforce member across selected dates. Each calendar month is placed on its own A4 page.</p>
-        </div>
-        <span className="rounded-full border border-sky-300/20 bg-sky-300/[0.06] px-3 py-1.5 text-xs font-semibold text-sky-200">One page per month · Up to 24 months</span>
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
-        {!isEmployee && <label className="block text-sm font-medium text-slate-300">Workforce member
-          <select value={reportTargetId} disabled={reportTargetsLoading || reportLoading} onChange={(event) => setReportTargetId(event.target.value)} className={INPUT}>
-            <option value="">{reportTargetsLoading ? "Loading workforce members…" : "Select workforce member"}</option>
-            {reportTargets.map((target) => {
-              const name = [target.firstName, target.lastName].filter(Boolean).join(" ") || target.employeeCode || "Workforce member";
-              const role = (target.workforceRole || "EMPLOYEE").replaceAll("_", " ");
-              return <option key={target.employeeId} value={target.employeeId}>{name} · {role}{target.departmentName ? ` · ${target.departmentName}` : ""}</option>;
-            })}
-          </select>
-        </label>}
-        {isEmployee && <div className="rounded-xl border border-white/[0.07] bg-black/10 px-3.5 py-3 text-sm text-slate-300"><span className="block text-xs font-semibold text-slate-500">Workforce member</span>My attendance records</div>}
-        <label className="block text-sm font-medium text-slate-300">Start date<input type="date" value={reportFromDate} disabled={reportLoading} onChange={(event) => { reportDateTouched.current = true; setReportFromDate(event.target.value); }} className={INPUT}/></label>
-        <label className="block text-sm font-medium text-slate-300">End date<input type="date" value={reportToDate} disabled={reportLoading} onChange={(event) => { reportDateTouched.current = true; setReportToDate(event.target.value); }} className={INPUT}/></label>
-        <button type="button" onClick={() => void printAttendanceReport()} disabled={reportLoading || reportTargetsLoading || !reportTargetId} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/15 transition hover:bg-blue-500 disabled:cursor-wait disabled:opacity-50">
-          {reportLoading ? <RefreshCw size={16} className="animate-spin"/> : <Printer size={16}/>}
-          {reportLoading ? "Preparing PDF…" : "Print / Save PDF"}
-        </button>
-      </div>
-      {reportError && <p role="alert" className="mt-3 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200">{reportError}</p>}
-      {!reportTargetsLoading && !reportError && reportTargets.length === 0 && <p role="status" className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm text-amber-100">No workforce members are currently available within your attendance-report permissions.</p>}
-      {!reportError && reportTargets.length > 0 && <p className="mt-3 text-xs leading-5 text-slate-500">The report includes recorded clock events, approved attendance corrections, shift details, worked hours, regular hours and overtime. A report is not produced when the selected range contains no attendance records.</p>}
-    </section>}
     <section className={PANEL}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div><h3 className="flex items-center gap-2 text-base font-semibold text-slate-100"><CalendarDays size={18} className="text-sky-300"/>Monthly hours</h3><p className="mt-1 text-sm leading-5 text-slate-400">Daily hours are calculated by the server from attendance records, shift rules and approved overtime.</p></div>
