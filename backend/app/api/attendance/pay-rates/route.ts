@@ -108,9 +108,17 @@ export async function PUT(request: Request) {
     const body: unknown = parsedBody.body;
     if (!body || typeof body !== "object" || Array.isArray(body)) return json({ message: "Provide a valid request body" }, 400);
     const input = body as Record<string, unknown>;
+    const allowedKeys = new Set(["employeeId", "hourlyRate", "overtimeRate", "currencyCode", "effectiveFrom", "effectiveTo"]);
+    const unknownKeys = Object.keys(input).filter((key) => !allowedKeys.has(key));
+    if (unknownKeys.length) return json({ message: "Unsupported field: " + unknownKeys.join(", ") }, 400);
     const employeeId = typeof input.employeeId === "string" ? input.employeeId : "";
-    const hourlyRate = typeof input.hourlyRate === "number" ? input.hourlyRate : Number(input.hourlyRate);
-    const overtimeRate = typeof input.overtimeRate === "number" ? input.overtimeRate : Number(input.overtimeRate);
+    // Do not coerce null, undefined, or an empty string to zero: a missing
+    // rate must never silently become a valid zero-pay rate.
+    const parseRate = (value: unknown) =>
+      typeof value === "number" ? value :
+      typeof value === "string" && value.trim() !== "" ? Number(value) : Number.NaN;
+    const hourlyRate = parseRate(input.hourlyRate);
+    const overtimeRate = parseRate(input.overtimeRate);
     const currencyCode = typeof input.currencyCode === "string" ? input.currencyCode.trim().toUpperCase() : "";
     const effectiveFrom = input.effectiveFrom;
     const effectiveTo = input.effectiveTo === null || input.effectiveTo === "" ? null : input.effectiveTo;
