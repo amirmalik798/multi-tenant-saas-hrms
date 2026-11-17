@@ -66,7 +66,7 @@ export async function GET(request: Request) {
     );
     if (!target.rowCount) return json({ message: "Employee not found in this organization" }, 404);
     if (isExcludedHrTargetRole(target.rows[0].workforce_role, { allowHrManager: actor.kind === "ORGANIZATION_ADMIN" }) || target.rows[0].is_organization_admin) {
-      return json({ message: "Organization Admin records are not eligible for employee pay rates" }, 403);
+      return json({ message: "The selected workforce record cannot receive employee pay rates." }, 403);
     }
 
     const [result, settings] = await Promise.all([
@@ -171,7 +171,7 @@ export async function PUT(request: Request) {
     }
     if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: actor.kind === "ORGANIZATION_ADMIN" }) || employee.rows[0].is_organization_admin) {
       await client.query("ROLLBACK");
-      return json({ message: "Organization Admin records are not eligible for employee pay rates" }, 403);
+      return json({ message: "The selected workforce record cannot receive employee pay rates." }, 403);
     }
 
     const currencyHistory = await client.query(
