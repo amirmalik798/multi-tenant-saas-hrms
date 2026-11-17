@@ -742,6 +742,13 @@ export async function PUT(request: Request, context: RouteContext) {
       const existing = existingResult.rows[0];
 
       const alreadyRecordedAsPaid = existing?.status === "PAID";
+      if (alreadyRecordedAsPaid && requested.status === "UNPAID") {
+        await client.query("ROLLBACK");
+        transactionStarted = false;
+        return json({
+          message: `${requested.month} is already recorded as PAID. A salary slip cannot change a paid payroll month to UNPAID.`,
+        }, 409);
+      }
       if (requested.status === "PAID" && !alreadyRecordedAsPaid && (
         !monthlyEstimate ||
         monthlyEstimate.payableMinutes <= 0 ||
