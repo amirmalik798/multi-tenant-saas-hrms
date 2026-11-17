@@ -222,7 +222,7 @@ function buildMonthPage(
     payload.employee.employeeCode ? `ID ${payload.employee.employeeCode}` : "",
   ].filter(Boolean).join(" · ");
 
-  return `<section class="month-page">
+  return `<section class="month-page${index === 0 ? " first-month" : ""}">
     <header class="brand-row">
       <div class="brand-mark">HR</div>
       <div class="brand-copy">
@@ -233,7 +233,7 @@ function buildMonthPage(
       <div class="period">
         <span class="eyebrow">MONTHLY PERIOD</span>
         <strong>${escapeHtml(monthLabel(month.month))}</strong>
-        <span class="page-count">Page ${index + 1} of ${totalPages}</span>
+        <span class="page-count">Month ${index + 1} of ${totalPages}</span>
       </div>
     </header>
 
@@ -307,8 +307,10 @@ export function buildAttendanceReportDocument(payload: AttendanceReportPayload):
   body { padding: 20px; }
   .toolbar { width: 210mm; max-width: 100%; margin: 0 auto 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #52647a; font-size: 12px; }
   .toolbar button { border: 0; border-radius: 8px; padding: 10px 16px; background: #1769aa; color: white; font-weight: 700; cursor: pointer; }
-  .month-page { width: 210mm; height: 297mm; margin: 0 auto 20px; padding: 9mm; background: white; box-shadow: 0 5px 26px rgba(17,34,58,.13); display: flex; flex-direction: column; overflow: hidden; page-break-after: always; break-after: page; }
-  .month-page:last-child { page-break-after: auto; break-after: auto; }
+  .month-page { width: 210mm; min-height: 297mm; margin: 0 auto 20px; padding: 9mm; background: white; box-shadow: 0 5px 26px rgba(17,34,58,.13); display: block; overflow: visible; page-break-before: always; break-before: page; page-break-inside: auto; break-inside: auto; }
+  .month-page.first-month { page-break-before: auto; break-before: auto; }
+  .attendance-table thead { display: table-header-group; }
+  .attendance-table tr { page-break-inside: avoid; break-inside: avoid; }
   .brand-row { display: flex; align-items: center; gap: 12px; padding-bottom: 10px; border-bottom: 2px solid #1769aa; }
   .brand-mark { width: 40px; height: 40px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: #102b4c; color: white; font-size: 13px; font-weight: 800; }
   .brand-copy { min-width: 0; flex: 1; }
@@ -357,7 +359,7 @@ export function buildAttendanceReportDocument(payload: AttendanceReportPayload):
   .status.warning { color: #965911; background: #fff0d9; }
   .status.special { color: #594c9a; background: #f0edff; }
   .status.muted { color: #62738a; background: #eff3f7; }
-  .footer { margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; padding-top: 8px; border-top: 1px solid #e4eaf1; }
+  .footer { margin-top: 12px; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; padding-top: 8px; border-top: 1px solid #e4eaf1; break-inside: avoid; page-break-inside: avoid; }
   .footer > div:first-child { display: flex; flex-direction: column; gap: 3px; }
   .footer strong { color: #173452; font-size: 8pt; }
   .footer span { color: #758399; font-size: 6pt; }
@@ -366,11 +368,11 @@ export function buildAttendanceReportDocument(payload: AttendanceReportPayload):
   @media print {
     html, body { width: 210mm; margin: 0; padding: 0; background: white; }
     .toolbar { display: none !important; }
-    .month-page { width: 210mm; height: 297mm; margin: 0; padding: 9mm; box-shadow: none; }
+    .month-page { width: 210mm; min-height: 297mm; margin: 0; padding: 9mm; box-shadow: none; overflow: visible; }
   }
   @media screen and (max-width: 850px) {
     body { padding: 10px; }
-    .month-page { width: 100%; height: auto; min-height: 0; overflow: visible; padding: 16px; }
+    .month-page { width: 100%; height: auto; min-height: 0; overflow: visible; padding: 16px; break-before: auto; page-break-before: auto; }
     .identity { flex-direction: column; }
     .identity-meta { min-width: 0; }
     .attendance-table { min-width: 760px; }
@@ -380,7 +382,7 @@ export function buildAttendanceReportDocument(payload: AttendanceReportPayload):
 </head>
 <body>
 <div class="toolbar">
-  <span>Attendance report · One A4 page per month · Print or save the complete report as PDF</span>
+  <span>Attendance report · Each month begins on a new page · Long months continue across pages</span>
   <button type="button" id="attendance-report-print">Print / Save as PDF</button>
 </div>
 ${pages}
