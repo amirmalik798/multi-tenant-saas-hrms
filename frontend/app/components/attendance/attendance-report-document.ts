@@ -256,6 +256,7 @@ function buildMonthPage(
       <div class="metric"><span>Regular hours</span><strong>${escapeHtml(duration(month.regularWorkedMinutes))}</strong><small>Calculated regular work</small></div>
       <div class="metric"><span>Potential overtime</span><strong>${escapeHtml(duration(month.potentialOvertimeMinutes))}</strong><small>Elapsed time beyond shift</small></div>
       <div class="metric"><span>Approved payable OT</span><strong>${escapeHtml(duration(month.payableOvertimeMinutes))}</strong><small>Pre-authorized overtime</small></div>
+      <div class="metric"><span>Unapproved excess</span><strong>${escapeHtml(duration(month.excessUnapprovedOvertimeMinutes))}</strong><small>Not payable</small></div>
       <div class="metric"><span>Scheduled / recorded days</span><strong>${month.scheduledDays} / ${month.daysWithAttendance}</strong><small>${month.days} calendar days in range</small></div>
     </section>
 
@@ -280,7 +281,7 @@ function buildMonthPage(
     </table>
 
     <footer class="footer">
-      <div><strong>Monthly total worked: ${escapeHtml(duration(month.workedMinutes))}</strong><span>Regular ${escapeHtml(duration(month.regularWorkedMinutes))} · Approved overtime ${escapeHtml(duration(month.payableOvertimeMinutes))}</span></div>
+      <div><strong>Monthly total worked: ${escapeHtml(duration(month.workedMinutes))}</strong><span>Regular ${escapeHtml(duration(month.regularWorkedMinutes))} · Approved overtime ${escapeHtml(duration(month.payableOvertimeMinutes))} · Unapproved excess ${escapeHtml(duration(month.excessUnapprovedOvertimeMinutes))}</span></div>
       <div class="footer-meta">
         <span>Generated ${escapeHtml(dateTimeFull(payload.generatedAt, payload.organization.timeZone))}</span>
         <span>Prepared by ${escapeHtml(payload.generatedBy)}</span>
@@ -325,7 +326,7 @@ export function buildAttendanceReportDocument(payload: AttendanceReportPayload):
   .identity-meta span { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
   .identity-meta small { color: #7c899b; font-size: 6pt; }
   .identity-meta strong { overflow-wrap: anywhere; color: #2a3f58; font-size: 6.6pt; }
-  .summary-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; gap: 5px; margin-top: 8px; }
+  .summary-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr 1fr; gap: 5px; margin-top: 8px; }
   .metric { min-width: 0; padding: 7px; border: 1px solid #e0e7ef; border-radius: 7px; background: #fff; }
   .metric.primary { border-color: #c8d8ea; background: #f0f6fc; }
   .metric span { display: block; color: #708096; font-size: 6.1pt; font-weight: 700; }
