@@ -1,8 +1,9 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { createPortal } from "react-dom";
-import { BadgeDollarSign, CheckCircle2, RefreshCw, Search, SlidersHorizontal, CalendarDays, Clock3, AlertTriangle, CheckCircle, CircleDollarSign, Printer, FileDown, Download, ChevronDown, ChevronLeft, ChevronRight, Eye, Pencil, LockKeyhole, ArrowUpDown } from "lucide-react";
+import { BadgeDollarSign, CheckCircle2, RefreshCw, Search, Clock3, AlertTriangle, CheckCircle, CircleDollarSign, Printer, FileDown, Download, ChevronDown, ChevronLeft, ChevronRight, Eye, Pencil, LockKeyhole } from "lucide-react";
 import { buildSalarySlipDocument, type SalarySlipPayload } from "./salary-slip-document";
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
 import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
@@ -313,10 +314,15 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         payment.paidAt || "", payment.paymentReference || "", payment.recordedBy || "", payment.notes || "",
       ];
     });
+    const csvCell = (value: unknown) => {
+      const raw = String(value ?? "");
+      const safe = /^[\\s]*[=+\\-@]/.test(raw) ? `'${raw}` : raw;
+      return `"${safe.replaceAll('"', '""')}"`;
+    };
     const csv = [headers, ...rows]
-      .map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(","))
-      .join("\r\n");
-    const blob = new Blob(["\\uFEFF", csv], { type: "text/csv;charset=utf-8" });
+      .map((row) => row.map(csvCell).join(","))
+      .join("\\r\\n");
+    const blob = new Blob([String.fromCharCode(0xfeff), csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -512,6 +518,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
           <input type="month" value={month} disabled={!monthReady || Boolean(saving)} onChange={(event) => setMonth(event.target.value)} className={INPUT}/>
         </label>
         {organizationTimeZone && <span className="pb-2 text-xs text-slate-500">{organizationTimeZone}</span>}
+        {canEdit && <Link href={audience === "hr-manager" ? "/hr/modules/pay-rates" : "/org/pay-rates"} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-600 bg-white/[0.025] px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07]">Pay rates</Link>}
         <button type="button" onClick={exportPayrollRegister} disabled={loading || payments.length === 0 || visiblePayments.length === 0} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-600 bg-white/[0.025] px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-40">
           <Download size={14}/>Export register
         </button>
