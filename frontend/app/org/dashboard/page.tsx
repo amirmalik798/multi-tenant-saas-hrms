@@ -678,7 +678,7 @@ export default function OrganizationDashboardPage() {
           )}
 
           <section aria-labelledby="organization-dashboard-title" className="mb-5">
-            <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-2 text-xs font-medium text-slate-500"><span>Workspace</span><span aria-hidden="true">/</span><span aria-current="page" className="text-slate-300">Dashboard</span></nav>
+            
             <h1 id="organization-dashboard-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">Dashboard</h1>
             <p className="mt-1.5 text-sm leading-6 text-slate-400">A live overview of your organization’s workforce and daily operations.</p>
           </section>
