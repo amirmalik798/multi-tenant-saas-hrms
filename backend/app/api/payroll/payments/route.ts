@@ -42,7 +42,7 @@ export async function GET(request: Request) {
     const result = await pool.query(
       `SELECT p.id, e.id AS "employeeId", e.employee_code AS "employeeCode",
               e.first_name AS "firstName", e.last_name AS "lastName", e.department_id AS "departmentId",
-              d.name AS "departmentName", COALESCE(workforce_role.name, account_role.name) AS "workforceRole", $2::date::text AS "payMonth", p.amount::text AS amount,
+              d.name AS "departmentName", COALESCE(account_role.name, workforce_role.name) AS "workforceRole", $2::date::text AS "payMonth", p.amount::text AS amount,
               COALESCE(p.currency_code, rate.currency_code, 'RWF') AS "currencyCode",
               COALESCE(p.status, 'UNPAID') AS status, p.paid_at AS "paidAt",
               p.payment_reference AS "paymentReference", p.notes, p.updated_at AS "updatedAt",
@@ -80,21 +80,21 @@ export async function GET(request: Request) {
          ORDER BY pr.effective_from DESC LIMIT 1
        ) rate ON TRUE
        WHERE e.organization_id = $1::uuid
-          AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') = ANY($8::text[])
-         AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORGANIZATION_ADMIN%'
-         AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORGANIZATIONADMIN%'
-         AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORG_ADMIN%'
-         AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORGANIZATION_OWNER%'
-         AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORG_OWNER%'
-         AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'TENANT_ADMIN%'
-         AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ADMINISTRATOR%'
+          AND COALESCE(regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') = ANY($8::text[])
+         AND COALESCE(regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORGANIZATION_ADMIN%'
+         AND COALESCE(regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORGANIZATIONADMIN%'
+         AND COALESCE(regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORG_ADMIN%'
+         AND COALESCE(regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORGANIZATION_OWNER%'
+         AND COALESCE(regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORG_OWNER%'
+         AND COALESCE(regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'TENANT_ADMIN%'
+         AND COALESCE(regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ADMINISTRATOR%'
          AND (
            NOT $7::boolean
            OR (
              e.id <> $5::uuid
-             AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, '')), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HR_MANAGER%'
-             AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, '')), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HRMANAGER%'
-             AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, '')), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HRMANAGER%'
+             AND COALESCE(regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, '')), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HR_MANAGER%'
+             AND COALESCE(regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, '')), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HRMANAGER%'
+             AND COALESCE(regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, '')), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HRMANAGER%'
            )
          )
          AND NOT EXISTS (
@@ -147,7 +147,7 @@ export async function GET(request: Request) {
            $3::boolean
            OR ($4::boolean AND e.id = $5::uuid)
            OR ($6::boolean
-             AND regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g') = 'EMPLOYEE'
+             AND regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g') = 'EMPLOYEE'
              AND EXISTS (
                SELECT 1 FROM public.departments md
                WHERE md.organization_id = e.organization_id
