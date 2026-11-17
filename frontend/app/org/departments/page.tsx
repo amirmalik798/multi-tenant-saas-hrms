@@ -1323,7 +1323,7 @@ export default function DepartmentsPage() {
           {notice && <div role="status" aria-live="polite" className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-emerald-400/30 bg-emerald-500/15 p-4 text-sm font-medium text-emerald-200"><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Dismiss success message"><Icon name="close" size={16} /></button></div>}
 
           <section aria-labelledby="departments-page-title" className="mb-6">
-            <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-2 text-xs font-medium text-slate-500"><span>Workspace</span><span aria-hidden="true">/</span><span aria-current="page" className="text-slate-300">Departments</span></nav>
+            
             <h1 id="departments-page-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">Departments</h1>
             <p className="mt-1.5 text-sm leading-6 text-slate-400">Organize teams, assign Department Managers and review workforce coverage.</p>
           </section>
