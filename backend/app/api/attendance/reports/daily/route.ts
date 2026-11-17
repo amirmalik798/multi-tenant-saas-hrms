@@ -335,7 +335,7 @@ export async function GET(request: Request) {
 
     if (reportResult.rows.length > 5000) {
       return jsonResponse(
-        { message: "This daily report contains more than 5,000 employees. Narrow the report scope before downloading." },
+        { message: "This organization-wide daily report exceeds the 5,000-employee PDF limit. Use individual workforce reports for narrower reporting." },
         413,
       );
     }
@@ -354,10 +354,8 @@ export async function GET(request: Request) {
       return { ...row, events, ...calculation };
     });
 
-    // The manager roll-call view uses the same permission-scoped query as the
-    // downloadable PDF. Keeping one query prevents the on-screen totals from
-    // drifting away from the exported report. The default response remains PDF
-    // for backwards compatibility; JSON is opt-in via format=json.
+    // The JSON representation is retained for internal consumers.
+    // The user-facing daily PDF is organization-wide and restricted to Organization Admin.
     if (url.searchParams.get("format") === "json") {
       return jsonResponse({
         status: "ok",
