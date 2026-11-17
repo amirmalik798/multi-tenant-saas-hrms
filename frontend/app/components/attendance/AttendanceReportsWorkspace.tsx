@@ -330,7 +330,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
               <FileBarChart size={18}/>
               <span className="text-[10px] font-extrabold uppercase tracking-[0.18em]">Workforce intelligence</span>
             </div>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">Attendance reports</h2>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">Report builder</h2>
             <p className="mt-2 max-w-2xl text-sm text-slate-300">Generate verified attendance PDFs from your authorized reporting scope.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
