@@ -705,7 +705,12 @@ export default function WorkspaceClock({
                         onClick={() => { void confirmClockAction(); }}
                         disabled={!modalCanConfirm}
                         aria-busy={clockSubmitting}
-                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-sky-500 px-5 text-sm font-bold text-white shadow-lg shadow-sky-500/20 transition hover:bg-sky-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
+                        className={
+                          "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-bold !text-white shadow-lg transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none [&>svg]:!text-white " +
+                          (currentClockAction === "CLOCK_OUT"
+                            ? "bg-rose-600 hover:bg-rose-500 shadow-rose-600/20"
+                            : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20")
+                        }
                       >
                         {clockSubmitting ? (
                           <>
