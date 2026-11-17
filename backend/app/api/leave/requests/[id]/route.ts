@@ -12,7 +12,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const { id } = await context.params; if (!isUuid(id)) return jsonResponse({ message: "Invalid leave request ID" }, 400);
     const parsed = await parseJsonRequestBody(request); if (!parsed.ok) return parsed.response;
     if (!isRecord(parsed.body)) return jsonResponse({ message: "Provide a valid decision" }, 400);
+    const unknownKeys = Object.keys(parsed.body).filter((key) => !["status", "reviewerNote"].includes(key));
+    if (unknownKeys.length) return jsonResponse({ message: `Unsupported field: ${unknownKeys.join(", ")}` }, 400);
     const status = parsed.body.status;
+    if (parsed.body.reviewerNote !== undefined && parsed.body.reviewerNote !== null && typeof parsed.body.reviewerNote !== "string") {
+      return jsonResponse({ message: "reviewerNote must be a string or null" }, 400);
+    }
     const reviewerNote = typeof parsed.body.reviewerNote === "string" ? parsed.body.reviewerNote.trim() : "";
     if ((status !== "APPROVED" && status !== "REJECTED" && status !== "CANCELLED") || reviewerNote.length > 1000) return jsonResponse({ message: "Provide an allowed decision and reviewer note up to 1000 characters" }, 400);
     const client = await pool.connect();
