@@ -129,10 +129,10 @@ export async function GET(request: Request) {
       );
     }
 
-    // Start from the active workforce list, then LEFT JOIN the selected day's
-    // schedule and attendance events. Retain active Employees, Department
-    // Managers and HR Managers even when they have no schedule or punches,
-    // so the organization-wide register is a complete daily roll call.
+    // Start from the authenticated actor's permitted active workforce scope,
+    // then LEFT JOIN the selected day's schedule and attendance events. Keep
+    // in-scope members even when they have no schedule or punches so the daily
+    // roll-call remains complete for the report's intended audience.
     const reportResult = await pool.query<DailyAttendanceRecord>(
       `WITH scoped_employees AS (
          SELECT
