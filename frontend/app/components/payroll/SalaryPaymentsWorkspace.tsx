@@ -568,6 +568,19 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to save salary payment."); }
     finally { setSaving(""); }
   }
+
+  function discardPaymentEdits() {
+    setDrafts(Object.fromEntries(payments.map((payment) => [payment.employeeId, {
+      amount: payment.amount == null ? "" : String(payment.amount),
+      currencyCode: payment.currencyCode || "RWF",
+      status: payment.status === "PAID" ? "PAID" : "UNPAID",
+      paymentReference: payment.paymentReference || "",
+      notes: payment.notes || "",
+    }])));
+    setError("");
+    setNotice("Unsaved payroll edits were discarded.");
+  }
+
   return <section className={`hr-manager-payroll-workspace min-w-0 space-y-5 rounded-2xl border border-white/[0.08] bg-[#141c28] p-4 shadow-lg shadow-black/10 sm:p-6 ${audience === "organization-admin" ? "oa-org-admin-time-pay" : ""}`}>
     <header className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
       <div className="min-w-0">
@@ -598,6 +611,19 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             className={INPUT}
           />
           {organizationTimeZone && <span className="mt-1 block text-[10px] font-medium text-slate-500">{organizationTimeZone}</span>}
+          {hasUnsavedChanges && (
+            <span className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-medium text-amber-200">
+              Unsaved payment edits
+              <button
+                type="button"
+                onClick={discardPaymentEdits}
+                disabled={Boolean(saving)}
+                className="rounded-md border border-amber-300/20 px-2 py-1 text-[10px] font-bold text-amber-100 transition hover:bg-amber-300/10 disabled:opacity-40"
+              >
+                Discard edits
+              </button>
+            </span>
+          )}
         </label>
         {canEdit && <Link href={audience === "hr-manager" ? "/hr/modules/pay-rates" : "/org/pay-rates"} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-600 bg-white/[0.025] px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07]">Manage pay rates</Link>}
         <button type="button" onClick={exportPayrollRegister} disabled={loading || payments.length === 0 || visiblePayments.length === 0} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-sky-600 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-40">
