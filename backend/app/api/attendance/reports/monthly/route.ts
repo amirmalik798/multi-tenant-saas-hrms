@@ -89,7 +89,7 @@ async function resolveTarget(actor: Actor, employeeId: string): Promise<TargetRo
        e.first_name AS "firstName",
        e.last_name AS "lastName",
        d.name AS "departmentName",
-       COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE') AS "workforceRole",
+       COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE') AS "workforceRole",
        e.employment_status AS "employmentStatus",
        EXISTS (
          SELECT 1
@@ -196,7 +196,7 @@ export async function GET(request: Request) {
            e.first_name AS "firstName",
            e.last_name AS "lastName",
            d.name AS "departmentName",
-           COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE') AS "workforceRole",
+           COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE') AS "workforceRole",
            e.employment_status AS "employmentStatus"
          FROM public.employees AS e
          LEFT JOIN public.departments AS d
@@ -220,7 +220,7 @@ export async function GET(request: Request) {
            LIMIT 1
          ) AS account_role ON TRUE
          WHERE e.organization_id = $1::uuid
-           AND regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g') = ANY($2::text[])
+           AND regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g') = ANY($2::text[])
            AND NOT EXISTS (
              SELECT 1
              FROM public.users AS admin_account
@@ -322,7 +322,7 @@ export async function GET(request: Request) {
          SELECT e.id, e.organization_id,
                 e.employee_code, e.first_name, e.last_name, e.employment_status,
                 d.name AS department_name,
-                COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE') AS workforce_role,
+                COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE') AS workforce_role,
                 COALESCE(NULLIF(os.time_zone, ''), 'Africa/Kigali') AS time_zone
          FROM public.employees AS e
          LEFT JOIN public.departments AS d
