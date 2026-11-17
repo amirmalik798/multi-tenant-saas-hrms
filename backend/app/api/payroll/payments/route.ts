@@ -7,7 +7,7 @@ import { pool } from "../../../../lib/db";
 import { getTenantPermissionActor } from "../../../../lib/permissions";
 import { organizationIsActive } from "../../../../lib/schedule-utils";
 import { calculateOrganizationMonthlyPay } from "../../../../lib/monthly-salary-calculation";
-import { isExcludedHrTargetRole } from "../../../../lib/workforce-eligibility";
+import { normalizeWorkforceRole } from "../../../../lib/workforce-eligibility";
 
 function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache", Expires: "0", "X-Content-Type-Options": "nosniff" } });
