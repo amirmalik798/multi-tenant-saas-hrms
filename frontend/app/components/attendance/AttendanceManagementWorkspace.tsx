@@ -227,17 +227,23 @@ export default function AttendanceManagementWorkspace({ audience, initialSection
   useEffect(() => {
     let cancelled = false;
     const initializeDateRange = async () => {
-      // The Department Manager overview provides the organization's authoritative work date.
-      // HR keeps the existing browser-local behavior because this component is shared with HR Manager.
+      // Use the organization's configured work date so administrators in another
+      // timezone review the correct attendance day and effective schedule period.
       let current = localDate(new Date());
-      if (audience === "department-manager") {
-        try {
+      try {
+        if (audience === "department-manager") {
           const summary: unknown = await api("/department-manager/overview");
           const workDate = isRecord(summary) ? str(summary, "workDate") : "";
           if (/^\d{4}-\d{2}-\d{2}$/.test(workDate)) current = workDate;
-        } catch {
-          // Keep the workspace usable when the summary endpoint is temporarily unavailable.
+        } else if (audience === "organization-admin" || audience === "hr-manager") {
+          const seedDate = localDate(new Date());
+          const calendar: unknown = await api(`/attendance/calendar?fromDate=${encodeURIComponent(seedDate)}&toDate=${encodeURIComponent(seedDate)}`);
+          const workDate = isRecord(calendar) ? str(calendar, "today") : "";
+          if (/^\d{4}-\d{2}-\d{2}$/.test(workDate)) current = workDate;
         }
+      } catch {
+        // Keep the workspace usable with the local date if organization time settings
+        // are temporarily unavailable; the API still validates all submitted dates.
       }
       if (cancelled) return;
       setFromDate(offsetDate(current, audience === "department-manager" ? -16 : -6));
