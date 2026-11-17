@@ -263,7 +263,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     } catch (caught) {
       if (!printWindow.closed) {
         printWindow.document.open();
-        printWindow.document.write(`<!doctype html><html><head><title>Salary slip unavailable</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Unable to prepare salary slip</h2><p>${String(caught instanceof Error ? caught.message : "Please try again.").replace(/[&<>"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[character] || character)}</p><button onclick='window.close()'>Close</button></body></html>`);
+        printWindow.document.write("<!doctype html><html><head><title>Salary slip unavailable</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Unable to prepare salary slip</h2><p>Return to the payroll workspace for the error message, then try again.</p><button onclick='window.close()'>Close</button></body></html>");
         printWindow.document.close();
       }
       setError(caught instanceof Error ? caught.message : "Unable to generate salary slip.");
