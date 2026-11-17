@@ -54,7 +54,6 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   const payslipPrintWindowRef = useRef<Window | null>(null);
   const payslipDialogRef = useRef<HTMLElement | null>(null);
   const payslipDialogBusyRef = useRef(false);
-  payslipDialogBusyRef.current = savingPayslipStatuses || Boolean(payslipLoading);
   useEffect(() => {
     let cancelled = false;
     async function resolveOrganizationMonth() {
@@ -152,6 +151,10 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   }, [paymentConfirmation, saving]);
 
   const payslipDialogOpen = Boolean(payslipDialog);
+  useEffect(() => {
+    payslipDialogBusyRef.current = savingPayslipStatuses || Boolean(payslipLoading);
+  }, [savingPayslipStatuses, payslipLoading]);
+
   useEffect(() => {
     if (!payslipDialogOpen) return;
     const previousOverflow = document.body.style.overflow;
@@ -409,6 +412,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       return;
     }
 
+    payslipDialogBusyRef.current = true;
     setPayslipLoading(dialog.employeeId);
     setError("");
     try {
@@ -435,6 +439,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load the selected payroll period.");
     } finally {
+      payslipDialogBusyRef.current = Boolean(savingPayslipStatuses);
       setPayslipLoading("");
     }
   }
@@ -458,6 +463,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     printWindow.document.write("<!doctype html><html><head><title>Preparing salary slip</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing salary slip…</h2><p>Saving and verifying monthly payment statuses.</p></body></html>");
     printWindow.document.close();
 
+    payslipDialogBusyRef.current = true;
     setSavingPayslipStatuses(true);
     setError("");
     setNotice("");
@@ -537,6 +543,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       payslipPrintWindowRef.current = null;
       setError(caught instanceof Error ? caught.message : "Unable to save monthly salary statuses.");
     } finally {
+      payslipDialogBusyRef.current = Boolean(payslipLoading);
       setSavingPayslipStatuses(false);
     }
   }
