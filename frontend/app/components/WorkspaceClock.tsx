@@ -470,7 +470,7 @@ export default function WorkspaceClock({
 
       {showAttendanceStatus && clockModalOpen && (
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-md"
+          className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto overscroll-contain bg-slate-950/25 px-3 py-4 sm:items-center sm:px-4 sm:py-6"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeClockConfirmation();
           }}
@@ -481,7 +481,7 @@ export default function WorkspaceClock({
             aria-labelledby="workspace-clock-dialog-title"
             aria-describedby="workspace-clock-dialog-description"
             onMouseDown={(event) => event.stopPropagation()}
-            className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-700/80 bg-[#0b1220] shadow-[0_28px_100px_rgba(0,0,0,0.6)]"
+            className="my-auto w-full max-w-md shrink-0 overflow-hidden rounded-3xl border border-slate-700/80 bg-[#0b1220] shadow-[0_20px_56px_rgba(0,0,0,0.32)]"
           >
             <div className="h-1 w-full bg-gradient-to-r from-sky-400 via-indigo-400 to-cyan-300" />
             <div className="p-5 sm:p-7">
