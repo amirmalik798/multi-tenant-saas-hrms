@@ -185,6 +185,14 @@ export default function AttendanceManagementWorkspace({ audience, initialSection
   ];
 
   const [activeSection, setActiveSection] = useState<Section>(initialSection);
+
+  useEffect(() => {
+    if (audience !== "organization-admin") return;
+    const requestedSection = new URLSearchParams(window.location.search).get("section");
+    if (requestedSection === "corrections" || requestedSection === "overtime") {
+      setActiveSection(requestedSection);
+    }
+  }, [audience]);
   const [reviewFilter, setReviewFilter] = useState<"ALL" | "CORRECTIONS" | "OVERTIME">("ALL");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
