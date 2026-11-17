@@ -181,10 +181,14 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       }
       const first = items[0];
       const last = items[items.length - 1];
-      if (event.shiftKey && (document.activeElement === first || document.activeElement === payslipDialogRef.current)) {
+      const activeElement = document.activeElement;
+      if (!payslipDialogRef.current.contains(activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && (activeElement === first || activeElement === payslipDialogRef.current)) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (!event.shiftKey && activeElement === last) {
         event.preventDefault();
         first.focus();
       }
