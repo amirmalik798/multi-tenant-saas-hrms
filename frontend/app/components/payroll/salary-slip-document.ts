@@ -211,8 +211,8 @@ function buildDayRows(days: SalarySlipDay[]): string {
 function buildMonthPage(
   payload: SalarySlipPayload,
   month: SalarySlipMonth,
-  index: number,
-  totalPages: number,
+  monthIndex: number,
+  totalMonths: number,
 ): string {
   const employeeName = [payload.employee.firstName, payload.employee.lastName].filter(Boolean).join(" ") || "Workforce member";
   const currencySummary = monthlyEarningsSummary(month);
@@ -237,7 +237,7 @@ function buildMonthPage(
         <span class="eyebrow">PAY PERIOD</span>
         <strong>${escapeHtml(monthLabel(month.month))}</strong>
         <span class="payment-status ${month.payment.status === "PAID" ? "paid" : "unpaid"}">${escapeHtml(month.payment.status === "PAID" ? "PAID" : "UNPAID")}${month.payment.recorded ? "" : " · NOT RECORDED"}</span>
-        <span class="page-number">Page ${index + 1} of ${totalPages}</span>
+        <span class="month-index">Month ${monthIndex + 1} of ${totalMonths}</span>
       </div>
     </div>
 
@@ -316,8 +316,8 @@ export function buildSalarySlipDocument(payload: SalarySlipPayload): string {
   body { padding: 22px; }
   .print-toolbar { max-width: 210mm; margin: 0 auto 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #526176; font-size: 12px; }
   .print-toolbar button { border: 0; border-radius: 8px; padding: 10px 16px; background: #1263d6; color: white; font-weight: 700; cursor: pointer; }
-  .month-page { width: 210mm; min-height: 273mm; margin: 0 auto 22px; padding: 10mm; background: white; box-shadow: 0 5px 28px rgba(17,34,58,.12); display: flex; flex-direction: column; page-break-after: always; break-after: page; overflow: hidden; }
-  .month-page:last-child { page-break-after: auto; break-after: auto; }
+  .month-page { width: 210mm; min-height: 273mm; margin: 0 auto 22px; padding: 10mm; background: white; box-shadow: 0 5px 28px rgba(17,34,58,.12); display: block; page-break-inside: auto; break-inside: auto; overflow: visible; }
+  .month-page + .month-page { page-break-before: always; break-before: page; }
   .brand-row { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 2px solid #1e5fae; }
   .brand-mark { width: 42px; height: 42px; border-radius: 11px; display: flex; align-items: center; justify-content: center; background: #102b4c; color: white; font-size: 14px; font-weight: 800; letter-spacing: .06em; }
   .brand-copy { min-width: 0; flex: 1; }
@@ -329,7 +329,7 @@ export function buildSalarySlipDocument(payload: SalarySlipPayload): string {
   .payment-status { display: inline-flex; margin-top: 5px; padding: 3px 7px; border-radius: 999px; font-size: 7px; font-weight: 800; letter-spacing: .08em; }
   .payment-status.paid { color: #17613e; background: #e4f5ea; border: 1px solid #b8e3c8; }
   .payment-status.unpaid { color: #9a5417; background: #fff1df; border: 1px solid #f4d4ae; }
-  .page-number { margin-top: 4px; color: #7a8799; font-size: 8px; }
+  .month-index { margin-top: 4px; color: #7a8799; font-size: 8px; }
   .employee-panel { display: flex; justify-content: space-between; gap: 14px; padding: 12px 14px; margin-top: 11px; border: 1px solid #dce5ef; border-radius: 9px; background: #f7f9fc; }
   .employee-panel h2 { margin: 2px 0 3px; color: #14263e; font-size: 14px; }
   .employee-panel p { margin: 0; color: #627187; font-size: 8px; }
@@ -377,7 +377,7 @@ export function buildSalarySlipDocument(payload: SalarySlipPayload): string {
   .status-review { color: #9a5a12; background: #fff1d9; }
   .status-muted { color: #64748b; background: #f0f3f7; }
   .amount-cell { color: #183c68; font-weight: 800; }
-  .month-footer { display: flex; justify-content: space-between; gap: 16px; margin-top: auto; padding-top: 10px; }
+  .month-footer { display: flex; justify-content: space-between; gap: 16px; margin-top: 12px; padding-top: 10px; }
   .footer-total { min-width: 115px; padding: 8px 10px; border-radius: 7px; background: #102b4c; color: #fff; }
   .footer-total span { display: block; color: #c2d5e9; font-size: 7px; }
   .footer-total strong { display: block; margin-top: 3px; font-size: 12px; }
@@ -387,11 +387,14 @@ export function buildSalarySlipDocument(payload: SalarySlipPayload): string {
   .disclaimer { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; padding-top: 6px; border-top: 1px solid #e8edf3; color: #95a0af; font-size: 5.5pt; line-height: 1.3; }
   .disclaimer span:first-child { min-width: 100px; }
   .disclaimer span:last-child { text-align: right; }
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; break-inside: avoid; }
   @page { size: A4 portrait; margin: 0; }
   @media print {
     html, body { width: 210mm; margin: 0; padding: 0; background: white; }
     .print-toolbar { display: none !important; }
-    .month-page { width: 210mm; height: 297mm; min-height: 297mm; margin: 0; padding: 10mm; box-shadow: none; overflow: hidden; }
+    .month-page { width: 210mm; height: auto; min-height: 297mm; margin: 0; padding: 10mm; box-shadow: none; overflow: visible; page-break-inside: auto; break-inside: auto; }
+    .month-page + .month-page { page-break-before: always; break-before: page; }
   }
   @media screen and (max-width: 850px) {
     body { padding: 10px; }
@@ -406,7 +409,7 @@ export function buildSalarySlipDocument(payload: SalarySlipPayload): string {
 </head>
 <body>
 <div class="print-toolbar">
-  <span>Print-ready salary statement · One A4 page per month · Use “Save as PDF” in the print destination</span>
+  <span>Print-ready salary statement · Each month starts on a new page; long months continue as needed · Use “Save as PDF” in the print destination</span>
   <button type="button" id="salary-slip-print">Print / Save as PDF</button>
 </div>
 ${pages}
