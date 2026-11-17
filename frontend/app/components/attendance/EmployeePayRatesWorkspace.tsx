@@ -96,11 +96,13 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
     setError("");
     try {
       const seedDate = localDate();
-      const [firstPage, dateSettings, workspaceContext] = await Promise.all([
+      const [firstPageResult, dateSettingsResult, workspaceContextResult] = await Promise.allSettled([
         api("/employees?page=1&limit=100&status=ACTIVE&sortBy=name&sortOrder=asc&payRateEligible=true"),
         api(`/attendance/calendar?fromDate=${encodeURIComponent(seedDate)}&toDate=${encodeURIComponent(seedDate)}`).catch(() => null),
         api("/workspace/context").catch(() => null),
       ]);
+      const dateSettings = dateSettingsResult.status === "fulfilled" ? dateSettingsResult.value : null;
+      const workspaceContext = workspaceContextResult.status === "fulfilled" ? workspaceContextResult.value : null;
       if (workspaceContext && Object.hasOwn(workspaceContext, "currencyCode")) {
         const configuredCurrency = typeof workspaceContext.currencyCode === "string"
           ? workspaceContext.currencyCode.trim().toUpperCase()
@@ -118,13 +120,15 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
       } else {
         setDateWarning("Organization date settings could not be loaded. The effective date is using your device date; verify it before saving rates.");
       }
+      if (firstPageResult.status === "rejected") throw firstPageResult.reason;
+      const firstPage = firstPageResult.value;
       if (!Array.isArray(firstPage.employees)) throw new Error("The employee list response was invalid. Try again in a moment.");
       const responseRows = firstPage.employees as Employee[];
       const pagination = firstPage.pagination && typeof firstPage.pagination === "object" ? firstPage.pagination as { totalPages?: unknown } : {};
       const totalPages = Math.max(1, Number(pagination.totalPages) || 1);
       if (totalPages > 10001) throw new Error("The employee list is too large to load safely. Use employee search or contact your administrator.");
       for (let page = 2; page <= totalPages; page += 1) {
-        const next = await api(`/employees?page=${page}&limit=100&status=ACTIVE&sortBy=name&sortOrder=asc`);
+        const next = await api(`/employees?page=${page}&limit=100&status=ACTIVE&sortBy=name&sortOrder=asc&payRateEligible=true`);
         if (!Array.isArray(next.employees)) throw new Error("The employee list response was incomplete. Try again in a moment.");
         responseRows.push(...next.employees as Employee[]);
       }
@@ -141,7 +145,7 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
   const loadRates = useCallback(async () => {
     const requestId = ++rateRequestId.current;
     if (!employeeId) {
-      setRates([]); setEditingRateId(null); setHourlyRate(""); setOvertimeRate(""); setCurrencyCode("");
+      setRates([]); setEditingRateId(null); setHourlyRate(""); setOvertimeRate(""); setCurrencyCode(organizationCurrencyCode);
       setRateFormTouched(false);
       return;
     }
@@ -171,7 +175,7 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
     } catch (caught) {
       if (requestId === rateRequestId.current) setError(caught instanceof Error ? caught.message : "Unable to load pay rates.");
     }
-  }, [employeeId]);
+  }, [employeeId, organizationCurrencyCode]);
 
   useEffect(() => { void loadEmployees(); }, [loadEmployees]);
 
