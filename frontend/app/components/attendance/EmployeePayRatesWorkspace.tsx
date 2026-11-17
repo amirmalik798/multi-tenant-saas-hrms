@@ -68,6 +68,9 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
   const [overtimeRate, setOvertimeRate] = useState("");
   const [currencyCode, setCurrencyCode] = useState("");
   const [organizationCurrencyCode, setOrganizationCurrencyCode] = useState("");
+  const [organizationTimeZone, setOrganizationTimeZone] = useState("");
+  const [dateWarning, setDateWarning] = useState("");
+  const organizationTodayRef = useRef(localDate());
   const [effectiveFrom, setEffectiveFrom] = useState(localDate);
   const [effectiveTo, setEffectiveTo] = useState("");
   const [loading, setLoading] = useState(true);
@@ -91,7 +94,21 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
     if (!silent) setLoading(true);
     setError("");
     try {
-      const firstPage = await api("/employees?page=1&limit=100&status=ACTIVE&sortBy=name&sortOrder=asc");
+      const seedDate = localDate();
+      const [firstPage, dateSettings] = await Promise.all([
+        api("/employees?page=1&limit=100&status=ACTIVE&sortBy=name&sortOrder=asc"),
+        api(`/attendance/calendar?fromDate=${encodeURIComponent(seedDate)}&toDate=${encodeURIComponent(seedDate)}`).catch(() => null),
+      ]);
+      const organizationToday = typeof dateSettings?.today === "string" && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateSettings.today)
+        ? dateSettings.today
+        : "";
+      if (organizationToday) {
+        organizationTodayRef.current = organizationToday;
+        setOrganizationTimeZone(typeof dateSettings?.timeZone === "string" ? dateSettings.timeZone : "");
+        setDateWarning("");
+      } else {
+        setDateWarning("Organization date settings could not be loaded. The effective date is using your device date; verify it before saving rates.");
+      }
       if (!Array.isArray(firstPage.employees)) throw new Error("The employee list response was invalid. Try again in a moment.");
       const responseRows = firstPage.employees as Employee[];
       const pagination = firstPage.pagination && typeof firstPage.pagination === "object" ? firstPage.pagination as { totalPages?: unknown } : {};
@@ -136,11 +153,11 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
         setHourlyRate(latest.hourlyRate);
         setOvertimeRate(latest.overtimeRate);
         setCurrencyCode(configuredCurrency || latest.currencyCode);
-        setEffectiveFrom(localDate());
+        setEffectiveFrom(organizationTodayRef.current);
         setEffectiveTo("");
       } else {
         setHourlyRate(""); setOvertimeRate(""); setCurrencyCode(configuredCurrency);
-        setEffectiveFrom(localDate()); setEffectiveTo("");
+        setEffectiveFrom(organizationTodayRef.current); setEffectiveTo("");
       }
     } catch (caught) {
       if (requestId === rateRequestId.current) setError(caught instanceof Error ? caught.message : "Unable to load pay rates.");
@@ -238,7 +255,7 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
   }
 
   return <section className="space-y-5 text-slate-100">
-    <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-300">Compensation settings</p><h2 className="mt-1 text-xl font-bold text-white sm:text-2xl">Employee pay rates</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Set the hourly and overtime rates that drive each employee's minute-based earnings estimate. Rate changes are effective-dated so previous work keeps the rate that applied on that date.</p></div>
+    <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-300">Compensation settings</p><h2 className="mt-1 text-xl font-bold text-white sm:text-2xl">Employee pay rates</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Set the hourly and overtime rates that drive each employee's minute-based earnings estimate. Rate changes are effective-dated so previous work keeps the rate that applied on that date.</p>{organizationTimeZone && <p className="mt-2 text-xs text-slate-500">Effective dates use the organization time zone: {organizationTimeZone}</p>}{dateWarning && <p role="status" className="mt-2 rounded-lg border border-amber-300/20 bg-amber-300/[0.06] p-3 text-xs leading-5 text-amber-100">{dateWarning}</p>}</div>
     {error && <div role="alert" className="flex flex-col gap-3 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span>{error}</span><button type="button" disabled={loading || saving} onClick={() => { void loadEmployees(); void loadRates(); }} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">{loading ? "Retrying…" : "Retry"}</button></div>}
     {success && <div role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/[0.06] p-3 text-sm text-emerald-100">{success}</div>}
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
@@ -250,7 +267,7 @@ export default function EmployeePayRatesWorkspace({ audience = "hr-manager" }: {
           <label className="block text-sm font-medium text-slate-300">Organization currency<input required readOnly disabled={saving || !organizationCurrencyCode} value={organizationCurrencyCode} className={`${INPUT} cursor-not-allowed opacity-80`} placeholder="Configure currency in Organization Profile & Settings" /><span className="mt-1 block text-xs font-normal text-slate-500">Set centrally in Organization Profile & Settings. Employee pay rates always use this currency.</span></label>
           <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-medium text-slate-300">Effective from<input required type="date" disabled={saving || Boolean(editingRateId)} value={effectiveFrom} onChange={(event) => { setEffectiveFrom(event.target.value); setRateFormTouched(true); }} className={INPUT} /></label><label className="block text-sm font-medium text-slate-300">Effective to (optional)<input type="date" disabled={saving} min={effectiveFrom} value={effectiveTo} onChange={(event) => { setEffectiveTo(event.target.value); setRateFormTouched(true); }} className={INPUT} /><span className="mt-1 block text-xs font-normal text-slate-500">Leave blank for an ongoing rate.</span></label></div>
           <div className="rounded-xl border border-sky-300/10 bg-sky-300/[0.04] p-3 text-sm text-slate-300"><p>Per-minute regular rate: <strong>{hourlyRate !== "" && Number.isFinite(Number(hourlyRate)) ? `${currencyCode || "Currency"} ${(Number(hourlyRate) / 60).toFixed(4)}` : "—"}</strong></p><p className="mt-1">Per-minute overtime rate: <strong>{overtimeRate !== "" && Number.isFinite(Number(overtimeRate)) ? `${currencyCode || "Currency"} ${(Number(overtimeRate) / 60).toFixed(4)}` : "—"}</strong></p></div>
-          <div className="flex flex-wrap gap-2"><button type="submit" disabled={saving || loading || !employeeId || !organizationCurrencyCode} className={PRIMARY}>{saving ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}{editingRateId ? "Save rate changes" : "Save effective-dated rates"}</button>{editingRateId && <button type="button" disabled={saving} onClick={() => { setRateFormTouched(false); setEditingRateId(null); setEffectiveFrom(localDate()); setEffectiveTo(""); const latest = rates[0]; if (latest) { setHourlyRate(latest.hourlyRate); setOvertimeRate(latest.overtimeRate); setCurrencyCode(organizationCurrencyCode || latest.currencyCode); } }} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/[0.04] disabled:opacity-50">Cancel edit</button>}</div>
+          <div className="flex flex-wrap gap-2"><button type="submit" disabled={saving || loading || !employeeId || !organizationCurrencyCode} className={PRIMARY}>{saving ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}{editingRateId ? "Save rate changes" : "Save effective-dated rates"}</button>{editingRateId && <button type="button" disabled={saving} onClick={() => { setRateFormTouched(false); setEditingRateId(null); setEffectiveFrom(organizationTodayRef.current); setEffectiveTo(""); const latest = rates[0]; if (latest) { setHourlyRate(latest.hourlyRate); setOvertimeRate(latest.overtimeRate); setCurrencyCode(organizationCurrencyCode || latest.currencyCode); } }} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/[0.04] disabled:opacity-50">Cancel edit</button>}</div>
         </div>
       </form>
       <div className="rounded-2xl border border-white/[0.08] bg-[#141c28] p-5 sm:p-6"><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3">{employees.find((item) => item.id === employeeId) && <EmployeeProfilePhoto employeeId={employeeId} name={name(employees.find((item) => item.id === employeeId)!)} className="size-10 rounded-xl border border-slate-700 bg-slate-800" textClassName="text-xs font-bold text-slate-200" />}<div className="min-w-0"><h3 className="font-semibold text-white">Rate history</h3><p className="mt-1 truncate text-sm text-slate-400">{employees.find((item) => item.id === employeeId) ? name(employees.find((item) => item.id === employeeId)!) : "Choose an employee"}</p></div></div></div>
