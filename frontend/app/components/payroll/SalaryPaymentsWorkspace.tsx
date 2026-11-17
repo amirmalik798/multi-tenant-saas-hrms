@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { BadgeDollarSign, CheckCircle2, RefreshCw, Search, SlidersHorizontal, CalendarDays, Clock3, AlertTriangle, CheckCircle, CircleDollarSign, Printer, FileDown } from "lucide-react";
 import { buildSalarySlipDocument, type SalarySlipPayload } from "./salary-slip-document";
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
@@ -9,6 +10,13 @@ import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 type Payment = { id?: string | null; employeeId: string; employeeCode?: string | null; firstName?: string | null; lastName?: string | null; departmentName?: string | null; workforceRole?: string | null; payMonth: string; amount: string | number | null; calculatedAmount?: string | number | null; workedMinutes?: number; payableMinutes?: number; paidLeaveMinutes?: number; paidHolidayMinutes?: number; currencyCode: string; status: "PAID" | "UNPAID" | "NO_RECORDED_HOURS" | "RATE_REQUIRED" | "CURRENCY_MISMATCH"; currencyMismatch?: boolean; paidAt?: string | null; paymentReference?: string | null; notes?: string | null };
 type EmployeeRoleRecord = { id?: string; workforce_role?: unknown; workforceRole?: unknown; roleName?: unknown; role_name?: unknown; role?: unknown; userRole?: unknown; user_role?: unknown; user?: { role?: unknown } };
 type Props = { audience: "hr-manager" | "organization-admin" | "department-manager" | "employee"; employeeId?: string; excludeEmployeeId?: string };
+type PayslipPaymentStatus = "PAID" | "UNPAID";
+type PayslipDialogState = {
+  employeeId: string;
+  employeeName: string;
+  payload: SalarySlipPayload;
+  statuses: Record<string, PayslipPaymentStatus>;
+};
 const INPUT = "mt-1.5 w-full rounded-xl border border-slate-700 bg-[#0b111b] px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-sky-400";
 const BUTTON = "inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold !text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 [&>svg]:!text-white";
 function localDate() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -74,6 +82,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   const [payslipStartMonth, setPayslipStartMonth] = useState("");
   const [payslipEndMonth, setPayslipEndMonth] = useState("");
   const [payslipLoading, setPayslipLoading] = useState("");
+  const [payslipDialog, setPayslipDialog] = useState<PayslipDialogState | null>(null);
+  const [savingPayslipStatuses, setSavingPayslipStatuses] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
@@ -87,6 +97,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   const loadRequestId = useRef(0);
   const paymentConfirmationRef = useRef<HTMLElement | null>(null);
   const paymentDialogPreviousFocusRef = useRef<HTMLElement | null>(null);
+  const payslipPrintWindowRef = useRef<Window | null>(null);
   useEffect(() => {
     let cancelled = false;
     async function resolveOrganizationMonth() {
@@ -181,6 +192,23 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     return () => { document.removeEventListener("keydown", handleKeyDown); paymentDialogPreviousFocusRef.current?.focus(); };
   }, [paymentConfirmation, saving]);
 
+  useEffect(() => {
+    if (!payslipDialog) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !savingPayslipStatuses) {
+        event.preventDefault();
+        cancelSalarySlipPreparation();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [payslipDialog, savingPayslipStatuses]);
+
   useWorkspaceAutoRefresh(() => load(true), {
     enabled: true,
     intervalMs: 60_000,
@@ -222,9 +250,9 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   }, [payments, searchQuery, paymentFilter, nameSortOrder]);
 
   async function printSalarySlip(targetEmployeeId: string) {
-    if (!canEdit || !targetEmployeeId || payslipLoading) return;
-    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(payslipStartMonth) ||
-        !/^\d{4}-(0[1-9]|1[0-2])$/.test(payslipEndMonth)) {
+    if (!canEdit || !targetEmployeeId || payslipLoading || payslipDialog) return;
+    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(payslipStartMonth) ||
+        !/^\\d{4}-(0[1-9]|1[0-2])$/.test(payslipEndMonth)) {
       setError("Choose a valid start month and end month before printing.");
       return;
     }
@@ -239,15 +267,15 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       return;
     }
 
-    // Open the print tab directly from the click to avoid browser popup blockers.
+    // Open a window synchronously from the click so the browser does not block printing later.
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
       setError("Your browser blocked the salary slip window. Allow pop-ups for this site and try again.");
       return;
     }
-
+    payslipPrintWindowRef.current = printWindow;
     printWindow.document.open();
-    printWindow.document.write("<!doctype html><html><head><title>Preparing salary slip</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing salary slip…</h2><p>Loading attendance, pay rates and daily earnings.</p></body></html>");
+    printWindow.document.write("<!doctype html><html><head><title>Preparing salary slip</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing salary slip…</h2><p>Loading attendance, pay rates and monthly payment records.</p></body></html>");
     printWindow.document.close();
 
     setPayslipLoading(targetEmployeeId);
@@ -268,39 +296,107 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       if (!payload || !("months" in payload) || !Array.isArray(payload.months) || payload.months.length === 0) {
         throw new Error("The salary slip response was incomplete. Please try again.");
       }
-      if (printWindow.closed) return;
-
-      printWindow.document.open();
-      printWindow.document.write(buildSalarySlipDocument(payload));
-      printWindow.document.close();
-
-      const printWhenReady = () => {
-        if (printWindow.closed) return;
-        printWindow.focus();
-        printWindow.document.getElementById("salary-slip-print")?.addEventListener("click", () => {
-          if (!printWindow.closed) {
-            printWindow.focus();
-            printWindow.print();
-          }
-        });
-        printWindow.print();
-      };
-      if (printWindow.document.readyState === "complete") {
-        window.setTimeout(printWhenReady, 250);
-      } else {
-        printWindow.addEventListener("load", () => window.setTimeout(printWhenReady, 250), { once: true });
-      }
-      setNotice("Salary slip prepared. Use the print dialog to print or save the monthly pages as a PDF.");
+      const employeeName = [payload.employee.firstName, payload.employee.lastName].filter(Boolean).join(" ") || "Workforce member";
+      const statuses = Object.fromEntries(
+        payload.months.map((item) => [item.month, item.payment.status === "PAID" ? "PAID" : "UNPAID" as PayslipPaymentStatus]),
+      ) as Record<string, PayslipPaymentStatus>;
+      setPayslipDialog({ employeeId: targetEmployeeId, employeeName, payload, statuses });
     } catch (caught) {
-      if (!printWindow.closed) {
-        printWindow.document.open();
-        printWindow.document.write("<!doctype html><html><head><title>Salary slip unavailable</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Unable to prepare salary slip</h2><p>Return to the payroll workspace for the error message, then try again.</p><button onclick='window.close()'>Close</button></body></html>");
-        printWindow.document.close();
-      }
+      if (!printWindow.closed) printWindow.close();
+      payslipPrintWindowRef.current = null;
       setError(caught instanceof Error ? caught.message : "Unable to generate salary slip.");
     } finally {
       setPayslipLoading("");
     }
+  }
+
+  async function saveSalarySlipStatusesAndPrint() {
+    const dialog = payslipDialog;
+    if (!dialog || savingPayslipStatuses) return;
+    setSavingPayslipStatuses(true);
+    setError("");
+    setNotice("");
+    try {
+      const statuses = dialog.payload.months.map((item) => ({
+        month: item.month,
+        status: dialog.statuses[item.month] || "UNPAID",
+      }));
+      const saveResponse = await fetch(
+        `/api/backend/payroll/payslips/${encodeURIComponent(dialog.employeeId)}`,
+        {
+          method: "PUT",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ statuses }),
+        },
+      );
+      const savePayload = await saveResponse.json().catch(() => null);
+      if (!saveResponse.ok) {
+        throw new Error(savePayload?.message || `Unable to save monthly payment statuses (${saveResponse.status}).`);
+      }
+
+      // Re-read the ledger so the printed document only contains persisted statuses.
+      const query = new URLSearchParams({
+        startMonth: dialog.payload.startMonth,
+        endMonth: dialog.payload.endMonth,
+      });
+      const response = await fetch(
+        `/api/backend/payroll/payslips/${encodeURIComponent(dialog.employeeId)}?${query.toString()}`,
+        { credentials: "same-origin", cache: "no-store" },
+      );
+      const payload = await response.json().catch(() => null) as SalarySlipPayload | { message?: string } | null;
+      if (!response.ok) {
+        throw new Error(payload && "message" in payload && typeof payload.message === "string"
+          ? payload.message
+          : `Unable to reload saved salary slips (${response.status}).`);
+      }
+      if (!payload || !("months" in payload) || !Array.isArray(payload.months) ||
+          payload.months.length === 0 || payload.months.some((item) => !item.payment.recorded)) {
+        throw new Error("The monthly payment statuses were not all confirmed as stored. Reload the salary slip before printing.");
+      }
+
+      const printWindow = payslipPrintWindowRef.current;
+      if (printWindow && !printWindow.closed) {
+        printWindow.document.open();
+        printWindow.document.write(buildSalarySlipDocument(payload));
+        printWindow.document.close();
+
+        const printWhenReady = () => {
+          if (printWindow.closed) return;
+          printWindow.focus();
+          printWindow.document.getElementById("salary-slip-print")?.addEventListener("click", () => {
+            if (!printWindow.closed) {
+              printWindow.focus();
+              printWindow.print();
+            }
+          });
+          printWindow.print();
+        };
+        if (printWindow.document.readyState === "complete") {
+          window.setTimeout(printWhenReady, 250);
+        } else {
+          printWindow.addEventListener("load", () => window.setTimeout(printWhenReady, 250), { once: true });
+        }
+        setNotice("Salary slip prepared. Every month’s PAID / UNPAID status has been saved to payroll.");
+      } else {
+        setNotice("Monthly PAID / UNPAID statuses have been saved to payroll, but the print window was closed. Select Print salary slip again to print.");
+      }
+      setPayslipDialog(null);
+      payslipPrintWindowRef.current = null;
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to save monthly salary statuses.");
+    } finally {
+      setSavingPayslipStatuses(false);
+    }
+  }
+
+  function cancelSalarySlipPreparation() {
+    if (savingPayslipStatuses) return;
+    if (payslipPrintWindowRef.current && !payslipPrintWindowRef.current.closed) {
+      payslipPrintWindowRef.current.close();
+    }
+    payslipPrintWindowRef.current = null;
+    setPayslipDialog(null);
   }
 
   async function save(employeeId: string, confirmed = false) {
