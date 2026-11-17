@@ -3,7 +3,7 @@ import { pool } from "../../../../../lib/db";
 import { getTenantPermissionActor } from "../../../../../lib/permissions";
 import { organizationIsActive } from "../../../../../lib/schedule-utils";
 import { calculateDailyAttendance, type AttendanceCalculationEvent } from "../../../../../lib/attendance-calculations";
-import { isExcludedHrTargetRole } from "../../../../../lib/workforce-eligibility";
+import { normalizeWorkforceRole } from "../../../../../lib/workforce-eligibility";
 
 type RouteContext = {
   params: Promise<{ employeeId: string }>;
@@ -179,14 +179,18 @@ export async function GET(request: Request, context: RouteContext) {
 
     const target = targetResult.rows[0];
     if (!target) return json({ message: "Workforce member not found in this organization" }, 404);
-    if (
-      target.isOrganizationAdmin ||
-      isExcludedHrTargetRole(target.workforceRole, { allowHrManager: isOrganizationAdmin })
-    ) {
+    const targetRole = normalizeWorkforceRole(target.workforceRole || "EMPLOYEE");
+    const isHrManagerTarget = targetRole === "HR_MANAGER" || targetRole === "HRMANAGER";
+    const isDepartmentManagerTarget = targetRole === "DEPARTMENT_MANAGER" || targetRole === "DEPARTMENTMANAGER";
+    const isEmployeeTarget = targetRole === "EMPLOYEE";
+    const roleIsEligible = isDepartmentManagerTarget || isEmployeeTarget ||
+      (isOrganizationAdmin && isHrManagerTarget);
+
+    if (target.isOrganizationAdmin || !roleIsEligible) {
       return json({
         message: isHrManager
           ? "HR Managers can print salary slips for Department Managers and Employees only"
-          : "Organization Admin salary slips are not available through workforce payroll",
+          : "Organization Admins can print salary slips for HR Managers, Department Managers and Employees only",
       }, 403);
     }
 
