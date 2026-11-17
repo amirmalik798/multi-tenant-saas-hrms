@@ -372,24 +372,60 @@ export async function POST(request: Request) {
         );
       }
 
-      // Get the latest immutable time event, if any.
+      // Use the effective punch stream for both clock-state validation and
+      // session metadata. Approved missing-punch corrections are virtual
+      // events, so querying only immutable attendance_events can otherwise
+      // allow duplicate clock-outs or incorrectly block a new clock-in.
       const latestResult = await client.query<{
-        id: string;
+        id: string | null;
         event_type: AttendanceEventType;
         work_date: string;
         time_zone: string;
         schedule_assignment_id: string | null;
       }>(
-        `SELECT
-           id,
-           event_type,
-           work_date,
-           time_zone,
-           schedule_assignment_id
-         FROM public.attendance_events
-         WHERE organization_id = $1
-           AND employee_id = $2
-         ORDER BY recorded_at DESC, id DESC
+        `WITH effective_events AS (
+           SELECT
+             ae.id,
+             ae.event_type,
+             ae.work_date,
+             ae.time_zone,
+             ae.schedule_assignment_id,
+             COALESCE(c.requested_at, ae.recorded_at) AS effective_at,
+             ae.id::text AS sort_id
+           FROM public.attendance_events ae
+           LEFT JOIN LATERAL (
+             SELECT cr.requested_at
+             FROM public.attendance_correction_requests cr
+             WHERE cr.organization_id = ae.organization_id
+               AND cr.employee_id = ae.employee_id
+               AND cr.original_event_id = ae.id
+               AND cr.status = 'APPROVED'
+             ORDER BY cr.decision_at DESC, cr.id DESC
+             LIMIT 1
+           ) c ON TRUE
+           WHERE ae.organization_id = $1
+             AND ae.employee_id = $2
+
+           UNION ALL
+
+           SELECT
+             NULL::uuid AS id,
+             cr.event_type,
+             cr.work_date,
+             cr.time_zone,
+             NULL::uuid AS schedule_assignment_id,
+             cr.requested_at AS effective_at,
+             ('CORRECTION:' || cr.id::text) AS sort_id
+           FROM public.attendance_correction_requests cr
+           WHERE cr.organization_id = $1
+             AND cr.employee_id = $2
+             AND cr.original_event_id IS NULL
+             AND cr.status = 'APPROVED'
+         )
+         SELECT id, event_type, work_date::text AS work_date, time_zone,
+                schedule_assignment_id
+         FROM effective_events
+         ORDER BY effective_at DESC, sort_id DESC
          LIMIT 1`,
         [actor.organizationId, actor.employeeId],
       );
