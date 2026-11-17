@@ -29,10 +29,16 @@ export async function GET(request: Request) {
     const month = new URL(request.url).searchParams.get("month");
     if (!validMonth(month)) return json({ message: "Provide month in YYYY-MM format" }, 400);
     const start = `${month}-01`;
+    const isOrganizationAdmin = actor.kind === "ORGANIZATION_ADMIN";
     const isEmployee = actor.kind === "ORGANIZATION_USER" && actor.roleName === "EMPLOYEE";
     const isDm = actor.kind === "ORGANIZATION_USER" && actor.roleName === "DEPARTMENT_MANAGER";
     const isHrManager = actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER";
-    if (!canManage(actor) && !isEmployee && !isDm && !isHrManager) return json({ message: "You do not have permission to view salary payments" }, 403);
+    if (!isOrganizationAdmin && !isEmployee && !isDm && !isHrManager) return json({ message: "You do not have permission to view salary payments" }, 403);
+    const allowedWorkforceRoles = isOrganizationAdmin
+      ? ["EMPLOYEE", "DEPARTMENT_MANAGER", "DEPARTMENTMANAGER", "HR_MANAGER", "HRMANAGER"]
+      : isHrManager
+        ? ["EMPLOYEE", "DEPARTMENT_MANAGER", "DEPARTMENTMANAGER"]
+        : ["EMPLOYEE"];
     const result = await pool.query(
       `SELECT p.id, e.id AS "employeeId", e.employee_code AS "employeeCode",
               e.first_name AS "firstName", e.last_name AS "lastName", e.department_id AS "departmentId",
@@ -74,6 +80,7 @@ export async function GET(request: Request) {
          ORDER BY pr.effective_from DESC LIMIT 1
        ) rate ON TRUE
        WHERE e.organization_id = $1::uuid
+          AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') = ANY($8::text[])
          AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORGANIZATION_ADMIN%'
          AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORGANIZATIONADMIN%'
          AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORG_ADMIN%'
@@ -150,7 +157,7 @@ export async function GET(request: Request) {
            OR ($7::boolean AND NOT $3::boolean)
          )
        ORDER BY e.first_name, e.last_name, e.employee_code`,
-      [actor.organizationId, start, actor.kind === "ORGANIZATION_ADMIN", isEmployee, actor.kind === "ORGANIZATION_USER" ? actor.employeeId : null, isDm, isHrManager],
+      [actor.organizationId, start, isOrganizationAdmin, isEmployee, actor.kind === "ORGANIZATION_USER" ? actor.employeeId : null, isDm, isHrManager, allowedWorkforceRoles],
     );
     const calculated = await calculateOrganizationMonthlyPay(pool, actor.organizationId, month);
     const payments = result.rows.map((row) => {
@@ -219,7 +226,7 @@ export async function PUT(request: Request) {
     await client.query("BEGIN");
     transactionStarted = true;
     const employee = await client.query(
-      `SELECT e.id, COALESCE(r.name, linked_workforce_role.name) AS workforce_role,
+      `SELECT e.id, COALESCE(linked_workforce_role.name, r.name) AS workforce_role,
               EXISTS (
                 SELECT 1 FROM public.users target_account
                 JOIN public.roles target_account_role ON target_account_role.id = target_account.role_id AND target_account_role.organization_id = target_account.organization_id
@@ -262,9 +269,23 @@ export async function PUT(request: Request) {
       [employeeId, actor.organizationId],
     );
     if (!employee.rowCount) { await client.query("ROLLBACK"); return json({ message: "Employee not found in this organization" }, 404); }
-    if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: actor.kind === "ORGANIZATION_ADMIN" }) || employee.rows[0].is_organization_admin) {
+    const targetRole = normalizeWorkforceRole(employee.rows[0].workforce_role);
+    const targetIsHrManager = targetRole === "HR_MANAGER" || targetRole === "HRMANAGER";
+    const targetIsDepartmentManager = targetRole === "DEPARTMENT_MANAGER" || targetRole === "DEPARTMENTMANAGER";
+    const targetIsEmployee = targetRole === "EMPLOYEE";
+    const targetRoleAllowed = targetIsEmployee || targetIsDepartmentManager ||
+      (actor.kind === "ORGANIZATION_ADMIN" && targetIsHrManager);
+    const hrManagerSelfTarget = actor.kind === "ORGANIZATION_USER" &&
+      actor.roleName === "HR_MANAGER" && employeeId === actor.employeeId;
+    if (employee.rows[0].is_organization_admin || !targetRoleAllowed || hrManagerSelfTarget) {
       await client.query("ROLLBACK");
-      return json({ message: "Organization Admin records are not eligible for salary payments" }, 403);
+      return json({
+        message: hrManagerSelfTarget
+          ? "HR Managers cannot record or change their own salary payment"
+          : actor.kind === "ORGANIZATION_ADMIN"
+            ? "Organization Admins can record payments for HR Managers, Department Managers and Employees only"
+            : "HR Managers can record payments for Department Managers and Employees only",
+      }, 403);
     }
 
     // Calculate after locking the employee row. Pay-rate changes use the
