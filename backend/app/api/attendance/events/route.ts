@@ -146,11 +146,47 @@ export async function GET(request: Request) {
       personalEvents = personalResult.rows;
       // Department Managers can see their team's events, but their own
       // clock status must be calculated from their own punches only.
+      // Derive clock status from the same effective event stream used by
+      // attendance and payroll calculations. Approved missing-punch
+      // corrections must close an open session even though the immutable
+      // attendance_events table does not receive a synthetic punch row.
       const ownLatest = await pool.query<{ eventType: AttendanceEventType }>(
-        `SELECT event_type AS "eventType"
-         FROM public.attendance_events
-         WHERE organization_id = $1::uuid AND employee_id = $2::uuid
-         ORDER BY recorded_at DESC, id DESC
+        `WITH effective_events AS (
+           SELECT
+             ae.event_type,
+             COALESCE(
+               (
+                 SELECT cr.requested_at
+                 FROM public.attendance_correction_requests AS cr
+                 WHERE cr.organization_id = ae.organization_id
+                   AND cr.employee_id = ae.employee_id
+                   AND cr.original_event_id = ae.id
+                   AND cr.status = 'APPROVED'
+                 ORDER BY cr.decision_at DESC, cr.id DESC
+                 LIMIT 1
+               ),
+               ae.recorded_at
+             ) AS effective_at,
+             ae.id::text AS sort_id
+           FROM public.attendance_events AS ae
+           WHERE ae.organization_id = $1::uuid
+             AND ae.employee_id = $2::uuid
+
+           UNION ALL
+
+           SELECT
+             cr.event_type,
+             cr.requested_at AS effective_at,
+             ('CORRECTION:' || cr.id::text) AS sort_id
+           FROM public.attendance_correction_requests AS cr
+           WHERE cr.organization_id = $1::uuid
+             AND cr.employee_id = $2::uuid
+             AND cr.original_event_id IS NULL
+             AND cr.status = 'APPROVED'
+         )
+         SELECT event_type AS "eventType"
+         FROM effective_events
+         ORDER BY effective_at DESC, sort_id DESC
          LIMIT 1`,
         [actor.organizationId, actor.employeeId],
       );
