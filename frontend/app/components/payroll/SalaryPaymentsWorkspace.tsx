@@ -8,7 +8,7 @@ import { buildSalarySlipDocument, type SalarySlipPayload } from "./salary-slip-d
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
 import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
-type Payment = { id?: string | null; employeeId: string; employeeCode?: string | null; firstName?: string | null; lastName?: string | null; departmentName?: string | null; workforceRole?: string | null; payMonth: string; amount: string | number | null; calculatedAmount?: string | number | null; workedMinutes?: number; payableMinutes?: number; paidLeaveMinutes?: number; paidHolidayMinutes?: number; currencyCode: string; status: "PAID" | "UNPAID" | "NO_RECORDED_HOURS" | "RATE_REQUIRED" | "CURRENCY_MISMATCH"; currencyMismatch?: boolean; paidAt?: string | null; paymentReference?: string | null; notes?: string | null; paymentRecorded?: boolean; recordedByUserId?: string | null; recordedBy?: string | null; createdAt?: string | null; updatedAt?: string | null };
+type Payment = { id?: string | null; employeeId: string; employeeCode?: string | null; firstName?: string | null; lastName?: string | null; departmentName?: string | null; workforceRole?: string | null; payMonth: string; amount: string | number | null; calculatedAmount?: string | number | null; workedMinutes?: number; payableMinutes?: number; paidLeaveMinutes?: number; paidHolidayMinutes?: number; calculatedRegularAmount?: string | number | null; calculatedOvertimeAmount?: string | number | null; calculatedPaidAbsenceAmount?: string | number | null; currencyCode: string; status: "PAID" | "UNPAID" | "NO_RECORDED_HOURS" | "RATE_REQUIRED" | "CURRENCY_MISMATCH"; currencyMismatch?: boolean; paidAt?: string | null; paymentReference?: string | null; notes?: string | null; paymentRecorded?: boolean; recordedByUserId?: string | null; recordedBy?: string | null; createdAt?: string | null; updatedAt?: string | null };
 type EmployeeRoleRecord = { id?: string; workforce_role?: unknown; workforceRole?: unknown; roleName?: unknown; role_name?: unknown; role?: unknown; userRole?: unknown; user_role?: unknown; user?: { role?: unknown } };
 type Props = { audience: "hr-manager" | "organization-admin" | "department-manager" | "employee"; employeeId?: string; excludeEmployeeId?: string };
 type PayslipPaymentStatus = "PAID" | "UNPAID";
@@ -238,15 +238,17 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   const currencyMismatchCount = payments.filter((payment) => payment.status === "CURRENCY_MISMATCH").length;
   const needsReviewCount = rateRequiredCount + currencyMismatchCount;
   const currencySummaries = useMemo(() => {
-    const summary = new Map<string, { currencyCode: string; paid: number; outstanding: number; paidCount: number; unpaidCount: number }>();
+    const summary = new Map<string, { currencyCode: string; total: number; paid: number; outstanding: number; paidCount: number; unpaidCount: number }>();
     for (const payment of payments) {
       const currencyCode = (payment.currencyCode || "RWF").toUpperCase();
-      const current = summary.get(currencyCode) || { currencyCode, paid: 0, outstanding: 0, paidCount: 0, unpaidCount: 0 };
+      const current = summary.get(currencyCode) || { currencyCode, total: 0, paid: 0, outstanding: 0, paidCount: 0, unpaidCount: 0 };
       if (payment.status === "PAID") {
         current.paid += Number(payment.amount || 0);
+        current.total += Number(payment.amount || 0);
         current.paidCount += 1;
       } else if (payment.status === "UNPAID") {
         current.outstanding += Number(payment.calculatedAmount ?? payment.amount ?? 0);
+        current.total += Number(payment.calculatedAmount ?? payment.amount ?? 0);
         current.unpaidCount += 1;
       }
       summary.set(currencyCode, current);
@@ -279,8 +281,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     const statusRank = (payment: Payment) => payment.status === "UNPAID" ? 0 : payment.status === "RATE_REQUIRED" || payment.status === "CURRENCY_MISMATCH" ? 1 : payment.status === "NO_RECORDED_HOURS" ? 2 : 3;
     return filtered.sort((a, b) => {
       if (sortOption === "NAME_DESC") return nameOf(b).localeCompare(nameOf(a), undefined, { sensitivity: "base" });
-      if (sortOption === "AMOUNT_DESC") return amountOf(b) - amountOf(a) || nameOf(a).localeCompare(nameOf(b));
-      if (sortOption === "AMOUNT_ASC") return amountOf(a) - amountOf(b) || nameOf(a).localeCompare(nameOf(b));
+      if (sortOption === "AMOUNT_DESC") return (a.currencyCode || "RWF").localeCompare(b.currencyCode || "RWF") || amountOf(b) - amountOf(a) || nameOf(a).localeCompare(nameOf(b));
+      if (sortOption === "AMOUNT_ASC") return (a.currencyCode || "RWF").localeCompare(b.currencyCode || "RWF") || amountOf(a) - amountOf(b) || nameOf(a).localeCompare(nameOf(b));
       if (sortOption === "STATUS") return statusRank(a) - statusRank(b) || nameOf(a).localeCompare(nameOf(b));
       return nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: "base" });
     });
@@ -561,9 +563,10 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         {currencySummaries.map((summary) => (
           <div key={summary.currencyCode} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3.5">
             <p className="text-[11px] font-bold uppercase tracking-[0.13em] text-sky-300">{summary.currencyCode}</p>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div><p className="text-[11px] text-slate-500">Paid</p><p className="mt-1 break-words text-base font-bold tabular-nums text-emerald-200">{money(summary.paid, summary.currencyCode)}</p><p className="mt-1 text-[10px] text-slate-500">{summary.paidCount} people</p></div>
-              <div><p className="text-[11px] text-slate-500">Outstanding</p><p className="mt-1 break-words text-base font-bold tabular-nums text-amber-200">{money(summary.outstanding, summary.currencyCode)}</p><p className="mt-1 text-[10px] text-slate-500">{summary.unpaidCount} people</p></div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <div><p className="text-[10px] text-slate-500">Total</p><p className="mt-1 break-words text-sm font-bold tabular-nums text-white">{money(summary.total, summary.currencyCode)}</p></div>
+              <div><p className="text-[10px] text-slate-500">Paid</p><p className="mt-1 break-words text-sm font-bold tabular-nums text-emerald-200">{money(summary.paid, summary.currencyCode)}</p><p className="mt-1 text-[10px] text-slate-500">{summary.paidCount} people</p></div>
+              <div><p className="text-[10px] text-slate-500">Outstanding</p><p className="mt-1 break-words text-sm font-bold tabular-nums text-amber-200">{money(summary.outstanding, summary.currencyCode)}</p><p className="mt-1 text-[10px] text-slate-500">{summary.unpaidCount} people</p></div>
             </div>
           </div>
         ))}
@@ -609,8 +612,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             <select value={sortOption} onChange={(event) => setSortOption(event.target.value as typeof sortOption)} className={INPUT}>
               <option value="NAME_ASC">Name · A–Z</option>
               <option value="NAME_DESC">Name · Z–A</option>
-              <option value="AMOUNT_DESC">Amount · High–low</option>
-              <option value="AMOUNT_ASC">Amount · Low–high</option>
+              <option value="AMOUNT_DESC">Amount · High–low by currency</option>
+              <option value="AMOUNT_ASC">Amount · Low–high by currency</option>
               <option value="STATUS">Payment priority</option>
             </select>
           </label>
@@ -705,11 +708,13 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                     <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
                       <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-500">Payroll calculation</p>
                       <p className="mt-2 break-words text-2xl font-bold tracking-tight text-white">{money(payment.calculatedAmount == null ? null : String(payment.calculatedAmount), payment.currencyCode)}</p>
-                      <div className="mt-3 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-3">
+                      <div className="mt-3 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-3 sm:grid-cols-3">
                         <div><p className="text-[10px] text-slate-500">Currency</p><p className="mt-1 text-sm font-semibold text-slate-200">{payment.currencyCode}</p></div>
                         <div><p className="text-[10px] text-slate-500">Payable time</p><p className="mt-1 text-sm font-semibold text-slate-200">{Math.floor(Math.max(0,payment.payableMinutes||0)/60)}h {String(Math.max(0,payment.payableMinutes||0)%60).padStart(2,"0")}m</p></div>
-                        <div><p className="text-[10px] text-slate-500">Paid leave</p><p className="mt-1 text-sm font-semibold text-slate-200">{Math.floor(Math.max(0,payment.paidLeaveMinutes||0)/60)}h {String(Math.max(0,payment.paidLeaveMinutes||0)%60).padStart(2,"0")}m</p></div>
-                        <div><p className="text-[10px] text-slate-500">Paid holidays</p><p className="mt-1 text-sm font-semibold text-slate-200">{Math.floor(Math.max(0,payment.paidHolidayMinutes||0)/60)}h {String(Math.max(0,payment.paidHolidayMinutes||0)%60).padStart(2,"0")}m</p></div>
+                        <div><p className="text-[10px] text-slate-500">Regular earnings</p><p className="mt-1 text-sm font-semibold text-slate-200">{money(payment.calculatedRegularAmount ?? null, payment.currencyCode)}</p></div>
+                        <div><p className="text-[10px] text-slate-500">Overtime earnings</p><p className="mt-1 text-sm font-semibold text-slate-200">{money(payment.calculatedOvertimeAmount ?? null, payment.currencyCode)}</p></div>
+                        <div><p className="text-[10px] text-slate-500">Paid-absence earnings</p><p className="mt-1 text-sm font-semibold text-slate-200">{money(payment.calculatedPaidAbsenceAmount ?? null, payment.currencyCode)}</p></div>
+                        <div><p className="text-[10px] text-slate-500">Paid leave / holiday</p><p className="mt-1 text-sm font-semibold text-slate-200">{Math.floor(Math.max(0,(payment.paidLeaveMinutes||0)+(payment.paidHolidayMinutes||0))/60)}h {String(Math.max(0,(payment.paidLeaveMinutes||0)+(payment.paidHolidayMinutes||0))%60).padStart(2,"0")}m</p></div>
                       </div>
                     </div>
                     {canEdit ? <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
