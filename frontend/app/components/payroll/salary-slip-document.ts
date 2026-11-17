@@ -198,7 +198,7 @@ function buildDayRows(days: SalarySlipDay[]): string {
       : "";
     return `<tr>
       <td class="date-cell"><strong>${escapeHtml(dateLabel(day.workDate))}</strong><span class="sub-note">${escapeHtml(dateLabel(day.workDate, true))}</span></td>
-      <td><span class="status-pill ${statusClass}">${escapeHtml(statusLabel(day.dayStatus))}</span><span class="sub-note">${escapeHtml(day.scheduleName || "—")}</span></td>
+      <td><span class="status-pill ${statusClass}">${escapeHtml(statusLabel(day.dayStatus))}</span></td>
       <td class="numeric">${escapeHtml(duration(day.workedMinutes))}</td>
       <td class="numeric">${escapeHtml(overtimeLabel)}${unapprovedNote}</td>
       <td class="numeric">${escapeHtml(day.payableRegularMinutes <= 0 ? "—" : day.regularPay === null ? "Rate required" : money(day.regularPay, currency))}</td>
@@ -320,7 +320,7 @@ export function buildSalarySlipDocument(payload: SalarySlipPayload): string {
   .brand-row { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 2px solid #1e5fae; }
   .brand-mark { width: 42px; height: 42px; border-radius: 11px; display: flex; align-items: center; justify-content: center; background: #102b4c; color: white; font-size: 14px; font-weight: 800; letter-spacing: .06em; }
   .brand-copy { min-width: 0; flex: 1; }
-  .eyebrow { margin: 0 0 4px; color: #3276b8; font-size: 7px; line-height: 1.2; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+  .eyebrow { margin: 0 0 4px; color: #3276b8; font-size: 6.5pt; line-height: 1.2; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
   .brand-copy h1 { margin: 0; color: #12233a; font-size: 15px; line-height: 1.2; }
   .brand-copy .muted { margin: 3px 0 0; color: #718096; font-size: 9px; }
   .period-block { display: flex; min-width: 135px; flex-direction: column; align-items: flex-end; }
@@ -331,7 +331,7 @@ export function buildSalarySlipDocument(payload: SalarySlipPayload): string {
   .employee-panel p { margin: 0; color: #627187; font-size: 8px; }
   .employee-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 16px; min-width: 48%; }
   .employee-meta span { display: flex; flex-direction: column; gap: 2px; }
-  .employee-meta small { color: #758399; font-size: 7px; }
+  .employee-meta small { color: #758399; font-size: 6pt; }
   .employee-meta strong { overflow-wrap: anywhere; color: #263850; font-size: 8px; font-weight: 700; }
   .summary-grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 7px; margin-top: 9px; }
   .summary-card { min-width: 0; padding: 8px 9px; border: 1px solid #e1e8f0; border-radius: 7px; background: #fff; }
@@ -343,7 +343,7 @@ export function buildSalarySlipDocument(payload: SalarySlipPayload): string {
   .summary-separator { color: #9ba9b9; }
   .section-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; margin: 12px 0 5px; }
   .section-heading h3 { margin: 0; color: #172c47; font-size: 10px; }
-  .small-note { color: #8491a2; font-size: 7px; }
+  .small-note { color: #8491a2; font-size: 6.5pt; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   th { background: #eff3f8; color: #52647b; font-size: 6.5px; text-transform: uppercase; letter-spacing: .045em; font-weight: 800; text-align: left; }
   th, td { padding: 4px 5px; border-bottom: 1px solid #e8edf3; vertical-align: middle; }
@@ -362,12 +362,12 @@ export function buildSalarySlipDocument(payload: SalarySlipPayload): string {
   .day-table th:nth-child(6) { width: 13%; }
   .day-table th:nth-child(7) { width: 20%; }
   .day-table th, .day-table td { padding: 3px 4px; }
-  .day-table td { font-size: 6.6px; line-height: 1.15; }
-  .day-table th { font-size: 5.8px; }
+  .day-table td { font-size: 7pt; line-height: 1.1; }
+  .day-table th { font-size: 6pt; }
   .date-cell strong, .date-cell .sub-note { display: block; }
-  .date-cell strong { color: #263b56; font-size: 6.8px; }
-  .sub-note { display: block; margin-top: 2px; color: #8b98a8; font-size: 5.8px; line-height: 1.15; }
-  .status-pill { display: inline-block; padding: 2px 4px; border-radius: 4px; font-size: 5.8px; font-weight: 700; white-space: nowrap; }
+  .date-cell strong { color: #263b56; font-size: 6.5pt; }
+  .sub-note { display: block; margin-top: 2px; color: #738197; font-size: 5.8pt; line-height: 1.1; }
+  .status-pill { display: inline-block; padding: 2px 4px; border-radius: 4px; font-size: 5.8pt; font-weight: 700; white-space: nowrap; }
   .status-worked { color: #17613e; background: #e6f5ec; }
   .status-paid { color: #24548b; background: #e7f0fb; }
   .status-review { color: #9a5a12; background: #fff1d9; }
@@ -377,10 +377,10 @@ export function buildSalarySlipDocument(payload: SalarySlipPayload): string {
   .footer-total { min-width: 115px; padding: 8px 10px; border-radius: 7px; background: #102b4c; color: #fff; }
   .footer-total span { display: block; color: #c2d5e9; font-size: 7px; }
   .footer-total strong { display: block; margin-top: 3px; font-size: 12px; }
-  .footer-note { flex: 1; color: #68788d; font-size: 6.5px; line-height: 1.35; }
+  .footer-note { flex: 1; color: #68788d; font-size: 6pt; line-height: 1.3; }
   .footer-note p { margin: 0 0 3px; }
   .footer-note .warning { color: #985b12; }
-  .disclaimer { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; padding-top: 6px; border-top: 1px solid #e8edf3; color: #95a0af; font-size: 5.5px; line-height: 1.3; }
+  .disclaimer { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; padding-top: 6px; border-top: 1px solid #e8edf3; color: #95a0af; font-size: 5.5pt; line-height: 1.3; }
   .disclaimer span:first-child { min-width: 100px; }
   .disclaimer span:last-child { text-align: right; }
   @page { size: A4 portrait; margin: 0; }
