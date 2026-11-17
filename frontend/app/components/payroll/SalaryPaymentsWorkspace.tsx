@@ -3,8 +3,9 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { BadgeDollarSign, CheckCircle2, RefreshCw, Search, Clock3, AlertTriangle, CheckCircle, CircleDollarSign, Printer, FileDown, Download, ChevronDown, ChevronLeft, ChevronRight, Eye, Pencil, LockKeyhole, Users } from "lucide-react";
+import { BadgeDollarSign, CheckCircle2, RefreshCw, Search, Clock3, AlertTriangle, CheckCircle, CircleDollarSign, Printer, FileDown, ChevronDown, ChevronLeft, ChevronRight, Eye, Pencil, LockKeyhole, Users } from "lucide-react";
 import { buildSalarySlipDocument, type SalarySlipPayload } from "./salary-slip-document";
+import { buildPayrollRegisterDocument } from "./payroll-register-document";
 import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
 import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
@@ -15,6 +16,8 @@ type PayslipPaymentStatus = "PAID" | "UNPAID";
 type PayslipDialogState = {
   employeeId: string;
   employeeName: string;
+  startMonth: string;
+  endMonth: string;
   payload: SalarySlipPayload;
   statuses: Record<string, PayslipPaymentStatus>;
 };
@@ -80,8 +83,6 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   const [monthReady, setMonthReady] = useState(false);
   const [organizationTimeZone, setOrganizationTimeZone] = useState("");
   const [dateWarning, setDateWarning] = useState("");
-  const [payslipStartMonth, setPayslipStartMonth] = useState("");
-  const [payslipEndMonth, setPayslipEndMonth] = useState("");
   const [payslipLoading, setPayslipLoading] = useState("");
   const [payslipDialog, setPayslipDialog] = useState<PayslipDialogState | null>(null);
   const [savingPayslipStatuses, setSavingPayslipStatuses] = useState(false);
@@ -121,15 +122,11 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         if (!cancelled) {
           setOrganizationTimeZone(typeof payload?.timeZone === "string" ? payload.timeZone : "");
           setMonth(today.slice(0, 7));
-          setPayslipStartMonth(today.slice(0, 7));
-          setPayslipEndMonth(today.slice(0, 7));
           setDateWarning("");
         }
       } catch {
         if (!cancelled) {
           setMonth(monthNow());
-          setPayslipStartMonth(monthNow());
-          setPayslipEndMonth(monthNow());
           setDateWarning("Organization date settings could not be loaded. The payroll month is using your device date; verify the selected month before recording payments.");
         }
       } finally {
@@ -259,8 +256,6 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     () => [...new Set(payments.map((payment) => payment.departmentName?.trim()).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b)),
     [payments],
   );
-  const trackableCount = paidCount + unpaidCount;
-  const paidProgress = trackableCount > 0 ? Math.round((paidCount / trackableCount) * 100) : 0;
 
   const visiblePayments = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase();
@@ -297,80 +292,83 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   }, [month, searchQuery, paymentFilter, departmentFilter, sortOption, pageSize]);
 
   function exportPayrollRegister() {
-    const headers = [
-      "Employee", "Employee code", "Department", "Role", "Payroll month",
-      "Worked hours", "Payable hours", "Payment status", "Amount",
-      "Currency", "Paid at", "Payment reference", "Recorded by", "Notes",
-    ];
-    const rows = visiblePayments.map((payment) => {
-      const name = [payment.firstName, payment.lastName].filter(Boolean).join(" ") || payment.employeeCode || "Employee";
+    if (loading || visiblePayments.length === 0) return;
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      setError("Your browser blocked the payroll register PDF window. Allow pop-ups for this site and try again.");
+      return;
+    }
+
+    setError("");
+    setNotice("");
+    const employeeRows = visiblePayments.map((payment) => {
+      const employeeName = [payment.firstName, payment.lastName].filter(Boolean).join(" ") || payment.employeeCode || "Employee";
       const amount = payment.status === "PAID" ? payment.amount : payment.calculatedAmount ?? payment.amount;
-      const hours = (minutes: number | undefined) => {
-      const safe = ["=", "+", "-", "@"].includes(raw.trimStart().slice(0, 1)) ? "'" + raw : raw;
-        return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
+      return {
+        employeeName,
+        employeeCode: payment.employeeCode || "",
+        departmentName: payment.departmentName || "",
+        workforceRole: payment.workforceRole || "",
+        workedMinutes: payment.workedMinutes || 0,
+        payableMinutes: payment.payableMinutes || 0,
+        status: payment.status,
+        amount,
+        currencyCode: payment.currencyCode || "RWF",
+        paidAt: payment.paidAt || null,
+        paymentReference: payment.paymentReference || "",
+        recordedBy: payment.recordedBy || "",
+        notes: payment.notes || "",
       };
-      return [
-        name, payment.employeeCode || "", payment.departmentName || "", payment.workforceRole || "",
-        month, hours(payment.workedMinutes), hours(payment.payableMinutes), payment.status,
-        amount == null ? "" : Number(amount).toFixed(2), payment.currencyCode || "",
-        payment.paidAt || "", payment.paymentReference || "", payment.recordedBy || "", payment.notes || "",
-      ];
     });
-    const csvCell = (value: unknown) => {
-      const raw = String(value ?? "");
-      const safe = /^[\s\uFEFF]*[=+@-]/.test(raw) ? `'${raw}` : raw;
-      return `"${safe.replaceAll('"', '""')}"`;
+    const audienceLabel = audience === "organization-admin"
+      ? "Organization-wide payroll"
+      : audience === "hr-manager"
+        ? "HR Manager permitted payroll scope"
+        : audience === "department-manager"
+          ? "Managed-department payroll"
+          : "Personal payroll";
+    printWindow.document.open();
+    printWindow.document.write(buildPayrollRegisterDocument({
+      month,
+      generatedAt: new Date().toISOString(),
+      timeZone: organizationTimeZone || "Africa/Kigali",
+      audienceLabel,
+      rows: employeeRows,
+    }));
+    printWindow.document.close();
+
+    const printWhenReady = () => {
+      if (printWindow.closed) return;
+      printWindow.focus();
+      printWindow.document.getElementById("payroll-register-print")?.addEventListener("click", () => {
+        if (!printWindow.closed) {
+          printWindow.focus();
+          printWindow.print();
+        }
+      }, { once: true });
+      printWindow.print();
     };
-    const csv = [headers, ...rows]
-      .map((row) => row.map(csvCell).join(","))
-      .join(String.fromCharCode(13, 10));
-    const blob = new Blob([String.fromCharCode(0xfeff), csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `payroll-register-${month}.csv`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    if (printWindow.document.readyState === "complete") {
+      window.setTimeout(printWhenReady, 250);
+    } else {
+      printWindow.addEventListener("load", () => window.setTimeout(printWhenReady, 250), { once: true });
+    }
+    setNotice("Payroll register opened for printing or saving as PDF.");
   }
 
   async function printSalarySlip(targetEmployeeId: string) {
     if (!canEdit || !targetEmployeeId || payslipLoading || payslipDialog) return;
-    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(payslipStartMonth) ||
-        !/^\d{4}-(0[1-9]|1[0-2])$/.test(payslipEndMonth)) {
-      setError("Choose a valid start month and end month before printing.");
+    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+      setError("Choose a valid payroll month before preparing a salary slip.");
       return;
     }
-    const startOrdinal = Number(payslipStartMonth.slice(0, 4)) * 12 + Number(payslipStartMonth.slice(5, 7)) - 1;
-    const endOrdinal = Number(payslipEndMonth.slice(0, 4)) * 12 + Number(payslipEndMonth.slice(5, 7)) - 1;
-    if (startOrdinal > endOrdinal) {
-      setError("The payslip start month must be before or equal to the end month.");
-      return;
-    }
-    if (endOrdinal - startOrdinal + 1 > 24) {
-      setError("A salary slip can cover at most 24 months at a time.");
-      return;
-    }
-
-    // Open a window synchronously from the click so the browser does not block printing later.
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      setError("Your browser blocked the salary slip window. Allow pop-ups for this site and try again.");
-      return;
-    }
-    payslipPrintWindowRef.current = printWindow;
-    printWindow.document.open();
-    printWindow.document.write("<!doctype html><html><head><title>Preparing salary slip</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing salary slip…</h2><p>Loading attendance, pay rates and monthly payment records.</p></body></html>");
-    printWindow.document.close();
-    window.focus();
 
     setPayslipLoading(targetEmployeeId);
     setError("");
     setNotice("");
     try {
       const response = await fetch(
-        `/api/backend/payroll/payslips/${encodeURIComponent(targetEmployeeId)}?startMonth=${encodeURIComponent(payslipStartMonth)}&endMonth=${encodeURIComponent(payslipEndMonth)}`,
+        `/api/backend/payroll/payslips/${encodeURIComponent(targetEmployeeId)}?startMonth=${encodeURIComponent(month)}&endMonth=${encodeURIComponent(month)}`,
         { credentials: "same-origin", cache: "no-store" },
       );
       const payload = await response.json().catch(() => null) as SalarySlipPayload | { message?: string } | null;
@@ -387,11 +385,66 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       const statuses = Object.fromEntries(
         payload.months.map((item) => [item.month, item.payment.status === "PAID" ? "PAID" : "UNPAID" as PayslipPaymentStatus]),
       ) as Record<string, PayslipPaymentStatus>;
-      setPayslipDialog({ employeeId: targetEmployeeId, employeeName, payload, statuses });
+      setPayslipDialog({
+        employeeId: targetEmployeeId,
+        employeeName,
+        startMonth: month,
+        endMonth: month,
+        payload,
+        statuses,
+      });
     } catch (caught) {
-      if (!printWindow.closed) printWindow.close();
-      payslipPrintWindowRef.current = null;
       setError(caught instanceof Error ? caught.message : "Unable to generate salary slip.");
+    } finally {
+      setPayslipLoading("");
+    }
+  }
+
+  async function loadSalarySlipPeriod() {
+    const dialog = payslipDialog;
+    if (!dialog || payslipLoading || savingPayslipStatuses) return;
+    const validMonth = (value: string) => /^\\d{4}-(0[1-9]|1[0-2])$/.test(value);
+    if (!validMonth(dialog.startMonth) || !validMonth(dialog.endMonth)) {
+      setError("Choose valid start and end months for the salary slip.");
+      return;
+    }
+    const monthOrdinal = (value: string) => Number(value.slice(0, 4)) * 12 + Number(value.slice(5, 7)) - 1;
+    const startOrdinal = monthOrdinal(dialog.startMonth);
+    const endOrdinal = monthOrdinal(dialog.endMonth);
+    if (startOrdinal > endOrdinal) {
+      setError("The start month must be before or equal to the end month.");
+      return;
+    }
+    if (endOrdinal - startOrdinal + 1 > 24) {
+      setError("A salary slip can cover at most 24 months at a time.");
+      return;
+    }
+
+    setPayslipLoading(dialog.employeeId);
+    setError("");
+    try {
+      const query = new URLSearchParams({ startMonth: dialog.startMonth, endMonth: dialog.endMonth });
+      const response = await fetch(
+        `/api/backend/payroll/payslips/${encodeURIComponent(dialog.employeeId)}?${query.toString()}`,
+        { credentials: "same-origin", cache: "no-store" },
+      );
+      const payload = await response.json().catch(() => null) as SalarySlipPayload | { message?: string } | null;
+      if (!response.ok) {
+        throw new Error(payload && "message" in payload && typeof payload.message === "string"
+          ? payload.message
+          : `Unable to load the selected payroll period (${response.status}).`);
+      }
+      if (!payload || !("months" in payload) || !Array.isArray(payload.months) || payload.months.length === 0) {
+        throw new Error("The selected salary slip period returned no monthly records.");
+      }
+      const statuses = Object.fromEntries(
+        payload.months.map((item) => [item.month, item.payment.status === "PAID" ? "PAID" : "UNPAID" as PayslipPaymentStatus]),
+      ) as Record<string, PayslipPaymentStatus>;
+      setPayslipDialog((current) => current && current.employeeId === dialog.employeeId
+        ? { ...current, payload, statuses }
+        : current);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to load the selected payroll period.");
     } finally {
       setPayslipLoading("");
     }
@@ -400,13 +453,31 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   async function saveSalarySlipStatusesAndPrint() {
     const dialog = payslipDialog;
     if (!dialog || savingPayslipStatuses) return;
+    if (dialog.startMonth !== dialog.payload.startMonth || dialog.endMonth !== dialog.payload.endMonth) {
+      setError("Load the selected payroll period before printing the salary slip.");
+      return;
+    }
+
+    // Open the print window directly from this user action to avoid popup blocking.
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      setError("Your browser blocked the salary slip window. Allow pop-ups for this site and try again.");
+      return;
+    }
+    payslipPrintWindowRef.current = printWindow;
+    printWindow.document.open();
+    printWindow.document.write("<!doctype html><html><head><title>Preparing salary slip</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing salary slip…</h2><p>Saving and verifying monthly payment statuses.</p></body></html>");
+    printWindow.document.close();
+
     setSavingPayslipStatuses(true);
     setError("");
     setNotice("");
     try {
       const statuses = dialog.payload.months.map((item) => ({
         month: item.month,
-        status: dialog.statuses[item.month] || "UNPAID",
+        status: item.payment.status === "PAID"
+          ? "PAID"
+          : dialog.statuses[item.month] || "UNPAID",
       }));
       const saveResponse = await fetch(
         `/api/backend/payroll/payslips/${encodeURIComponent(dialog.employeeId)}`,
@@ -422,7 +493,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         throw new Error(savePayload?.message || `Unable to save monthly payment statuses (${saveResponse.status}).`);
       }
 
-      // Re-read the ledger so the printed document only contains persisted statuses.
+      // Re-read the ledger so the PDF only contains persisted, authoritative payment states.
       const query = new URLSearchParams({
         startMonth: dialog.payload.startMonth,
         endMonth: dialog.payload.endMonth,
@@ -441,9 +512,11 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
           payload.months.length === 0 || payload.months.some((item) => !item.payment.recorded)) {
         throw new Error("The monthly payment statuses were not all confirmed as stored. Reload the salary slip before printing.");
       }
+      if (payload.months.some((item) => item.payment.status === "PAID" && dialog.statuses[item.month] !== "PAID")) {
+        throw new Error("A payroll month already recorded as PAID cannot be printed as UNPAID.");
+      }
 
-      const printWindow = payslipPrintWindowRef.current;
-      if (printWindow && !printWindow.closed) {
+      if (!printWindow.closed) {
         printWindow.document.open();
         printWindow.document.write(buildSalarySlipDocument(payload));
         printWindow.document.close();
@@ -456,7 +529,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
               printWindow.focus();
               printWindow.print();
             }
-          });
+          }, { once: true });
           printWindow.print();
         };
         if (printWindow.document.readyState === "complete") {
@@ -464,13 +537,15 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         } else {
           printWindow.addEventListener("load", () => window.setTimeout(printWhenReady, 250), { once: true });
         }
-        setNotice("Salary slip prepared. Every month’s PAID / UNPAID status has been saved to payroll.");
+        setNotice("Salary slip prepared. Every month's payment status is stored, and already-paid months remain marked PAID.");
       } else {
-        setNotice("Monthly PAID / UNPAID statuses have been saved to payroll, but the print window was closed. Select Print salary slip again to print.");
+        setNotice("Monthly payment statuses were saved, but the print window was closed. Select Print salary slip again to print.");
       }
       setPayslipDialog(null);
       payslipPrintWindowRef.current = null;
     } catch (caught) {
+      if (!printWindow.closed) printWindow.close();
+      payslipPrintWindowRef.current = null;
       setError(caught instanceof Error ? caught.message : "Unable to save monthly salary statuses.");
     } finally {
       setSavingPayslipStatuses(false);
@@ -516,13 +591,13 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       </div>
       <div className="flex flex-wrap items-end gap-2">
         <label className="min-w-[170px] text-xs font-semibold text-slate-400">
-          Payroll period
+          Register month
           <input type="month" value={month} disabled={!monthReady || Boolean(saving)} onChange={(event) => setMonth(event.target.value)} className={INPUT}/>
         </label>
         {organizationTimeZone && <span className="pb-2 text-xs text-slate-500">{organizationTimeZone}</span>}
-        {canEdit && <Link href={audience === "hr-manager" ? "/hr/modules/pay-rates" : "/org/pay-rates"} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-600 bg-white/[0.025] px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07]">Pay rates</Link>}
+        {canEdit && <Link href={audience === "hr-manager" ? "/hr/modules/pay-rates" : "/org/pay-rates"} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-600 bg-white/[0.025] px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07]">Manage pay rates</Link>}
         <button type="button" onClick={exportPayrollRegister} disabled={loading || payments.length === 0 || visiblePayments.length === 0} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-600 bg-white/[0.025] px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-40">
-          <Download size={14}/>Export register
+          <FileDown size={14}/>Export PDF
         </button>
       </div>
     </header>
@@ -571,22 +646,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
           </div>
         ))}
       </div>}
-      <div className="mt-4 border-t border-white/[0.06] pt-3">
-        <div className="mb-2 flex items-center justify-between gap-3 text-[11px]"><span className="font-semibold text-slate-400">Payment completion</span><span className="tabular-nums text-slate-300">{loading ? "—" : `${paidCount} / ${trackableCount} · ${paidProgress}%`}</span></div>
-        <div className="h-2 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-emerald-500 transition-[width]" style={{width:`${loading ? 0 : paidProgress}%`}}/></div>
-      </div>
     </section>
-
-    {canEdit && <section className="rounded-2xl border border-sky-400/15 bg-sky-400/[0.025] p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sky-200"><FileDown size={16}/><h3 className="text-sm font-semibold">Salary slips</h3></div>
-        <span className="text-[11px] text-slate-500">A4 PDF · One page per month</span>
-      </div>
-      <div className="mt-3 flex flex-wrap items-end gap-3">
-        <label className="min-w-[155px] text-xs font-semibold text-slate-400">Start month<input type="month" value={payslipStartMonth} disabled={!monthReady || Boolean(payslipLoading) || Boolean(payslipDialog)} onChange={(event) => setPayslipStartMonth(event.target.value)} className={INPUT}/></label>
-        <label className="min-w-[155px] text-xs font-semibold text-slate-400">End month<input type="month" value={payslipEndMonth} disabled={!monthReady || Boolean(payslipLoading) || Boolean(payslipDialog)} onChange={(event) => setPayslipEndMonth(event.target.value)} className={INPUT}/></label>
-      </div>
-    </section>}
 
     <section className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#101722]/80" aria-label="Payroll register">
       <div className="border-b border-white/[0.07] p-4 sm:p-5">
@@ -697,7 +757,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                         {isExpanded ? <ChevronDown size={13}/> : canEdit ? <Pencil size={13}/> : <Eye size={13}/>}
                         {isExpanded ? "Close" : canEdit ? "Manage" : "View"}
                       </button>
-                      {canEdit && <button type="button" onClick={() => void printSalarySlip(payment.employeeId)} disabled={Boolean(payslipLoading) || Boolean(payslipDialog) || !payslipStartMonth || !payslipEndMonth} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-sky-300/20 bg-sky-300/[0.06] px-2.5 py-1.5 text-[11px] font-semibold text-sky-200 transition hover:bg-sky-300/[0.12] disabled:opacity-40">
+                      {canEdit && <button type="button" onClick={() => void printSalarySlip(payment.employeeId)} disabled={Boolean(payslipLoading) || Boolean(payslipDialog) || !month} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-sky-300/20 bg-sky-300/[0.06] px-2.5 py-1.5 text-[11px] font-semibold text-sky-200 transition hover:bg-sky-300/[0.12] disabled:opacity-40">
                         {payslipLoading === payment.employeeId ? <RefreshCw size={13} className="animate-spin"/> : <Printer size={13}/>}Slip
                       </button>}
                     </div>
@@ -786,8 +846,42 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             </button>
           </div>
 
-          <p id="salary-slip-status-description" className="mt-4 rounded-xl border border-sky-300/15 bg-sky-300/[0.05] p-3 text-sm leading-6 text-slate-300">
-            Choose the actual payment status for every month in this salary slip. These choices are saved in the monthly payroll ledger before the PDF is produced. Months without a saved status default to UNPAID.
+          <div className="mt-4 grid gap-3 rounded-xl border border-sky-300/15 bg-sky-300/[0.05] p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <label className="block text-xs font-semibold text-slate-300">
+              Payroll period · from
+              <input
+                type="month"
+                value={payslipDialog.startMonth}
+                disabled={savingPayslipStatuses || Boolean(payslipLoading)}
+                onChange={(event) => setPayslipDialog((current) => current ? { ...current, startMonth: event.target.value } : current)}
+                className={INPUT}
+              />
+            </label>
+            <label className="block text-xs font-semibold text-slate-300">
+              Payroll period · to
+              <input
+                type="month"
+                value={payslipDialog.endMonth}
+                disabled={savingPayslipStatuses || Boolean(payslipLoading)}
+                onChange={(event) => setPayslipDialog((current) => current ? { ...current, endMonth: event.target.value } : current)}
+                className={INPUT}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => void loadSalarySlipPeriod()}
+              disabled={savingPayslipStatuses || Boolean(payslipLoading) || (payslipDialog.startMonth === payslipDialog.payload.startMonth && payslipDialog.endMonth === payslipDialog.payload.endMonth)}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-sky-300/25 px-3 py-2 text-xs font-bold text-sky-100 transition hover:bg-sky-300/10 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {payslipLoading === payslipDialog.employeeId ? <RefreshCw size={13} className="animate-spin"/> : <Clock3 size={13}/>}
+              Load period
+            </button>
+            <p className="text-xs leading-5 text-slate-300 sm:col-span-3">
+              Choose a start and end month (maximum 24 months). The selected months and their payment states are loaded from the payroll ledger before printing.
+            </p>
+          </div>
+          <p id="salary-slip-status-description" className="mt-3 text-sm leading-6 text-slate-300">
+            Review each month's recorded payment status. An already-paid month stays PAID and cannot be changed to UNPAID for printing. Unrecorded months are saved as UNPAID unless you explicitly mark them PAID and the payroll calculation is complete.
           </p>
 
           <div className="mt-4 space-y-2">
@@ -811,17 +905,17 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                           ? "Changed — will be saved before printing"
                           : "Not stored yet — will be saved before printing"}
                     </p>
-                    {status === "PAID" && (
-                      <p className="mt-1 text-xs text-amber-200">
-                        PAID is accepted only when complete payable earnings and valid rates are available.
-                      </p>
-                    )}
+                    {monthRecord.payment.status === "PAID" ? (
+                      <p className="mt-1 text-xs text-emerald-200">Already paid · locked to prevent an unpaid salary slip.</p>
+                    ) : status === "PAID" ? (
+                      <p className="mt-1 text-xs text-amber-200">PAID is accepted only when complete payable earnings and valid rates are available.</p>
+                    ) : null}
                   </div>
                   <label className="block text-xs font-semibold text-slate-400">
                     Payment status
                     <select
                       value={status}
-                      disabled={savingPayslipStatuses}
+                      disabled={savingPayslipStatuses || Boolean(payslipLoading) || monthRecord.payment.status === "PAID"}
                       onChange={(event) => {
                         const nextStatus = event.target.value as PayslipPaymentStatus;
                         setPayslipDialog((current) => current ? {
@@ -853,7 +947,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             <button
               type="button"
               onClick={cancelSalarySlipPreparation}
-              disabled={savingPayslipStatuses}
+              disabled={savingPayslipStatuses || Boolean(payslipLoading) || payslipDialog.startMonth !== payslipDialog.payload.startMonth || payslipDialog.endMonth !== payslipDialog.payload.endMonth}
               className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.05] disabled:opacity-40"
             >
               Cancel
@@ -865,7 +959,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 disabled:cursor-wait disabled:opacity-50"
             >
               {savingPayslipStatuses ? <RefreshCw size={15} className="animate-spin" /> : <Printer size={15} />}
-              {savingPayslipStatuses ? "Saving statuses…" : "Save statuses & print"}
+              {savingPayslipStatuses ? "Saving statuses…" : payslipDialog.startMonth !== payslipDialog.payload.startMonth || payslipDialog.endMonth !== payslipDialog.payload.endMonth ? "Load selected period first" : "Save statuses & print"}
             </button>
           </div>
         </section>
