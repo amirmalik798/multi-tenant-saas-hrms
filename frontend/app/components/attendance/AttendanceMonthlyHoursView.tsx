@@ -463,7 +463,8 @@ export default function AttendanceMonthlyHoursView({ audience, actorEmployeeId }
         </button>
       </div>
       {reportError && <p role="alert" className="mt-3 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200">{reportError}</p>}
-      {!reportError && <p className="mt-3 text-xs leading-5 text-slate-500">The report includes recorded clock events, approved attendance corrections, shift details, worked hours, regular hours and overtime. A report is not produced when the selected range contains no attendance records.</p>}
+      {!reportTargetsLoading && !reportError && reportTargets.length === 0 && <p role="status" className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm text-amber-100">No workforce members are currently available within your attendance-report permissions.</p>}
+      {!reportError && reportTargets.length > 0 && <p className="mt-3 text-xs leading-5 text-slate-500">The report includes recorded clock events, approved attendance corrections, shift details, worked hours, regular hours and overtime. A report is not produced when the selected range contains no attendance records.</p>}
     </section>}
     <section className={PANEL}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
