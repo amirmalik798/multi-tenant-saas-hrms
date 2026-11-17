@@ -485,7 +485,7 @@ export default function AttendanceManagementWorkspace({ audience, initialSection
       .some((value) => value.toLocaleLowerCase().includes(normalizedScheduleSearch)),
   ), [assignments, normalizedScheduleSearch]);
 
-  return <div className="attendance-management-workspace min-w-0 space-y-5">
+  return <div className={`attendance-management-workspace min-w-0 space-y-5 ${audience === "organization-admin" ? "oa-org-admin-time-pay" : ""}`}>
     <div className="flex min-w-0 flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><p className="text-sm font-medium text-slate-400">{isHr ? "Organization attendance" : "Team attendance"}</p></div></div>
 
     {notice && <div role={notice.type === "error" ? "alert" : "status"} className={`flex min-w-0 items-start gap-3 rounded-xl border p-3.5 text-sm leading-6 ${notice.type === "success" ? "border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-200" : "border-rose-400/20 bg-rose-400/[0.06] text-rose-200"}`}><AlertCircle size={17} className="mt-0.5 shrink-0" /><span className="min-w-0 flex-1 break-words">{notice.message}</span><button type="button" onClick={() => setNotice(null)} aria-label="Dismiss notification">×</button></div>}
