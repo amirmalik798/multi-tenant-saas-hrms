@@ -65,6 +65,7 @@ export async function GET(request: Request) {
              e.id <> $5::uuid
              AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HR_MANAGER%'
              AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HRMANAGER%'
+             AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HRMANAGER%'
            )
          )
          AND NOT EXISTS (
