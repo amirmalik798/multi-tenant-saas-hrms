@@ -307,6 +307,11 @@ export async function GET(request: Request) {
     );
     const metadata = metadataResult.rows[0];
     if (!metadata) return json({ message: "Organization details could not be loaded" }, 404);
+    try {
+      new Intl.DateTimeFormat("en-GB", { timeZone: metadata.timeZone });
+    } catch {
+      return json({ message: "The organization's configured time zone is invalid" }, 500);
+    }
 
     const generatedAt = new Date();
     const reportResult = await pool.query<ReportDayRow>(
