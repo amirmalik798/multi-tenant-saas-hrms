@@ -56,7 +56,7 @@ export async function GET(request: Request) {
                 JOIN public.roles target_account_role ON target_account_role.id = target_account.role_id AND target_account_role.organization_id = target_account.organization_id
                 WHERE target_account.organization_id = e.organization_id AND target_account.employee_id = e.id
                   AND target_account.account_scope = 'ORGANIZATION'
-                  AND regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR')
+                  AND regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR', 'ORGANIZATION_OWNER', 'ORG_OWNER', 'TENANT_ADMIN', 'ADMINISTRATOR')
               ) AS is_organization_admin
        FROM public.employees e
        LEFT JOIN public.roles r ON r.id = e.workforce_role_id AND r.organization_id = e.organization_id
@@ -157,7 +157,7 @@ export async function PUT(request: Request) {
                 JOIN public.roles target_account_role ON target_account_role.id = target_account.role_id AND target_account_role.organization_id = target_account.organization_id
                 WHERE target_account.organization_id = e.organization_id AND target_account.employee_id = e.id
                   AND target_account.account_scope = 'ORGANIZATION'
-                  AND regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR')
+                  AND regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR', 'ORGANIZATION_OWNER', 'ORG_OWNER', 'TENANT_ADMIN', 'ADMINISTRATOR')
               ) AS is_organization_admin
        FROM public.employees e
        LEFT JOIN public.roles r ON r.id = e.workforce_role_id AND r.organization_id = e.organization_id
