@@ -17,7 +17,7 @@ import {
   type AttendanceReportPayload,
 } from "./attendance-report-document";
 
-type Audience = "organization-admin" | "hr-manager" | "department-manager";
+type Audience = "organization-admin" | "hr-manager" | "department-manager" | "employee";
 type ReportMode = "daily" | "member";
 type ReportTarget = {
   employeeId: string;
