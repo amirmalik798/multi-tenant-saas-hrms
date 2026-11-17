@@ -10,7 +10,8 @@ type EmployeeRoleRecord = { id?: string; workforce_role?: unknown; workforceRole
 type Props = { audience: "hr-manager" | "organization-admin" | "department-manager" | "employee"; employeeId?: string; excludeEmployeeId?: string };
 const INPUT = "mt-1.5 w-full rounded-xl border border-slate-700 bg-[#0b111b] px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-sky-400";
 const BUTTON = "inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold !text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 [&>svg]:!text-white";
-function monthNow() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
+function localDate() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+function monthNow() { return localDate().slice(0, 7); }
 function money(value: string | number | null, currency: string) { if (value === null || value === "") return "Not recorded"; const n = Number(value); if (!Number.isFinite(n)) return "—"; try { return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n); } catch { return `${currency} ${n.toFixed(2)}`; } }
 function isExcludedHrTarget(employee: EmployeeRoleRecord, allowHrManager = false) {
   const normalize = (value: unknown): string[] => {
@@ -51,7 +52,10 @@ async function loadEligibleEmployeeIds(audience: Props["audience"]) {
 
 export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeEmployeeId }: Props) {
   const canEdit = audience === "hr-manager" || audience === "organization-admin";
-  const [month, setMonth] = useState(monthNow);
+  const [month, setMonth] = useState("");
+  const [monthReady, setMonthReady] = useState(false);
+  const [organizationTimeZone, setOrganizationTimeZone] = useState("");
+  const [dateWarning, setDateWarning] = useState("");
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
@@ -65,7 +69,41 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   const loadRequestId = useRef(0);
   const paymentConfirmationRef = useRef<HTMLElement | null>(null);
   const paymentDialogPreviousFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    async function resolveOrganizationMonth() {
+      try {
+        const seedDate = localDate();
+        const response = await fetch(
+          `/api/backend/attendance/calendar?fromDate=${encodeURIComponent(seedDate)}&toDate=${encodeURIComponent(seedDate)}`,
+          { credentials: "same-origin", cache: "no-store" },
+        );
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(payload?.message || "Unable to load organization date settings.");
+        const today = typeof payload?.today === "string" && /^\\d{4}-\\d{2}-\\d{2}$/.test(payload.today)
+          ? payload.today
+          : "";
+        if (!today) throw new Error("The organization work date was unavailable.");
+        if (!cancelled) {
+          setOrganizationTimeZone(typeof payload?.timeZone === "string" ? payload.timeZone : "");
+          setMonth(today.slice(0, 7));
+          setDateWarning("");
+        }
+      } catch {
+        if (!cancelled) {
+          setMonth(monthNow());
+          setDateWarning("Organization date settings could not be loaded. The payroll month is using your device date; verify the selected month before recording payments.");
+        }
+      } finally {
+        if (!cancelled) setMonthReady(true);
+      }
+    }
+    void resolveOrganizationMonth();
+    return () => { cancelled = true; };
+  }, []);
+
   const load = useCallback(async (silent = false) => {
+    if (!monthReady || !month) return;
     const requestId = ++loadRequestId.current;
     if (!silent) setLoading(true); setError("");
     try {
@@ -96,7 +134,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       }
     }
     finally { if (requestId === loadRequestId.current) setLoading(false); }
-  }, [month, audience, employeeId, excludeEmployeeId]);
+  }, [month, monthReady, audience, employeeId, excludeEmployeeId]);
   useEffect(() => {
     void load();
     return () => { loadRequestId.current += 1; };
@@ -121,7 +159,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   useWorkspaceAutoRefresh(() => load(true), {
     enabled: true,
     intervalMs: 60_000,
-    shouldRefresh: () => !loading && !saving && !paymentConfirmation && (!canEdit || !payments.some((payment) => {
+    shouldRefresh: () => monthReady && Boolean(month) && !loading && !saving && !paymentConfirmation && (!canEdit || !payments.some((payment) => {
       const draft = drafts[payment.employeeId];
       return !draft ||
         draft.amount !== (payment.amount == null ? "" : String(payment.amount)) ||
@@ -177,7 +215,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     finally { setSaving(""); }
   }
   return <section className="hr-manager-payroll-workspace min-w-0 rounded-2xl border border-white/[0.08] bg-[#141c28] p-4 shadow-lg shadow-black/10 sm:p-6">
-    <div className="flex flex-wrap items-start justify-between gap-4"><div className="max-w-2xl"><div className="flex items-center gap-2 text-sky-300"><BadgeDollarSign size={18} /><span className="text-xs font-semibold uppercase tracking-[0.14em]">Payroll tracking</span></div><h2 className="mt-1 text-xl font-bold text-white">Monthly salary payments</h2><p className="mt-1 text-sm leading-6 text-slate-400">Review payroll status, investigate missing pay inputs, and record payments. Amounts are calculated from recorded work, approved paid leave, paid public holidays, and effective pay rates.</p></div><div className="flex flex-wrap items-end gap-2"><label className="text-sm font-medium text-slate-300">Payroll month<input type="month" value={month} disabled={Boolean(saving)} onChange={(e) => setMonth(e.target.value)} className={INPUT} /></label></div></div>
+    <div className="flex flex-wrap items-start justify-between gap-4"><div className="max-w-2xl"><div className="flex items-center gap-2 text-sky-300"><BadgeDollarSign size={18} /><span className="text-xs font-semibold uppercase tracking-[0.14em]">Payroll tracking</span></div><h2 className="mt-1 text-xl font-bold text-white">Monthly salary payments</h2><p className="mt-1 text-sm leading-6 text-slate-400">Review payroll status, investigate missing pay inputs, and record payments. Amounts are calculated from recorded work, approved paid leave, paid public holidays, and effective pay rates.</p></div><div className="flex flex-wrap items-end gap-2"><label className="text-sm font-medium text-slate-300">Payroll month<input type="month" value={month} disabled={!monthReady || Boolean(saving)} onChange={(e) => setMonth(e.target.value)} className={INPUT} /></label>{organizationTimeZone && <span className="pb-2 text-xs text-slate-500">Organization time zone: {organizationTimeZone}</span>}</div></div>
+    {dateWarning && <div role="status" className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-3 text-sm leading-6 text-amber-100">{dateWarning}</div>}
     {error && <div role="alert" className="mt-4 flex flex-col gap-3 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span>{error}</span><button type="button" disabled={loading || Boolean(saving)} onClick={() => void load()} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">{loading ? "Retrying…" : "Retry"}</button></div>}{notice && <p role="status" className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-3 text-sm text-emerald-200">{notice}</p>}
     <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <div className="rounded-xl border border-white/[0.08] bg-black/10 p-3"><p className="text-xs text-slate-500">Employees in view</p><p className="mt-1 text-xl font-bold text-white">{loading ? "—" : payments.length}</p></div>
