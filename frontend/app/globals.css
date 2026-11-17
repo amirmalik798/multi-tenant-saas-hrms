@@ -8378,3 +8378,50 @@ html[data-org-admin-theme="light"] .org-admin-workspace .oa-daily-attendance-rep
   color: #1769aa !important;
 }
 
+/* Keep semantic status and accent colors legible on light surfaces in the same
+   Organization Admin modules; preserve their distinct meaning. */
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is([class~="text-sky-100"], [class~="text-sky-200"], [class~="text-sky-300"], [class~="text-blue-200"], [class~="text-blue-300"]) {
+  color: #155b96 !important;
+  -webkit-text-fill-color: #155b96 !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is([class~="text-emerald-100"], [class~="text-emerald-200"], [class~="text-emerald-300"]) {
+  color: #087443 !important;
+  -webkit-text-fill-color: #087443 !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is([class~="text-violet-200"], [class~="text-violet-300"], [class~="text-purple-200"], [class~="text-purple-300"]) {
+  color: #6536a3 !important;
+  -webkit-text-fill-color: #6536a3 !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is([class~="text-amber-100"], [class~="text-amber-200"], [class~="text-amber-300"], [class~="text-yellow-100"], [class~="text-yellow-200"]) {
+  color: #925000 !important;
+  -webkit-text-fill-color: #925000 !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
+:is([class~="text-rose-100"], [class~="text-rose-200"], [class~="text-rose-300"], [class~="text-red-200"], [class~="text-red-300"]) {
+  color: #a32638 !important;
+  -webkit-text-fill-color: #a32638 !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications
+:is([class~="text-sky-100"], [class~="text-sky-200"], [class~="text-sky-300"], [class~="text-blue-200"], [class~="text-blue-300"]) {
+  color: #155b96 !important;
+  -webkit-text-fill-color: #155b96 !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications
+:is([class~="text-emerald-100"], [class~="text-emerald-200"], [class~="text-emerald-300"]) {
+  color: #087443 !important;
+  -webkit-text-fill-color: #087443 !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications
+:is([class~="text-amber-100"], [class~="text-amber-200"], [class~="text-amber-300"], [class~="text-yellow-100"], [class~="text-yellow-200"]) {
+  color: #925000 !important;
+  -webkit-text-fill-color: #925000 !important;
+}
+html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications
+:is([class~="text-rose-100"], [class~="text-rose-200"], [class~="text-rose-300"], [class~="text-red-200"], [class~="text-red-300"]) {
+  color: #a32638 !important;
+  -webkit-text-fill-color: #a32638 !important;
+}
