@@ -10,7 +10,6 @@ import EmployeeProfilePhoto from "../employee/EmployeeProfilePhoto";
 import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 
 type Payment = { id?: string | null; employeeId: string; employeeCode?: string | null; firstName?: string | null; lastName?: string | null; departmentName?: string | null; workforceRole?: string | null; payMonth: string; amount: string | number | null; calculatedAmount?: string | number | null; workedMinutes?: number; payableMinutes?: number; paidLeaveMinutes?: number; paidHolidayMinutes?: number; calculatedRegularAmount?: string | number | null; calculatedOvertimeAmount?: string | number | null; calculatedPaidAbsenceAmount?: string | number | null; currencyCode: string; status: "PAID" | "UNPAID" | "NO_RECORDED_HOURS" | "RATE_REQUIRED" | "CURRENCY_MISMATCH"; currencyMismatch?: boolean; paidAt?: string | null; paymentReference?: string | null; notes?: string | null; paymentRecorded?: boolean; recordedByUserId?: string | null; recordedBy?: string | null; createdAt?: string | null; updatedAt?: string | null };
-type EmployeeRoleRecord = { id?: string; workforce_role?: unknown; workforceRole?: unknown; roleName?: unknown; role_name?: unknown; role?: unknown; userRole?: unknown; user_role?: unknown; user?: { role?: unknown } };
 type Props = { audience: "hr-manager" | "organization-admin" | "department-manager" | "employee"; employeeId?: string; excludeEmployeeId?: string };
 type PayslipPaymentStatus = "PAID" | "UNPAID";
 type PayslipDialogState = {
@@ -26,57 +25,6 @@ const BUTTON = "inline-flex min-h-9 items-center justify-center gap-2 rounded-xl
 function localDate() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function monthNow() { return localDate().slice(0, 7); }
 function money(value: string | number | null, currency: string) { if (value === null || value === "") return "Not recorded"; const n = Number(value); if (!Number.isFinite(n)) return "—"; try { return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n); } catch { return `${currency} ${n.toFixed(2)}`; } }
-function normalizedEmployeeRoles(employee: EmployeeRoleRecord): string[] {
-  const normalize = (value: unknown): string[] => {
-    if (typeof value === "string") return [value.toUpperCase().trim().replace(/[^A-Z0-9]+/g, "_")];
-    if (value && typeof value === "object") {
-      const role = value as { name?: unknown; title?: unknown; slug?: unknown };
-      return [role.name, role.title, role.slug].filter((item): item is string => typeof item === "string").map((item) => item.toUpperCase().trim().replace(/[^A-Z0-9]+/g, "_"));
-    }
-    return [];
-  };
-  return [
-    ...normalize(employee.workforce_role), ...normalize(employee.workforceRole),
-    ...normalize(employee.roleName), ...normalize(employee.role_name),
-    ...normalize(employee.role), ...normalize(employee.userRole),
-    ...normalize(employee.user_role), ...normalize(employee.user?.role),
-  ];
-}
-
-function isExcludedHrTarget(employee: EmployeeRoleRecord, allowHrManager = false) {
-  const roles = normalizedEmployeeRoles(employee);
-  const isOrganizationAdmin = roles.some((role) => ["ORGANIZATION_ADMIN", "ORG_ADMIN", "ORGANIZATIONADMIN", "ORGANIZATION_ADMINISTRATOR", "ORGANIZATION_OWNER", "ORG_OWNER", "TENANT_ADMIN", "ADMINISTRATOR"].includes(role) || role.startsWith("ORGANIZATION_ADMIN_") || role.startsWith("ORGANIZATIONADMIN_") || role.startsWith("ORG_ADMIN_") || role.startsWith("ORGANIZATION_OWNER_") || role.startsWith("ORG_OWNER_") || role.startsWith("TENANT_ADMIN_"));
-  const isHrManager = roles.some((role) => ["HR_MANAGER", "HRMANAGER"].includes(role) || role.startsWith("HR_MANAGER_") || role.startsWith("HRMANAGER_"));
-  return isOrganizationAdmin || (!allowHrManager && isHrManager);
-}
-
-function isEligiblePayslipTarget(employee: EmployeeRoleRecord, audience: Props["audience"]) {
-  if (isExcludedHrTarget(employee, audience === "organization-admin")) return false;
-  const roles = normalizedEmployeeRoles(employee);
-  const allowedRoles = audience === "organization-admin"
-    ? new Set(["HR_MANAGER", "HRMANAGER", "DEPARTMENT_MANAGER", "DEPARTMENTMANAGER", "EMPLOYEE"])
-    : new Set(["DEPARTMENT_MANAGER", "DEPARTMENTMANAGER", "EMPLOYEE"]);
-  return roles.length === 0 || roles.some((role) => allowedRoles.has(role));
-}
-
-async function loadEligibleEmployeeIds(audience: Props["audience"]) {
-  const fetchPage = async (page: number) => {
-    const response = await fetch(`/api/backend/employees?page=${page}&limit=100&sortBy=name&sortOrder=asc`, { credentials: "same-origin", cache: "no-store" });
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(payload?.message || `Unable to verify employee roles (${response.status})`);
-    if (!Array.isArray(payload?.employees)) throw new Error("Unable to verify employee roles: the employee list response was invalid.");
-    return { rows: payload.employees as EmployeeRoleRecord[], totalPages: Math.max(1, Number(payload?.pagination?.totalPages) || 1) };
-  };
-  const first = await fetchPage(1);
-  const allRows = [...first.rows];
-  if (first.totalPages > 10001) throw new Error("The employee list is too large to verify safely. Contact your administrator.");
-  for (let page = 2; page <= first.totalPages; page += 1) {
-    const result = await fetchPage(page);
-    allRows.push(...result.rows);
-  }
-  return new Set(allRows.filter((employee) => typeof employee.id === "string" && isEligiblePayslipTarget(employee, audience)).map((employee) => employee.id as string));
-}
-
 export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeEmployeeId }: Props) {
   const canEdit = audience === "hr-manager" || audience === "organization-admin";
   const [month, setMonth] = useState("");
@@ -138,27 +86,33 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   }, []);
 
   const load = useCallback(async (silent = false) => {
-    if (!monthReady || !month) return;
+    if (!monthReady) return;
+    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+      setLoading(false);
+      if (!silent) setError("Select a valid payroll month before loading salary payments.");
+      return;
+    }
     const requestId = ++loadRequestId.current;
-    if (!silent) setLoading(true); setError("");
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
     try {
-      const paymentRequest = fetch(`/api/backend/payroll/payments?month=${encodeURIComponent(month)}`, { credentials: "same-origin", cache: "no-store" });
-      const eligibleIdsRequest = canEdit ? loadEligibleEmployeeIds(audience) : Promise.resolve(null);
-      const [response, eligibleIds] = await Promise.all([paymentRequest, eligibleIdsRequest]);
+      const response = await fetch(
+        `/api/backend/payroll/payments?month=${encodeURIComponent(month)}`,
+        { credentials: "same-origin", cache: "no-store" },
+      );
       const payload = await response.json().catch(() => null);
       if (requestId !== loadRequestId.current) return;
       if (!response.ok) throw new Error(payload?.message || `Request failed (${response.status})`);
       const responseRows = Array.isArray(payload?.payments) ? payload.payments as Payment[] : [];
-      // Verify target roles against the tenant-scoped employee API before displaying or editing payments.
-      // Organization Admin can include HR Manager records; HR Manager cannot manage its own role record.
-      const eligibleRows = eligibleIds ? responseRows.filter((payment) => eligibleIds.has(payment.employeeId)) : responseRows;
-      // Department Managers may view team payroll on the team page, but their
-      // personal earnings page must show only their own payment record.
+      // The payment API applies tenant, role and department authorization before
+      // returning rows. Keep only the current employee / team refinement here.
       const rows = audience === "employee" && employeeId
-        ? eligibleRows.filter((payment) => payment.employeeId === employeeId)
+        ? responseRows.filter((payment) => payment.employeeId === employeeId)
         : audience === "department-manager" && excludeEmployeeId
-          ? eligibleRows.filter((payment) => payment.employeeId !== excludeEmployeeId)
-          : eligibleRows;
+          ? responseRows.filter((payment) => payment.employeeId !== excludeEmployeeId)
+          : responseRows;
       setPayments(rows);
       setDrafts(Object.fromEntries(rows.map((p) => [p.employeeId, { amount: p.amount == null ? "" : String(p.amount), currencyCode: p.currencyCode || "RWF", status: p.status === "PAID" ? "PAID" : "UNPAID", paymentReference: p.paymentReference || "", notes: p.notes || "" }])));
     } catch (e) {
@@ -215,18 +169,20 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     };
   }, [payslipDialog, savingPayslipStatuses]);
 
+  const hasUnsavedChanges = canEdit && payments.some((payment) => {
+    const draft = drafts[payment.employeeId];
+    return !draft ||
+      draft.amount !== (payment.amount == null ? "" : String(payment.amount)) ||
+      draft.currencyCode !== (payment.currencyCode || "RWF") ||
+      draft.status !== (payment.status === "PAID" ? "PAID" : "UNPAID") ||
+      draft.paymentReference !== (payment.paymentReference || "") ||
+      draft.notes !== (payment.notes || "");
+  });
+
   useWorkspaceAutoRefresh(() => load(true), {
     enabled: true,
     intervalMs: 60_000,
-    shouldRefresh: () => monthReady && Boolean(month) && !loading && !saving && !paymentConfirmation && (!canEdit || !payments.some((payment) => {
-      const draft = drafts[payment.employeeId];
-      return !draft ||
-        draft.amount !== (payment.amount == null ? "" : String(payment.amount)) ||
-        draft.currencyCode !== (payment.currencyCode || "RWF") ||
-        draft.status !== (payment.status === "PAID" ? "PAID" : "UNPAID") ||
-        draft.paymentReference !== (payment.paymentReference || "") ||
-        draft.notes !== (payment.notes || "");
-    })),
+    shouldRefresh: () => monthReady && Boolean(month) && !loading && !saving && !paymentConfirmation && !hasUnsavedChanges,
   });
   const paidCount = payments.filter((payment) => payment.status === "PAID").length;
   const noHoursCount = payments.filter((payment) => payment.status === "NO_RECORDED_HOURS").length;
@@ -593,7 +549,21 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       <div className="flex min-w-0 flex-wrap items-end gap-2.5 xl:justify-end">
         <label className="min-w-[175px] text-xs font-semibold text-slate-400">
           Register month
-          <input type="month" value={month} disabled={!monthReady || Boolean(saving)} onChange={(event) => setMonth(event.target.value)} className={INPUT}/>
+          <input
+            type="month"
+            value={month}
+            disabled={!monthReady || Boolean(saving) || hasUnsavedChanges}
+            onChange={(event) => {
+              const nextMonth = event.target.value;
+              if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(nextMonth) || nextMonth === month) return;
+              setLoading(true);
+              setError("");
+              setNotice("");
+              setMonth(nextMonth);
+            }}
+            title={hasUnsavedChanges ? "Save your payment edits before changing the payroll month." : "Choose the payroll month to review."}
+            className={INPUT}
+          />
           {organizationTimeZone && <span className="mt-1 block text-[10px] font-medium text-slate-500">{organizationTimeZone}</span>}
         </label>
         {canEdit && <Link href={audience === "hr-manager" ? "/hr/modules/pay-rates" : "/org/pay-rates"} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-600 bg-white/[0.025] px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07]">Manage pay rates</Link>}
