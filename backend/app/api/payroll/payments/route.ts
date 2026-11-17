@@ -59,6 +59,14 @@ export async function GET(request: Request) {
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORG_OWNER%'
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'TENANT_ADMIN%'
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ADMINISTRATOR%'
+         AND (
+           NOT $7::boolean
+           OR (
+             e.id <> $5::uuid
+             AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HR_MANAGER%'
+             AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HRMANAGER%'
+           )
+         )
          AND NOT EXISTS (
            SELECT 1
            FROM public.users AS target_account
@@ -105,7 +113,7 @@ export async function GET(request: Request) {
                AND md.id = e.department_id
                AND md.manager_id = $5::uuid
            )))
-           OR (($7::boolean AND NOT $3::boolean) AND e.id = $5::uuid)
+           OR ($7::boolean AND NOT $3::boolean)
          )
        ORDER BY e.first_name, e.last_name, e.employee_code`,
       [actor.organizationId, start, actor.kind === "ORGANIZATION_ADMIN", isEmployee, actor.kind === "ORGANIZATION_USER" ? actor.employeeId : null, isDm, isHrManager],
