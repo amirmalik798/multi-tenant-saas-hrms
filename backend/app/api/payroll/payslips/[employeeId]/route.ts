@@ -579,3 +579,237 @@ export async function GET(request: Request, context: RouteContext) {
     return json({ message: "Unable to generate this salary slip right now" }, 500);
   }
 }
+
+
+/**
+ * PUT /api/payroll/payslips/:employeeId
+ *
+ * Persist one PAID/UNPAID status for each requested month using the existing
+ * monthly_salary_payments ledger. A PAID status is only accepted when the
+ * month has complete, payable earnings; UNPAID can still be recorded when
+ * there were no payable hours or the rates need review.
+ */
+export async function PUT(request: Request, context: RouteContext) {
+  const originError = validateSameOriginRequest(request);
+  if (originError) return originError;
+
+  await connection();
+  const client = await pool.connect();
+  let transactionStarted = false;
+
+  try {
+    const actor = await getTenantPermissionActor();
+    if (!actor) return json({ message: "Authentication required" }, 401);
+
+    const isOrganizationAdmin = actor.kind === "ORGANIZATION_ADMIN";
+    const isHrManager = actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER";
+    if (!isOrganizationAdmin && !isHrManager) {
+      return json({ message: "Only an Organization Admin or HR Manager can update salary slip payment statuses" }, 403);
+    }
+    if (!(await organizationIsActive(pool, actor.organizationId))) {
+      return json({ message: "This organization is not active" }, 403);
+    }
+
+    const { employeeId } = await context.params;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(employeeId)) {
+      return json({ message: "Provide a valid workforce member ID" }, 400);
+    }
+    if (isHrManager && employeeId === actor.employeeId) {
+      return json({ message: "HR Managers cannot update their own salary slip payment status" }, 403);
+    }
+
+    const parsedBody = await parseJsonRequestBody(request);
+    if (!parsedBody.ok) return parsedBody.response;
+    if (!parsedBody.body || typeof parsedBody.body !== "object" || Array.isArray(parsedBody.body)) {
+      return json({ message: "Provide a valid payment status request" }, 400);
+    }
+    const input = parsedBody.body as Record<string, unknown>;
+    if (!Array.isArray(input.statuses) || input.statuses.length < 1 || input.statuses.length > 24) {
+      return json({ message: "Provide between 1 and 24 monthly payment statuses" }, 400);
+    }
+
+    const requestedStatuses: Array<{ month: string; status: "PAID" | "UNPAID" }> = [];
+    const seenMonths = new Set<string>();
+    for (const item of input.statuses) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        return json({ message: "Each monthly payment status must be a valid object" }, 400);
+      }
+      const record = item as Record<string, unknown>;
+      const month = typeof record.month === "string" ? record.month : null;
+      const status = record.status === "PAID" || record.status === "UNPAID" ? record.status : null;
+      if (!validMonth(month) || !status) {
+        return json({ message: "Each month must use YYYY-MM format and have a PAID or UNPAID status" }, 400);
+      }
+      if (seenMonths.has(month)) {
+        return json({ message: "A month can only appear once in a salary slip status update" }, 400);
+      }
+      seenMonths.add(month);
+      requestedStatuses.push({ month, status });
+    }
+
+    await client.query("BEGIN");
+    transactionStarted = true;
+
+    const targetResult = await client.query<{
+      id: string;
+      workforceRole: string | null;
+      isOrganizationAdmin: boolean;
+    }>(
+      `SELECT
+         e.id,
+         workforce_role.name AS "workforceRole",
+         EXISTS (
+           SELECT 1
+           FROM public.users AS target_account
+           JOIN public.roles AS target_account_role
+             ON target_account_role.id = target_account.role_id
+            AND target_account_role.organization_id = target_account.organization_id
+           WHERE target_account.organization_id = e.organization_id
+             AND target_account.employee_id = e.id
+             AND target_account.account_scope = 'ORGANIZATION'
+             AND (
+               regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g')
+                 IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR',
+                     'ORGANIZATION_OWNER', 'ORG_OWNER', 'TENANT_ADMIN', 'ADMINISTRATOR')
+               OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_ADMIN_%'
+               OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATIONADMIN_%'
+               OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_ADMIN_%'
+               OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_OWNER_%'
+               OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_OWNER_%'
+               OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'TENANT_ADMIN_%'
+               OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ADMINISTRATOR_%'
+             )
+         ) AS "isOrganizationAdmin"
+       FROM public.employees AS e
+       LEFT JOIN public.roles AS workforce_role
+         ON workforce_role.id = e.workforce_role_id
+        AND workforce_role.organization_id = e.organization_id
+       WHERE e.id = $1::uuid
+         AND e.organization_id = $2::uuid
+       FOR UPDATE OF e`,
+      [employeeId, actor.organizationId],
+    );
+
+    const target = targetResult.rows[0];
+    if (!target) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+      return json({ message: "Workforce member not found in this organization" }, 404);
+    }
+
+    const targetRole = normalizeWorkforceRole(target.workforceRole || "EMPLOYEE");
+    const isHrManagerTarget = targetRole === "HR_MANAGER" || targetRole === "HRMANAGER";
+    const isDepartmentManagerTarget = targetRole === "DEPARTMENT_MANAGER" || targetRole === "DEPARTMENTMANAGER";
+    const isEmployeeTarget = targetRole === "EMPLOYEE";
+    const roleIsEligible = isDepartmentManagerTarget || isEmployeeTarget ||
+      (isOrganizationAdmin && isHrManagerTarget);
+    if (target.isOrganizationAdmin || !roleIsEligible) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+      return json({
+        message: isHrManager
+          ? "HR Managers can update statuses for Department Managers and Employees only"
+          : "Organization Admins can update statuses for HR Managers, Department Managers and Employees only",
+      }, 403);
+    }
+
+    const settings = await client.query<{ currency_code: string | null }>(
+      `SELECT currency_code
+       FROM public.organization_settings
+       WHERE organization_id = $1::uuid
+       LIMIT 1`,
+      [actor.organizationId],
+    );
+    const organizationCurrency = settings.rows[0]?.currency_code?.trim().toUpperCase() || "RWF";
+    const savedStatuses: Array<{ month: string; status: "PAID" | "UNPAID"; amount: string; currencyCode: string }> = [];
+
+    for (const requested of requestedStatuses) {
+      const calculation = await calculateOrganizationMonthlyPay(pool, actor.organizationId, requested.month);
+      const monthlyEstimate = calculation.get(employeeId);
+      const existingResult = await client.query<{
+        amount: string;
+        currencyCode: string;
+      }>(
+        `SELECT amount::text AS amount, currency_code AS "currencyCode"
+         FROM public.monthly_salary_payments
+         WHERE organization_id = $1::uuid
+           AND employee_id = $2::uuid
+           AND pay_month = $3::date
+         FOR UPDATE`,
+        [actor.organizationId, employeeId, `${requested.month}-01`],
+      );
+      const existing = existingResult.rows[0];
+
+      if (requested.status === "PAID" && (
+        !monthlyEstimate ||
+        monthlyEstimate.payableMinutes <= 0 ||
+        monthlyEstimate.amount === null ||
+        monthlyEstimate.currencyMismatch
+      )) {
+        await client.query("ROLLBACK");
+        transactionStarted = false;
+        return json({
+          message: `Cannot mark ${requested.month} as PAID because payable earnings are missing, incomplete, or use conflicting currencies. Resolve the payroll inputs first.`,
+        }, 409);
+      }
+
+      const canUseCalculatedAmount = Boolean(
+        monthlyEstimate &&
+        monthlyEstimate.payableMinutes > 0 &&
+        monthlyEstimate.amount !== null &&
+        !monthlyEstimate.currencyMismatch
+      );
+      const amount = canUseCalculatedAmount
+        ? monthlyEstimate!.amount!
+        : Number(existing?.amount ?? 0);
+      const currencyCode = (
+        (canUseCalculatedAmount ? monthlyEstimate?.currencyCode : null) ||
+        existing?.currencyCode ||
+        organizationCurrency
+      ).trim().toUpperCase();
+
+      if (!Number.isFinite(amount) || amount < 0 || !/^[A-Z]{3}$/.test(currencyCode)) {
+        await client.query("ROLLBACK");
+        transactionStarted = false;
+        return json({ message: `A valid currency or amount is unavailable for ${requested.month}.` }, 409);
+      }
+
+      const saved = await client.query<{ amount: string; currencyCode: string }>(
+        `INSERT INTO public.monthly_salary_payments
+           (organization_id, employee_id, pay_month, amount, currency_code, status, paid_at, recorded_by_user_id)
+         VALUES ($1::uuid, $2::uuid, $3::date, $4::numeric, $5, $6,
+                 CASE WHEN $6 = 'PAID' THEN now() ELSE NULL END, $7::uuid)
+         ON CONFLICT (organization_id, employee_id, pay_month)
+         DO UPDATE SET
+           amount = EXCLUDED.amount,
+           currency_code = EXCLUDED.currency_code,
+           status = EXCLUDED.status,
+           paid_at = CASE
+             WHEN EXCLUDED.status = 'PAID'
+               THEN COALESCE(public.monthly_salary_payments.paid_at, now())
+             ELSE NULL
+           END,
+           recorded_by_user_id = EXCLUDED.recorded_by_user_id,
+           updated_at = now()
+         RETURNING amount::text AS amount, currency_code AS "currencyCode"`,
+        [actor.organizationId, employeeId, `${requested.month}-01`, amount, currencyCode, requested.status, actor.userId],
+      );
+      savedStatuses.push({
+        month: requested.month,
+        status: requested.status,
+        amount: saved.rows[0].amount,
+        currencyCode: saved.rows[0].currencyCode,
+      });
+    }
+
+    await client.query("COMMIT");
+    transactionStarted = false;
+    return json({ status: "ok", employeeId, statuses: savedStatuses });
+  } catch (error) {
+    if (transactionStarted) await client.query("ROLLBACK").catch(() => undefined);
+    console.error("Failed to save monthly salary slip statuses:", error);
+    return json({ message: "Unable to save monthly salary slip statuses" }, 500);
+  } finally {
+    client.release();
+  }
+}
