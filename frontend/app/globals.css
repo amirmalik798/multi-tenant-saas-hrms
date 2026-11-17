@@ -8250,8 +8250,7 @@ html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay {
 }
 
 html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-time-pay
-:is(div, form, section, article, aside, header, li, span)
-:is(
+:is(div, form, section, article, aside, header, li, span):is(
   [class*="bg-[#141c28]"], [class*="bg-[#0d131d]"], [class*="bg-[#111a28]"],
   [class*="bg-black/10"], [class*="bg-black/15"],
   [class*="bg-white/[0.015]"], [class*="bg-white/[0.02]"],
@@ -8305,8 +8304,7 @@ html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communicat
 }
 
 html[data-org-admin-theme="light"] .org-admin-workspace .oa-org-admin-communications
-:is(div, form, section, article, aside, header)
-:is([class*="bg-[#0d131d]"], [class*="bg-[#111a28]"], [class*="bg-slate-900"], [class*="bg-slate-800"]) {
+:is(div, form, section, article, aside, header):is([class*="bg-[#0d131d]"], [class*="bg-[#111a28]"], [class*="bg-slate-900"], [class*="bg-slate-800"]) {
   color: #35465d !important;
   background-color: #f7f9fc !important;
   background-image: none !important;
