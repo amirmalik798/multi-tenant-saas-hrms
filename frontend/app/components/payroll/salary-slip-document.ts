@@ -402,17 +402,9 @@ export function buildSalarySlipDocument(payload: SalarySlipPayload): string {
 <body>
 <div class="print-toolbar">
   <span>Print-ready salary statement · One A4 page per month · Use “Save as PDF” in the print destination</span>
-  <button type="button" onclick="window.print()">Print / Save as PDF</button>
+  <button type="button" id="salary-slip-print">Print / Save as PDF</button>
 </div>
 ${pages}
-<script>
-  window.addEventListener("load", function () {
-    window.setTimeout(function () {
-      window.focus();
-      window.print();
-    }, 250);
-  });
-</script>
 </body>
 </html>`;
 }
