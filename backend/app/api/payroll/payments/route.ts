@@ -39,11 +39,33 @@ export async function GET(request: Request) {
               d.name AS "departmentName", workforce_role.name AS "workforceRole", $2::date::text AS "payMonth", p.amount::text AS amount,
               COALESCE(p.currency_code, rate.currency_code, 'RWF') AS "currencyCode",
               COALESCE(p.status, 'UNPAID') AS status, p.paid_at AS "paidAt",
-              p.payment_reference AS "paymentReference", p.notes, p.updated_at AS "updatedAt"
+              p.payment_reference AS "paymentReference", p.notes, p.updated_at AS "updatedAt",
+              p.recorded_by_user_id AS "recordedByUserId",
+              COALESCE(NULLIF(TRIM(CONCAT_WS(' ', recorder_employee.first_name, recorder_employee.last_name)), ''), recorder.email) AS "recordedBy",
+              p.created_at AS "createdAt",
+              (p.id IS NOT NULL) AS "paymentRecorded"
        FROM public.employees e
        LEFT JOIN public.departments d ON d.id = e.department_id AND d.organization_id = e.organization_id
        LEFT JOIN public.roles AS workforce_role ON workforce_role.id = e.workforce_role_id AND workforce_role.organization_id = e.organization_id
+       LEFT JOIN LATERAL (
+         SELECT linked_role.name
+         FROM public.users AS workforce_account
+         JOIN public.roles AS linked_role
+           ON linked_role.id = workforce_account.role_id
+          AND linked_role.organization_id = workforce_account.organization_id
+          AND linked_role.scope = 'ORGANIZATION'
+         WHERE workforce_account.employee_id = e.id
+           AND workforce_account.organization_id = e.organization_id
+           AND workforce_account.account_scope = 'ORGANIZATION'
+         ORDER BY CASE WHEN workforce_account.status = 'ACTIVE' THEN 0 ELSE 1 END,
+                  workforce_account.updated_at DESC NULLS LAST,
+                  workforce_account.created_at DESC NULLS LAST,
+                  workforce_account.id
+         LIMIT 1
+       ) AS account_role ON TRUE
        LEFT JOIN public.monthly_salary_payments p ON p.organization_id = e.organization_id AND p.employee_id = e.id AND p.pay_month = $2::date
+       LEFT JOIN public.users AS recorder ON recorder.id = p.recorded_by_user_id AND recorder.organization_id = p.organization_id
+       LEFT JOIN public.employees AS recorder_employee ON recorder_employee.id = recorder.employee_id AND recorder_employee.organization_id = recorder.organization_id
        LEFT JOIN LATERAL (
          SELECT pr.currency_code FROM public.employee_pay_rates pr
          WHERE pr.organization_id = e.organization_id AND pr.employee_id = e.id
@@ -52,20 +74,20 @@ export async function GET(request: Request) {
          ORDER BY pr.effective_from DESC LIMIT 1
        ) rate ON TRUE
        WHERE e.organization_id = $1::uuid
-         AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORGANIZATION_ADMIN%'
-         AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORGANIZATIONADMIN%'
-         AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORG_ADMIN%'
-         AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORGANIZATION_OWNER%'
-         AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORG_OWNER%'
-         AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'TENANT_ADMIN%'
-         AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ADMINISTRATOR%'
+         AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORGANIZATION_ADMIN%'
+         AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORGANIZATIONADMIN%'
+         AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORG_ADMIN%'
+         AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORGANIZATION_OWNER%'
+         AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORG_OWNER%'
+         AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'TENANT_ADMIN%'
+         AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ADMINISTRATOR%'
          AND (
            NOT $7::boolean
            OR (
              e.id <> $5::uuid
-             AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HR_MANAGER%'
-             AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HRMANAGER%'
-             AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HRMANAGER%'
+             AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, '')), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HR_MANAGER%'
+             AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, '')), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HRMANAGER%'
+             AND COALESCE(regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, '')), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HRMANAGER%'
            )
          )
          AND NOT EXISTS (
@@ -77,7 +99,16 @@ export async function GET(request: Request) {
            WHERE target_account.organization_id = e.organization_id
              AND target_account.employee_id = e.id
              AND target_account.account_scope = 'ORGANIZATION'
-             AND regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR')
+             AND (
+               regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR', 'ORG_ADMINISTRATOR', 'ORGANIZATION_OWNER', 'ORG_OWNER', 'TENANT_ADMIN', 'ADMINISTRATOR')
+               OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_ADMIN_%'
+               OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATIONADMIN_%'
+               OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_ADMIN_%'
+               OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORGANIZATION_OWNER_%'
+               OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_OWNER_%'
+               OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'TENANT_ADMIN_%'
+               OR regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ADMINISTRATOR_%'
+             )
          )
          AND (
            e.employment_status = 'ACTIVE'
@@ -186,7 +217,7 @@ export async function PUT(request: Request) {
     await client.query("BEGIN");
     transactionStarted = true;
     const employee = await client.query(
-      `SELECT e.id, r.name AS workforce_role,
+      `SELECT e.id, COALESCE(r.name, linked_workforce_role.name) AS workforce_role,
               EXISTS (
                 SELECT 1 FROM public.users target_account
                 JOIN public.roles target_account_role ON target_account_role.id = target_account.role_id AND target_account_role.organization_id = target_account.organization_id
@@ -196,6 +227,22 @@ export async function PUT(request: Request) {
               ) AS is_organization_admin
        FROM public.employees e
        LEFT JOIN public.roles r ON r.id = e.workforce_role_id AND r.organization_id = e.organization_id
+       LEFT JOIN LATERAL (
+         SELECT linked_role.name
+         FROM public.users AS target_workforce_account
+         JOIN public.roles AS linked_role
+           ON linked_role.id = target_workforce_account.role_id
+          AND linked_role.organization_id = target_workforce_account.organization_id
+          AND linked_role.scope = 'ORGANIZATION'
+         WHERE target_workforce_account.organization_id = e.organization_id
+           AND target_workforce_account.employee_id = e.id
+           AND target_workforce_account.account_scope = 'ORGANIZATION'
+         ORDER BY CASE WHEN target_workforce_account.status = 'ACTIVE' THEN 0 ELSE 1 END,
+                  target_workforce_account.updated_at DESC NULLS LAST,
+                  target_workforce_account.created_at DESC NULLS LAST,
+                  target_workforce_account.id
+         LIMIT 1
+       ) AS linked_workforce_role ON TRUE
        WHERE e.id = $1::uuid AND e.organization_id = $2::uuid
        FOR UPDATE OF e`,
       [employeeId, actor.organizationId],
