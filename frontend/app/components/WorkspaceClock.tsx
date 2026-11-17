@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertCircle, ArrowRight, CheckCircle2, Clock3, LoaderCircle, LogIn, LogOut, X } from "lucide-react";
 
 type ClockSnapshot = { time: string; date: string; zone: string };
@@ -97,6 +98,65 @@ export default function WorkspaceClock({
   const [completedAction, setCompletedAction] = useState<ClockAction | null>(null);
   const [recordedAtLabel, setRecordedAtLabel] = useState("");
   const attendanceStatusRevisionRef = useRef(0);
+  const [portalReady, setPortalReady] = useState(false);
+  const clockTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const dialogRef = useRef<HTMLElement | null>(null);
+
+  // Wait until hydration has completed before creating a browser-only portal.
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  // The dialog lives under document.body so sticky headers, backdrop filters,
+  // transformed shells and overflow containers cannot clip or reposition it.
+  useEffect(() => {
+    if (!clockModalOpen) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      const initialFocus = dialogRef.current?.querySelector<HTMLElement>(
+        "[data-dialog-initial-focus]",
+      );
+      (initialFocus ?? dialogRef.current)?.focus();
+    });
+
+    const keepFocusInsideDialog = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+
+      const focusableElements = dialogRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (!focusableElements?.length) {
+        event.preventDefault();
+        dialogRef.current?.focus();
+        return;
+      }
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener("keydown", keepFocusInsideDialog);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.removeEventListener("keydown", keepFocusInsideDialog);
+      document.body.style.overflow = previousBodyOverflow;
+
+      if (clockTriggerRef.current?.isConnected) {
+        clockTriggerRef.current.focus();
+      }
+    };
+  }, [clockModalOpen]);
 
   useEffect(() => {
     if (!showAttendanceStatus) return;
@@ -422,6 +482,7 @@ export default function WorkspaceClock({
     <>
       {showAttendanceStatus ? (
         <button
+          ref={clockTriggerRef}
           type="button"
           onClick={() => { void openClockConfirmation(); }}
           aria-label={
@@ -468,20 +529,22 @@ export default function WorkspaceClock({
         </div>
       )}
 
-      {showAttendanceStatus && clockModalOpen && (
+      {showAttendanceStatus && clockModalOpen && portalReady && typeof document !== "undefined" && createPortal((
         <div
-          className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto overscroll-contain bg-slate-950/25 px-3 py-4 sm:items-center sm:px-4 sm:py-6"
+          className="fixed inset-0 z-[10000] grid place-items-center overflow-y-auto overscroll-contain bg-slate-950/35 p-3 sm:p-5"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeClockConfirmation();
           }}
         >
           <section
+            ref={dialogRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-labelledby="workspace-clock-dialog-title"
             aria-describedby="workspace-clock-dialog-description"
             onMouseDown={(event) => event.stopPropagation()}
-            className="my-auto w-full max-w-md shrink-0 overflow-hidden rounded-3xl border border-slate-700/80 bg-[#0b1220] shadow-[0_20px_56px_rgba(0,0,0,0.32)]"
+            className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-md shrink-0 overflow-y-auto overscroll-contain rounded-3xl border border-slate-700/80 bg-[#0b1220] shadow-[0_28px_80px_rgba(0,0,0,0.42)] outline-none sm:max-h-[calc(100dvh-2.5rem)]"
           >
             <div className="h-1 w-full bg-gradient-to-r from-sky-400 via-indigo-400 to-cyan-300" />
             <div className="p-5 sm:p-7">
@@ -615,7 +678,7 @@ export default function WorkspaceClock({
                       type="button"
                       onClick={closeClockConfirmation}
                       disabled={clockSubmitting}
-                      autoFocus
+                      data-dialog-initial-focus
                       className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-700 bg-white/[0.03] px-5 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Cancel
@@ -657,7 +720,7 @@ export default function WorkspaceClock({
             </div>
           </section>
         </div>
-      )}
+      ), document.body)}
     </>
   );
 }
