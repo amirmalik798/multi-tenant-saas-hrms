@@ -4,6 +4,8 @@ import { getTenantPermissionActor } from "../../../../../lib/permissions";
 import { organizationIsActive } from "../../../../../lib/schedule-utils";
 import { calculateDailyAttendance, type AttendanceCalculationEvent } from "../../../../../lib/attendance-calculations";
 import { normalizeWorkforceRole } from "../../../../../lib/workforce-eligibility";
+import { parseJsonRequestBody, validateSameOriginRequest } from "../../../../../lib/request-security";
+import { calculateOrganizationMonthlyPay } from "../../../../../lib/monthly-salary-calculation";
 
 type RouteContext = {
   params: Promise<{ employeeId: string }>;
@@ -25,6 +27,7 @@ type PayslipDayRow = {
   isPaidHoliday: boolean;
   excessOvertimeReviewStatus: string | null;
   paymentStatus: string | null;
+  paymentRecorded: boolean;
   paidAt: Date | string | null;
   paymentReference: string | null;
 };
@@ -327,6 +330,7 @@ export async function GET(request: Request, context: RouteContext) {
          ) AS "isPaidHoliday",
          excess_review.status AS "excessOvertimeReviewStatus",
          payment.status AS "paymentStatus",
+         (payment.id IS NOT NULL) AS "paymentRecorded",
          payment.paid_at AS "paidAt",
          payment.payment_reference AS "paymentReference"
        FROM calendar_days AS cd
@@ -449,6 +453,7 @@ export async function GET(request: Request, context: RouteContext) {
         overtimePay,
         estimatedPay,
         paymentStatus: row.paymentStatus,
+        paymentRecorded: row.paymentRecorded === true,
         paidAt: row.paidAt,
         paymentReference: row.paymentReference,
       };
@@ -530,7 +535,7 @@ export async function GET(request: Request, context: RouteContext) {
         amount: entry.incomplete ? null : Math.round(entry.amount * 100) / 100,
         incomplete: entry.incomplete,
       }));
-      const paymentRow = monthDays.find((day) => day.paymentStatus || day.paidAt || day.paymentReference);
+      const paymentRow = monthDays.find((day) => day.paymentRecorded);
       months.push({
         month,
         totals,
@@ -538,7 +543,8 @@ export async function GET(request: Request, context: RouteContext) {
         currencyMismatch: currencyRows.filter((entry) => entry.currencyCode).length > 1,
         ratePeriods,
         payment: {
-          status: paymentRow?.paymentStatus ?? "UNRECORDED",
+          status: paymentRow?.paymentStatus === "PAID" ? "PAID" : "UNPAID",
+          recorded: Boolean(paymentRow?.paymentRecorded),
           paidAt: paymentRow?.paidAt ?? null,
           reference: paymentRow?.paymentReference ?? null,
         },
