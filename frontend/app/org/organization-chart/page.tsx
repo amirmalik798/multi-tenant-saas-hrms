@@ -614,7 +614,7 @@ export default function OrganizationChartPage() {
           <section aria-labelledby="organization-chart-page-title" className="mb-6">
             
             <h1 id="organization-chart-page-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">Organization Chart</h1>
-            <p className="mt-1.5 text-sm leading-6 text-slate-400">Explore reporting relationships and identify workforce records that need assignment review.</p>
+            <p className="sr-only">Explore reporting relationships and identify workforce records that need assignment review.</p>
           </section>
 
           <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-5">
