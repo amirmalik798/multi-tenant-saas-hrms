@@ -80,7 +80,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         );
         const payload = await response.json().catch(() => null);
         if (!response.ok) throw new Error(payload?.message || "Unable to load organization date settings.");
-        const today = typeof payload?.today === "string" && /^\\d{4}-\\d{2}-\\d{2}$/.test(payload.today)
+        const today = typeof payload?.today === "string" && /^\d{4}-\d{2}-\d{2}$/.test(payload.today)
           ? payload.today
           : "";
         if (!today) throw new Error("The organization work date was unavailable.");
