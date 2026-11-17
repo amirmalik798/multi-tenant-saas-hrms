@@ -313,7 +313,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     {canEdit && <div className="mt-5 flex flex-wrap items-end justify-between gap-4 rounded-2xl border border-sky-400/15 bg-sky-400/[0.035] p-4">
       <div className="min-w-0">
         <div className="flex items-center gap-2 text-sky-300"><FileDown size={17} /><span className="text-xs font-bold uppercase tracking-[0.14em]">Workforce salary slips</span></div>
-        <p className="mt-1 text-sm text-slate-300">Choose a month range, then print a member’s detailed monthly statements. Each month is formatted as its own A4 PDF page.</p>
+        <p className="mt-1 text-sm text-slate-300">Choose a month range (up to 24 months), then print a member’s detailed monthly statements. Each month is formatted as its own A4 PDF page.</p>
       </div>
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs font-semibold text-slate-400">Start month<input type="month" value={payslipStartMonth} disabled={!monthReady || Boolean(payslipLoading)} onChange={(event) => setPayslipStartMonth(event.target.value)} className={INPUT} /></label>
