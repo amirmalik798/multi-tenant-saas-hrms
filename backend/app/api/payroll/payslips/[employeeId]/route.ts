@@ -645,7 +645,12 @@ export async function PUT(request: Request, context: RouteContext) {
       return json({ message: "Provide between 1 and 24 monthly payment statuses" }, 400);
     }
 
-    const requestedStatuses: Array<{ month: string; status: "PAID" | "UNPAID" }> = [];
+    const requestedStatuses: Array<{
+      month: string;
+      status: "PAID" | "UNPAID";
+      expectedRecorded?: boolean;
+      expectedStatus?: "PAID" | "UNPAID" | null;
+    }> = [];
     const seenMonths = new Set<string>();
     for (const item of input.statuses) {
       if (!item || typeof item !== "object" || Array.isArray(item)) {
@@ -654,14 +659,34 @@ export async function PUT(request: Request, context: RouteContext) {
       const record = item as Record<string, unknown>;
       const month = typeof record.month === "string" ? record.month : null;
       const status = record.status === "PAID" || record.status === "UNPAID" ? record.status : null;
+      const expectedRecorded = typeof record.expectedRecorded === "boolean" ? record.expectedRecorded : undefined;
+      const expectedStatus = record.expectedStatus === "PAID" || record.expectedStatus === "UNPAID"
+        ? record.expectedStatus
+        : record.expectedStatus === null
+          ? null
+          : undefined;
       if (!validMonth(month) || !status) {
         return json({ message: "Each month must use YYYY-MM format and have a PAID or UNPAID status" }, 400);
+      }
+      if (
+        (record.expectedRecorded !== undefined && expectedRecorded === undefined) ||
+        (record.expectedStatus !== undefined && expectedStatus === undefined) ||
+        ((expectedRecorded === undefined) !== (expectedStatus === undefined)) ||
+        (expectedRecorded === true && expectedStatus === null) ||
+        (expectedRecorded === false && expectedStatus !== null)
+      ) {
+        return json({ message: "Each expected payroll status must include a consistent recorded flag and PAID/UNPAID value" }, 400);
       }
       if (seenMonths.has(month)) {
         return json({ message: "A month can only appear once in a salary slip status update" }, 400);
       }
       seenMonths.add(month);
-      requestedStatuses.push({ month, status });
+      requestedStatuses.push({
+        month,
+        status,
+        ...(expectedRecorded !== undefined ? { expectedRecorded } : {}),
+        ...(expectedStatus !== undefined ? { expectedStatus } : {}),
+      });
     }
 
     await client.query("BEGIN");
@@ -774,6 +799,21 @@ export async function PUT(request: Request, context: RouteContext) {
         [actor.organizationId, employeeId, `${requested.month}-01`],
       );
       const existing = existingResult.rows[0];
+
+      if (requested.expectedRecorded !== undefined) {
+        const currentRecorded = Boolean(existing);
+        const currentStatus = existing?.status ?? null;
+        if (
+          currentRecorded !== requested.expectedRecorded ||
+          currentStatus !== requested.expectedStatus
+        ) {
+          await client.query("ROLLBACK");
+          transactionStarted = false;
+          return json({
+            message: `The payroll status for ${requested.month} changed after this salary slip was loaded. Reload the selected period and review the current status before printing.`,
+          }, 409);
+        }
+      }
 
       const alreadyRecordedAsPaid = existing?.status === "PAID";
       if (alreadyRecordedAsPaid && requested.status === "UNPAID") {
