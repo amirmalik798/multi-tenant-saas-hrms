@@ -133,7 +133,7 @@ export default function OrganizationAdminHRModuleShell({
   }
 
   return (
-    <div className="org-admin-workspace organization-admin-workspace min-h-screen bg-[#0b1220] text-slate-100">
+    <div className="org-admin-workspace organization-admin-workspace min-h-screen bg-[#0b1220] text-slate-100" data-org-admin-active-page={activePage}>
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_bottom_right,rgba(35,91,130,0.07),transparent_42%)]" />
       <OrganizationAdminSidebar activePage={activePage} />
       <main id="org-admin-main-content" tabIndex={-1} className="relative z-10 min-h-screen lg:ml-64">
