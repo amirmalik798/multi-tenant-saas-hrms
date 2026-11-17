@@ -254,6 +254,18 @@ if (
       );
     }
 
+    const payRateEligibleParam = url.searchParams.get("payRateEligible");
+    if (payRateEligibleParam && !["true", "false"].includes(payRateEligibleParam)) {
+      return jsonResponse({ message: "payRateEligible must be true or false" }, 400);
+    }
+    const payRateEligibleOnly = payRateEligibleParam === "true";
+    if (payRateEligibleOnly && !(
+      actor.kind === "ORGANIZATION_ADMIN" ||
+      (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER")
+    )) {
+      return jsonResponse({ message: "You do not have permission to manage employee pay rates" }, 403);
+    }
+
     const where: string[] = ["e.organization_id = $1"];
     const filterValues: unknown[] = [
       actor.organizationId,
@@ -274,6 +286,41 @@ if (
             AND target_account.account_scope = 'ORGANIZATION'
             AND regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g') IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR')
         )`);
+    }
+
+    // The pay-rate selector uses a purpose-built eligibility filter so
+    // account-level Organization Admins are never presented as employees.
+    // HR Managers may set rates for eligible employees but not for other
+    // HR Manager records; Organization Admins may also manage the HR Manager.
+    if (payRateEligibleOnly) {
+      const normalizedRole = "regexp_replace(UPPER(COALESCE(workforce_role.name, '')), '[^A-Z0-9]+', '_', 'g')";
+      where.push(`NOT EXISTS (
+        SELECT 1
+        FROM public.users AS target_account
+        JOIN public.roles AS target_account_role
+          ON target_account_role.id = target_account.role_id
+         AND target_account_role.organization_id = target_account.organization_id
+        WHERE target_account.organization_id = e.organization_id
+          AND target_account.employee_id = e.id
+          AND target_account.account_scope = 'ORGANIZATION'
+          AND regexp_replace(UPPER(target_account_role.name), '[^A-Z0-9]+', '_', 'g')
+            IN ('ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR',
+                'ORGANIZATION_OWNER', 'ORG_OWNER', 'TENANT_ADMIN', 'ADMINISTRATOR')
+      )`);
+      where.push(`${normalizedRole} NOT IN (
+        'ORGANIZATION_ADMIN', 'ORGANIZATIONADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR',
+        'ORGANIZATION_OWNER', 'ORG_OWNER', 'TENANT_ADMIN', 'ADMINISTRATOR'
+      ) AND ${normalizedRole} NOT LIKE 'ORG_ADMIN_%'
+        AND ${normalizedRole} NOT LIKE 'ORGANIZATION_ADMIN_%'
+        AND ${normalizedRole} NOT LIKE 'ORGANIZATIONADMIN_%'
+        AND ${normalizedRole} NOT LIKE 'ORGANIZATION_OWNER_%'
+        AND ${normalizedRole} NOT LIKE 'ORG_OWNER_%'
+        AND ${normalizedRole} NOT LIKE 'TENANT_ADMIN_%'`);
+      if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER") {
+        where.push(`${normalizedRole} NOT IN ('HR_MANAGER', 'HRMANAGER')
+          AND ${normalizedRole} NOT LIKE 'HR_MANAGER_%'
+          AND ${normalizedRole} NOT LIKE 'HRMANAGER_%'`);
+      }
     }
 
     // Department Managers can only see employees belonging to
