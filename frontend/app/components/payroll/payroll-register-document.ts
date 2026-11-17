@@ -104,14 +104,15 @@ export function buildPayrollRegisterDocument(input: PayrollRegisterDocumentInput
   const amounts = new Map<string, { paid: number; due: number; total: number }>();
 
   for (const row of rows) {
+    if (row.status !== "PAID" && row.status !== "UNPAID") continue;
+    if (row.amount === null || row.amount === "") continue;
+    const value = Number(row.amount);
+    if (!Number.isFinite(value)) continue;
     const currency = (row.currencyCode || "RWF").toUpperCase();
     const summary = amounts.get(currency) ?? { paid: 0, due: 0, total: 0 };
-    const value = Number(row.amount ?? 0);
-    if (Number.isFinite(value)) {
-      if (row.status === "PAID") summary.paid += value;
-      else if (row.status === "UNPAID") summary.due += value;
-      if (row.status === "PAID" || row.status === "UNPAID") summary.total += value;
-    }
+    if (row.status === "PAID") summary.paid += value;
+    else summary.due += value;
+    summary.total += value;
     amounts.set(currency, summary);
   }
 
