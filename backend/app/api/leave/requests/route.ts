@@ -38,7 +38,7 @@ export async function GET(request: Request) {
     } else if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER") {
       values.push(actor.employeeId);
       conditions.push(`(
-        r.employee_id = ${values.length}::uuid
+        r.employee_id = $${values.length}::uuid
         OR NOT EXISTS (
           SELECT 1 FROM public.roles scoped_role
           WHERE scoped_role.id = e.workforce_role_id
