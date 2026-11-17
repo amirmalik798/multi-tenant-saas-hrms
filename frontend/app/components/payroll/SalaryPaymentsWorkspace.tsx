@@ -488,7 +488,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     })}</div>}
     {payslipDialog && typeof document !== "undefined" && createPortal(
       <div
-        className="fixed inset-0 z-[300] flex items-center justify-center overflow-y-auto bg-slate-950/55 p-3 sm:p-5"
+        className="fixed inset-0 z-[10000] flex items-center justify-center overflow-y-auto bg-slate-950/55 p-3 sm:p-5"
         onMouseDown={(event) => {
           if (event.target === event.currentTarget && !savingPayslipStatuses) cancelSalarySlipPreparation();
         }}
@@ -553,13 +553,16 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                     <select
                       value={status}
                       disabled={savingPayslipStatuses}
-                      onChange={(event) => setPayslipDialog((current) => current ? {
-                        ...current,
-                        statuses: {
-                          ...current.statuses,
-                          [monthRecord.month]: event.target.value as PayslipPaymentStatus,
-                        },
-                      } : current)}
+                      onChange={(event) => {
+                        const nextStatus = event.target.value as PayslipPaymentStatus;
+                        setPayslipDialog((current) => current ? {
+                          ...current,
+                          statuses: {
+                            ...current.statuses,
+                            [monthRecord.month]: nextStatus,
+                          },
+                        } : current);
+                      }}
                       className={INPUT}
                     >
                       <option value="UNPAID">UNPAID</option>
