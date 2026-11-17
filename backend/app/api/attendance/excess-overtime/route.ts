@@ -67,7 +67,8 @@ export async function GET(request: Request) {
          JOIN public.roles wr
            ON wr.id = e.workforce_role_id
           AND wr.organization_id = e.organization_id
-          AND wr.name = 'EMPLOYEE'
+          AND wr.scope = 'ORGANIZATION'
+          AND wr.name IN ('EMPLOYEE', 'DEPARTMENT_MANAGER', 'HR_MANAGER')
          LEFT JOIN public.departments d
            ON d.id = e.department_id AND d.organization_id = e.organization_id
          LEFT JOIN public.organization_settings os
