@@ -90,7 +90,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
 
   const load = useCallback(async (silent = false) => {
     if (!monthReady) return;
-    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
       setLoading(false);
       if (!silent) setError("Select a valid payroll month before loading salary payments.");
       return;
@@ -584,7 +584,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             disabled={!monthReady || Boolean(saving) || Boolean(payslipLoading) || Boolean(payslipDialog) || hasUnsavedChanges}
             onChange={(event) => {
               const nextMonth = event.target.value;
-              if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(nextMonth) || nextMonth === month) return;
+              if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(nextMonth) || nextMonth === month) return;
               setLoading(true);
               setError("");
               setNotice("");
