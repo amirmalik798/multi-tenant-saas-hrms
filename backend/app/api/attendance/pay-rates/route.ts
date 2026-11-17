@@ -174,14 +174,16 @@ export async function PUT(request: Request) {
       return json({ message: "Organization Admin records are not eligible for employee pay rates" }, 403);
     }
 
-    const currencyHistory = await client.query<{ currency_code: string }>(
-      `SELECT DISTINCT currency_code
+    const currencyHistory = await client.query(
+      `SELECT 1
        FROM public.employee_pay_rates
-       WHERE organization_id = $1::uuid AND employee_id = $2::uuid
-       LIMIT 2`,
-      [actor.organizationId, employeeId],
+       WHERE organization_id = $1::uuid
+         AND employee_id = $2::uuid
+         AND currency_code <> $3
+       LIMIT 1`,
+      [actor.organizationId, employeeId, currencyCode],
     );
-    if (currencyHistory.rows.some((row) => row.currency_code !== currencyCode)) {
+    if (currencyHistory.rowCount) {
       await client.query("ROLLBACK");
       return json({ message: "An employee's currency cannot be changed across pay-rate history. Use one currency for consistent monthly totals." }, 409);
     }
