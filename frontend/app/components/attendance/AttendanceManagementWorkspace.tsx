@@ -200,6 +200,7 @@ export default function AttendanceManagementWorkspace({ audience, initialSection
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
   const [notice, setNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [dateWarning, setDateWarning] = useState("");
   const [errors, setErrors] = useState<Partial<Record<Section, string>>>({});
 
   const [corrections, setCorrections] = useState<Row[]>([]);
@@ -231,21 +232,30 @@ export default function AttendanceManagementWorkspace({ audience, initialSection
       // Use the organization's configured work date so administrators in another
       // timezone review the correct attendance day and effective schedule period.
       let current = localDate(new Date());
+      let organizationDateVerified = false;
       try {
         if (audience === "department-manager") {
           const summary: unknown = await api("/department-manager/overview");
           const workDate = isRecord(summary) ? str(summary, "workDate") : "";
-          if (/^\d{4}-\d{2}-\d{2}$/.test(workDate)) current = workDate;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+            current = workDate;
+            organizationDateVerified = true;
+          }
         } else if (audience === "organization-admin" || audience === "hr-manager") {
           const seedDate = localDate(new Date());
           const calendar: unknown = await api(`/attendance/calendar?fromDate=${encodeURIComponent(seedDate)}&toDate=${encodeURIComponent(seedDate)}`);
           const workDate = isRecord(calendar) ? str(calendar, "today") : "";
-          if (/^\d{4}-\d{2}-\d{2}$/.test(workDate)) current = workDate;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+            current = workDate;
+            organizationDateVerified = true;
+          }
         }
       } catch {
         // Keep the workspace usable with the local date if organization time settings
         // are temporarily unavailable; the API still validates all submitted dates.
       }
+      if (cancelled) return;
+      setDateWarning(organizationDateVerified ? "" : "The organization's work date could not be verified. The initial date range uses your device date; confirm it before reviewing attendance or schedules.");
       if (cancelled) return;
       setFromDate(offsetDate(current, audience === "department-manager" ? -16 : -6));
       setToDate(offsetDate(current, 14));
@@ -479,6 +489,7 @@ export default function AttendanceManagementWorkspace({ audience, initialSection
     <div className="flex min-w-0 flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><p className="text-sm font-medium text-slate-400">{isHr ? "Organization attendance" : "Team attendance"}</p></div></div>
 
     {notice && <div role={notice.type === "error" ? "alert" : "status"} className={`flex min-w-0 items-start gap-3 rounded-xl border p-3.5 text-sm leading-6 ${notice.type === "success" ? "border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-200" : "border-rose-400/20 bg-rose-400/[0.06] text-rose-200"}`}><AlertCircle size={17} className="mt-0.5 shrink-0" /><span className="min-w-0 flex-1 break-words">{notice.message}</span><button type="button" onClick={() => setNotice(null)} aria-label="Dismiss notification">×</button></div>}
+    {dateWarning && <div role="status" className="rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-3 text-xs leading-5 text-amber-100">{dateWarning}</div>}
 
     <section aria-label="Attendance workload summary" className={`grid min-w-0 gap-3 sm:grid-cols-2 ${isHr ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
       <div className={`${PANEL} relative overflow-hidden p-4`}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Pending corrections</p><p className="mt-2 text-3xl font-bold tabular-nums text-white">{errors.corrections ? "—" : actionableCorrections.length}</p><p className="mt-1 text-xs leading-5 text-slate-500">Attendance records awaiting review</p></div><span className="rounded-xl border border-sky-400/15 bg-sky-400/[0.08] p-2.5 text-sky-300"><FileClock size={18} /></span></div></div>
@@ -547,7 +558,7 @@ export default function AttendanceManagementWorkspace({ audience, initialSection
         <label className="block text-sm font-medium text-slate-300">Find a schedule or assignment
           <input type="search" value={scheduleSearch} onChange={(event) => setScheduleSearch(event.target.value)} placeholder="Search schedule, employee, code, or department…" className={`${INPUT}`} />
         </label>
-        <p className="mt-2 text-xs text-slate-500">Showing {visibleSchedules.length} of {schedules.length} schedule definitions and {visibleAssignments.length} of {assignments.length} assignments.</p>
+        <p className="mt-2 text-xs text-slate-500">{isHr ? `Showing ${visibleSchedules.length} of ${schedules.length} schedule definitions and ${visibleAssignments.length} of ${assignments.length} assignments.` : `Showing ${visibleAssignments.length} of ${assignments.length} assignments.`}</p>
       </section>
       {isHr && <div className="grid min-w-0 gap-5 xl:grid-cols-2">
         <form onSubmit={createSchedule} className={`${PANEL} p-5 sm:p-6`}><h3 className="font-semibold">Create a work schedule</h3><p className="mt-1 text-sm leading-6 text-slate-500">Set the recurring working days, hours, and break for this shift.</p><div className="mt-5 space-y-4"><label className="block text-sm font-medium text-slate-300">Schedule name<input required maxLength={100} value={scheduleName} onChange={(event) => setScheduleName(event.target.value)} className={INPUT} placeholder="Standard Day Shift" /></label><label className="block text-sm font-medium text-slate-300">Description<input maxLength={500} value={scheduleDescription} onChange={(event) => setScheduleDescription(event.target.value)} className={INPUT} placeholder="Optional schedule details" /></label><div><p className="text-sm font-medium text-slate-300">Working days</p><div className="mt-2 flex flex-wrap gap-2">{DAYS.map((day) => <label key={day.value} className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${selectedDays.includes(day.value) ? "border-sky-400/30 bg-sky-400/10 text-sky-200" : "border-slate-700 bg-black/10 text-slate-400"}`}><input type="checkbox" checked={selectedDays.includes(day.value)} onChange={(event) => setSelectedDays((current) => event.target.checked ? [...current, day.value].sort((a, b) => a - b) : current.filter((value) => value !== day.value))} className="accent-sky-400" />{day.label}</label>)}</div></div><div className="grid min-w-0 gap-3 sm:grid-cols-3"><label className="block text-sm font-medium text-slate-300">Start time<input type="time" required value={scheduleStart} onChange={(event) => setScheduleStart(event.target.value)} className={INPUT} /></label><label className="block text-sm font-medium text-slate-300">End time<input type="time" required value={scheduleEnd} onChange={(event) => setScheduleEnd(event.target.value)} className={INPUT} /></label><label className="block text-sm font-medium text-slate-300">Break minutes<input type="number" min={0} max={1439} required value={breakMinutes} onChange={(event) => setBreakMinutes(event.target.value)} className={INPUT} /></label></div><button type="submit" disabled={Boolean(saving)} className={PRIMARY}>{saving === "create-schedule" ? <RefreshCw size={15} className="animate-spin" /> : <CalendarDays size={15} />}Create schedule</button></div></form>
