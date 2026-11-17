@@ -28,7 +28,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         if (!isOwnRequest || row.status !== "PENDING") { await client.query("ROLLBACK"); return jsonResponse({ message: "Only the requesting workforce member can cancel their own pending request" }, 403); }
         await client.query(`UPDATE public.leave_requests SET status='CANCELLED', updated_at=now() WHERE id=$1::uuid`, [id]);
       } else {
-        if (!(actor.kind === "ORGANIZATION_ADMIN" || isManager)) { await client.query("ROLLBACK"); return jsonResponse({ message: "You do not have permission to decide leave requests" }, 403); }
+        const isHrManager = actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER";
+        if (!(actor.kind === "ORGANIZATION_ADMIN" || isManager || isHrManager)) { await client.query("ROLLBACK"); return jsonResponse({ message: "You do not have permission to decide leave requests" }, 403); }
         if (isEmployee || (actor.kind === "ORGANIZATION_USER" && row.employeeId === actor.employeeId)) { await client.query("ROLLBACK"); return jsonResponse({ message: "You cannot approve or reject your own leave request" }, 403); }
         if ((row.workforceRole === "HR_MANAGER" || row.workforceRole === "HRMANAGER" || row.workforceRole.startsWith("HR_MANAGER_") || row.workforceRole.startsWith("HRMANAGER_")) && actor.kind !== "ORGANIZATION_ADMIN") { await client.query("ROLLBACK"); return jsonResponse({ message: "HR Manager leave requests must be reviewed by the Organization Admin" }, 403); }
         if (isManager && row.departmentManagerId !== actor.employeeId) { await client.query("ROLLBACK"); return jsonResponse({ message: "You can decide requests only for employees in your managed departments" }, 403); }
