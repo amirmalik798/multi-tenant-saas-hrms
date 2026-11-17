@@ -291,7 +291,7 @@ export default function CommunicationWorkspace({ roleLabel }: { roleLabel: strin
         {!canStartNew && conversations.length === 0 && <p className="mt-3 text-xs text-slate-500">No conversations yet.</p>}
       </section>
 
-      {error && <p role="alert" className="rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</p>}
+      {error && <div role="alert" className="flex flex-col gap-3 rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span>{error}</span><button type="button" disabled={loading || threadLoading} onClick={() => void (selectedId ? loadThread(selectedId) : loadInbox())} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">Retry</button></div>}
       {notice && <p role="status" className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">{notice}</p>}
 
       <div className="grid min-h-[560px] gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">

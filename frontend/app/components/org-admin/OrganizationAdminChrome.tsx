@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Moon, Sun } from "lucide-react";
+import { Menu, Moon, Sun, X } from "lucide-react";
 import { OrganizationCommandPalette } from "./OrganizationCommandPalette";
 import WorkspaceClock from "../WorkspaceClock";
 
@@ -72,7 +72,7 @@ export function useOrganizationAdminAutoRefresh(
   }, [enabled, intervalMs]);
 }
 
-type OrganizationPage = "dashboard" | "employees" | "departments" | "organization-chart" | "invitations" | "communications" | "support" | "settings" | "profile" | "license";
+type OrganizationPage = "dashboard" | "employees" | "departments" | "organization-chart" | "invitations" | "attendance" | "schedules" | "leave" | "pay-rates" | "payroll" | "reports" | "communications" | "support" | "settings" | "profile" | "license";
 type PaletteContext = Exclude<OrganizationPage, "license">;
 
 type OrganizationAdminSidebarProps = { activePage: OrganizationPage };
@@ -88,22 +88,38 @@ type OrganizationAdminHeaderProps = {
   headerMeta?: ReactNode;
 };
 
-const navItems: Array<{
+type OrganizationNavItem = {
   id: OrganizationPage;
   label: string;
   href: string;
   icon: "dashboard" | "users" | "layers" | "hierarchy" | "mail" | "settings" | "credit-card";
-}> = [
+};
+
+const navItems: OrganizationNavItem[] = [
   { id: "dashboard", label: "Dashboard", href: "/org/dashboard", icon: "dashboard" },
-  { id: "profile", label: "My Profile", href: "/org/profile", icon: "settings" },
   { id: "employees", label: "Employees", href: "/org/employees", icon: "users" },
   { id: "departments", label: "Departments", href: "/org/departments", icon: "layers" },
   { id: "organization-chart", label: "Organization Chart", href: "/org/organization-chart", icon: "hierarchy" },
   { id: "invitations", label: "Invitations", href: "/org/invitations", icon: "mail" },
+  { id: "attendance", label: "Attendance", href: "/org/attendance", icon: "dashboard" },
+  { id: "schedules", label: "Schedules", href: "/org/schedules", icon: "layers" },
+  { id: "leave", label: "Leave & Holidays", href: "/org/leave", icon: "layers" },
+  { id: "pay-rates", label: "Pay Rates", href: "/org/pay-rates", icon: "credit-card" },
+  { id: "payroll", label: "Payroll", href: "/org/payroll", icon: "credit-card" },
+  { id: "reports", label: "Attendance Reports", href: "/org/reports", icon: "dashboard" },
   { id: "communications", label: "Messages", href: "/org/communications", icon: "mail" },
-  { id: "support", label: "Platform Support", href: "/org/support", icon: "mail" },
-  { id: "settings", label: "Organization Profile & Settings", href: "/org/settings", icon: "settings" },
+  { id: "support", label: "Support", href: "/org/support", icon: "mail" },
+  { id: "profile", label: "My Profile", href: "/org/profile", icon: "settings" },
+  { id: "settings", label: "Org Settings", href: "/org/settings", icon: "settings" },
   { id: "license", label: "License & Payments", href: "/org/license", icon: "credit-card" },
+];
+
+const navGroups: Array<{ label: string; items: OrganizationNavItem[] }> = [
+  { label: "Overview", items: navItems.filter((item) => item.id === "dashboard") },
+  { label: "People", items: navItems.filter((item) => ["employees", "departments", "organization-chart", "invitations"].includes(item.id)) },
+  { label: "Time & pay", items: navItems.filter((item) => ["attendance", "schedules", "leave", "pay-rates", "payroll", "reports"].includes(item.id)) },
+  { label: "Communication", items: navItems.filter((item) => ["communications", "support"].includes(item.id)) },
+  { label: "Account", items: navItems.filter((item) => ["profile", "settings", "license"].includes(item.id)) },
 ];
 
 function Icon({
@@ -259,28 +275,33 @@ export function OrganizationAdminSidebar({
       </Link>
 
       <nav
-        className="flex-1 space-y-1.5 overflow-y-auto px-4 py-4"
+        className="flex-1 space-y-5 overflow-y-auto px-4 py-4"
         aria-label="Organization Admin navigation"
       >
-        {navItems.map((item) => {
-          const active = item.id === activePage;
-
-          return (
-            <Link
-              key={item.id}
-              href={item.href}
-              aria-current={active ? "page" : undefined}
-              className={`flex h-[49px] items-center gap-3 rounded-lg px-3.5 text-[15px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#75c7ff] ${
-                active
-                  ? "border border-blue-300/10 border-l-2 border-l-[#75c7ff] bg-[#14283e] pl-[calc(0.875rem-2px)] font-semibold text-[#e3f2ff] shadow-sm shadow-black/10"
-                  : "border border-transparent font-medium text-slate-300 hover:border-white/[0.06] hover:bg-white/[0.035] hover:text-white"
-              }`}
-            >
-              <Icon name={item.icon} size={21} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+        {navGroups.map((group) => (
+          <section key={group.label} aria-label={group.label} className="space-y-1.5">
+            <h2 className="px-3.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{group.label}</h2>
+            {group.items.map((item) => {
+              const active = item.id === activePage;
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex min-h-[46px] items-center gap-3 rounded-lg px-3.5 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#75c7ff] ${
+                    active
+                      ? "border border-blue-300/10 border-l-2 border-l-[#75c7ff] bg-[#14283e] pl-[calc(0.875rem-2px)] font-semibold text-[#e3f2ff] shadow-sm shadow-black/10"
+                      : "border border-transparent font-medium text-slate-300 hover:border-white/[0.06] hover:bg-white/[0.035] hover:text-white"
+                  }`}
+                >
+                  <Icon name={item.icon} size={19} />
+                  <span>{item.label}</span>
+                  {active && <span className="ml-auto size-1.5 rounded-full bg-[#75c7ff]" aria-hidden="true" />}
+                </Link>
+              );
+            })}
+          </section>
+        ))}
       </nav>
     </aside>
   );
@@ -301,6 +322,7 @@ export function OrganizationAdminHeader({
   const [adminPhotoVersion, setAdminPhotoVersion] = useState(0);
   const [organizationLogoVersion, setOrganizationLogoVersion] = useState(0);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
 
   useEffect(() => {
     let initial: "dark" | "light" = "dark";
@@ -317,6 +339,19 @@ export function OrganizationAdminHeader({
       delete document.documentElement.dataset.orgAdminTheme;
     };
   }, []);
+
+  useEffect(() => {
+    setMobileNavigationOpen(false);
+  }, [activePage]);
+
+  useEffect(() => {
+    if (!mobileNavigationOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileNavigationOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [mobileNavigationOpen]);
 
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
@@ -342,6 +377,9 @@ export function OrganizationAdminHeader({
   }, []);
   return (
     <>
+      <a href="#org-admin-main-content" className="sr-only fixed left-4 top-4 z-[200] rounded-lg bg-sky-300 px-4 py-3 text-sm font-bold text-slate-950 shadow-xl focus:not-sr-only focus:outline-none focus:ring-2 focus:ring-white">
+        Skip to main content
+      </a>
       <style jsx global>{`
         @keyframes organizationAdminDrawerIn {
           from {
@@ -360,7 +398,7 @@ export function OrganizationAdminHeader({
         }
 
         /* A visible, high-contrast keyboard focus treatment across all org-admin pages. */
-        :where(button, a, input, select, textarea, [role="button"], [tabindex]):focus-visible {
+        .org-admin-workspace :where(button, a, input, select, textarea, [role="button"], [tabindex]):focus-visible {
           outline: 2px solid #75c7ff !important;
           outline-offset: 2px;
         }
@@ -370,9 +408,9 @@ export function OrganizationAdminHeader({
             animation: none !important;
           }
 
-          *,
-          *::before,
-          *::after {
+          .org-admin-workspace *,
+          .org-admin-workspace *::before,
+          .org-admin-workspace *::after {
             scroll-behavior: auto !important;
             animation-duration: 0.01ms !important;
             animation-iteration-count: 1 !important;
@@ -468,29 +506,53 @@ export function OrganizationAdminHeader({
           </div>
         </div>
 
+        <div className="mt-2 flex items-center justify-between gap-3 pb-2 lg:hidden">
+          <span className="truncate text-sm font-semibold text-slate-200">
+            {navItems.find((item) => item.id === activePage)?.label || "Organization"}
+          </span>
+          <button
+            type="button"
+            aria-controls="org-admin-mobile-navigation"
+            aria-expanded={mobileNavigationOpen}
+            aria-label={mobileNavigationOpen ? "Close navigation menu" : "Open navigation menu"}
+            onClick={() => setMobileNavigationOpen((open) => !open)}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-3 text-sm font-semibold text-slate-100 hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-sky-300"
+          >
+            {mobileNavigationOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
+            {mobileNavigationOpen ? "Close" : "Menu"}
+          </button>
+        </div>
         <nav
-          className="mt-3 flex gap-2 overflow-x-auto pb-3 lg:hidden"
+          id="org-admin-mobile-navigation"
+          className={`${mobileNavigationOpen ? "grid" : "hidden"} max-h-[min(65vh,600px)] grid-cols-1 gap-4 overflow-y-auto border-t border-white/10 py-4 sm:grid-cols-2 lg:hidden`}
           aria-label="Organization Admin mobile navigation"
         >
-          {navItems.map((item) => {
-            const active = item.id === activePage;
-
-            return (
-              <Link
-                key={item.id}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-medium transition ${
-                  active
-                    ? "border-[#75c7ff]/25 bg-[#18314a] font-semibold text-[#e3f2ff]"
-                    : "border-white/10 bg-[#182232]/90 text-slate-300 hover:border-white/20 hover:bg-white/[0.05]"
-                }`}
-              >
-                <Icon name={item.icon} size={14} />
-                {item.label}
-              </Link>
-            );
-          })}
+          {navGroups.map((group) => (
+            <section key={group.label} aria-label={group.label}>
+              <h2 className="mb-2 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">{group.label}</h2>
+              <div className="grid gap-1">
+                {group.items.map((item) => {
+                  const active = item.id === activePage;
+                  return (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      onClick={() => setMobileNavigationOpen(false)}
+                      aria-current={active ? "page" : undefined}
+                      className={`flex min-h-11 items-center gap-3 rounded-lg border px-3 text-sm font-medium transition ${
+                        active
+                          ? "border-sky-300/30 bg-[#18314a] text-white"
+                          : "border-transparent text-slate-300 hover:border-white/10 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <Icon name={item.icon} size={17} />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
         </nav>
       </header>
     </>

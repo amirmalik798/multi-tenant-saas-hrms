@@ -64,7 +64,11 @@ export async function GET() {
          e.designation,
          e.email,
          e.manager_id,
-         NULLIF(TRIM(CONCAT_WS(' ', manager.first_name, manager.last_name)), '') AS manager_name,
+         e.reporting_manager_user_id,
+         CASE
+           WHEN e.reporting_manager_user_id IS NOT NULL THEN 'Organization Admin'
+           ELSE NULLIF(TRIM(CONCAT_WS(' ', manager.first_name, manager.last_name)), '')
+         END AS manager_name,
          e.department_id,
          d.name AS department_name,
          r.name AS workforce_role,

@@ -31,11 +31,12 @@ export async function GET(request: Request) {
     const start = `${month}-01`;
     const isEmployee = actor.kind === "ORGANIZATION_USER" && actor.roleName === "EMPLOYEE";
     const isDm = actor.kind === "ORGANIZATION_USER" && actor.roleName === "DEPARTMENT_MANAGER";
-    if (!canManage(actor) && !isEmployee && !isDm) return json({ message: "You do not have permission to view salary payments" }, 403);
+    const isHrManager = actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER";
+    if (!canManage(actor) && !isEmployee && !isDm && !isHrManager) return json({ message: "You do not have permission to view salary payments" }, 403);
     const result = await pool.query(
       `SELECT p.id, e.id AS "employeeId", e.employee_code AS "employeeCode",
               e.first_name AS "firstName", e.last_name AS "lastName", e.department_id AS "departmentId",
-              d.name AS "departmentName", $2::date::text AS "payMonth", p.amount::text AS amount,
+              d.name AS "departmentName", workforce_role.name AS "workforceRole", $2::date::text AS "payMonth", p.amount::text AS amount,
               COALESCE(p.currency_code, rate.currency_code, 'RWF') AS "currencyCode",
               COALESCE(p.status, 'UNPAID') AS status, p.paid_at AS "paidAt",
               p.payment_reference AS "paymentReference", p.notes, p.updated_at AS "updatedAt"
@@ -58,8 +59,15 @@ export async function GET(request: Request) {
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ORG_OWNER%'
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'TENANT_ADMIN%'
          AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'ADMINISTRATOR%'
-         AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'HR_MANAGER%'
-         AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), 'EMPLOYEE') NOT LIKE 'HRMANAGER%'
+         AND (
+           NOT $7::boolean
+           OR (
+             e.id <> $5::uuid
+             AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HR_MANAGER%'
+             AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HRMANAGER%'
+             AND COALESCE(regexp_replace(UPPER(workforce_role.name), '[^A-Z0-9]+', '_', 'g'), '') NOT LIKE 'HRMANAGER%'
+           )
+         )
          AND NOT EXISTS (
            SELECT 1
            FROM public.users AS target_account
@@ -97,15 +105,19 @@ export async function GET(request: Request) {
                AND lr.end_date >= $2::date
            )
          )
-         AND ($3::boolean OR ($4::boolean AND e.id = $5::uuid) OR
-              ($6::boolean AND (e.id = $5::uuid OR EXISTS (
-                SELECT 1 FROM public.departments md
-                WHERE md.organization_id = e.organization_id
-                  AND md.id = e.department_id
-                  AND md.manager_id = $5::uuid
-              ))))
+         AND (
+           $3::boolean
+           OR ($4::boolean AND e.id = $5::uuid)
+           OR ($6::boolean AND (e.id = $5::uuid OR EXISTS (
+             SELECT 1 FROM public.departments md
+             WHERE md.organization_id = e.organization_id
+               AND md.id = e.department_id
+               AND md.manager_id = $5::uuid
+           )))
+           OR ($7::boolean AND NOT $3::boolean)
+         )
        ORDER BY e.first_name, e.last_name, e.employee_code`,
-      [actor.organizationId, start, canManage(actor), isEmployee, actor.kind === "ORGANIZATION_USER" ? actor.employeeId : null, isDm],
+      [actor.organizationId, start, actor.kind === "ORGANIZATION_ADMIN", isEmployee, actor.kind === "ORGANIZATION_USER" ? actor.employeeId : null, isDm, isHrManager],
     );
     const calculated = await calculateOrganizationMonthlyPay(pool, actor.organizationId, month);
     const payments = result.rows.map((row) => {
@@ -171,8 +183,6 @@ export async function PUT(request: Request) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(employeeId) || !validMonth(month) || (currencyCode && !/^[A-Z]{3}$/.test(currencyCode)) || !status || reference.length > 120 || notes.length > 1000) {
       return json({ message: "Provide a valid employee, month, payment status, and optional reference/notes within the limits" }, 400);
     }
-    const monthCalculation = await calculateOrganizationMonthlyPay(pool, actor.organizationId, month);
-    const calculatedEmployee = monthCalculation.get(employeeId);
     await client.query("BEGIN");
     transactionStarted = true;
     const employee = await client.query(
@@ -191,10 +201,17 @@ export async function PUT(request: Request) {
       [employeeId, actor.organizationId],
     );
     if (!employee.rowCount) { await client.query("ROLLBACK"); return json({ message: "Employee not found in this organization" }, 404); }
-    if (isExcludedHrTargetRole(employee.rows[0].workforce_role) || employee.rows[0].is_organization_admin) {
+    if (isExcludedHrTargetRole(employee.rows[0].workforce_role, { allowHrManager: actor.kind === "ORGANIZATION_ADMIN" }) || employee.rows[0].is_organization_admin) {
       await client.query("ROLLBACK");
-      return json({ message: "Organization Admin and HR Manager records are not eligible for salary payments" }, 403);
+      return json({ message: "Organization Admin records are not eligible for salary payments" }, 403);
     }
+
+    // Calculate after locking the employee row. Pay-rate changes use the
+    // same employee lock, preventing a payment from being saved using a
+    // stale calculation while a concurrent rate update commits.
+    const monthCalculation = await calculateOrganizationMonthlyPay(pool, actor.organizationId, month);
+    const calculatedEmployee = monthCalculation.get(employeeId);
+
     if (!calculatedEmployee || calculatedEmployee.payableMinutes <= 0) {
       await client.query("ROLLBACK");
       return json({ message: "No payable working hours are available for this employee in the selected month. Approved paid leave or paid public holidays can qualify when they cover scheduled workdays." }, 409);

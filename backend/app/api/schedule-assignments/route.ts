@@ -125,6 +125,7 @@ export async function GET() {
     }
 
     if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER") {
+      values.push(actor.employeeId);
       conditions.push(`NOT EXISTS (
         SELECT 1 FROM public.roles target_role
         WHERE target_role.id = e.workforce_role_id
@@ -137,8 +138,8 @@ export async function GET() {
             OR regexp_replace(UPPER(target_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ORG_OWNER%'
             OR regexp_replace(UPPER(target_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'TENANT_ADMIN%'
             OR regexp_replace(UPPER(target_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ADMINISTRATOR%'
-            OR regexp_replace(UPPER(target_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'HR_MANAGER%'
-            OR regexp_replace(UPPER(target_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'HRMANAGER%'
+            OR (regexp_replace(UPPER(target_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'HR_MANAGER%' AND e.id <> $${values.length}::uuid)
+            OR (regexp_replace(UPPER(target_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'HRMANAGER%' AND e.id <> $${values.length}::uuid)
           )
       ) AND NOT EXISTS (
         SELECT 1
@@ -327,7 +328,7 @@ export async function POST(request: Request) {
           404,
         );
       }
-      if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER" && (isExcludedHrTargetRole(employeeResult.rows[0].workforce_role) || employeeResult.rows[0].is_organization_admin)) {
+      if (employeeResult.rows[0].is_organization_admin || (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER" && isExcludedHrTargetRole(employeeResult.rows[0].workforce_role))) {
         await client.query("ROLLBACK");
         return jsonResponse({ message: "Organization Admin and HR Manager records are not eligible for HR Manager schedule assignment" }, 403);
       }

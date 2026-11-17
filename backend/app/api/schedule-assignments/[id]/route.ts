@@ -83,9 +83,12 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
       const assignment = assignmentResult.rows[0];
       if (
-        actor.kind === "ORGANIZATION_USER" &&
-        actor.roleName === "HR_MANAGER" &&
-        (isExcludedHrTargetRole(assignment.workforceRole) || assignment.isOrganizationAdmin)
+        assignment.isOrganizationAdmin ||
+        (
+          actor.kind === "ORGANIZATION_USER" &&
+          actor.roleName === "HR_MANAGER" &&
+          isExcludedHrTargetRole(assignment.workforceRole)
+        )
       ) {
         await client.query("ROLLBACK");
         return jsonResponse(

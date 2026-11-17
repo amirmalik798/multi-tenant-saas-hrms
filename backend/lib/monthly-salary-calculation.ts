@@ -83,7 +83,7 @@ export async function calculateOrganizationMonthlyPay(pool: Pool, organizationId
          FROM public.attendance_correction_requests cr
          WHERE cr.organization_id = ae.organization_id AND cr.employee_id = ae.employee_id
            AND cr.original_event_id = ae.id AND cr.status = 'APPROVED'
-         ORDER BY cr.decision_at DESC LIMIT 1
+         ORDER BY cr.decision_at DESC, cr.id DESC LIMIT 1
        ) c ON TRUE
        WHERE ae.organization_id = $1::uuid AND ae.work_date BETWEEN $2::date AND $3::date
        UNION ALL

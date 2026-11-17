@@ -26,6 +26,8 @@ export async function GET() {
        FROM public.workforce_conversations c
        JOIN public.users other_user
          ON other_user.id = CASE WHEN c.created_by_user_id = $2::uuid THEN c.recipient_user_id ELSE c.created_by_user_id END
+        AND other_user.organization_id = c.organization_id
+        AND other_user.account_scope = 'ORGANIZATION'
        LEFT JOIN LATERAL (
          SELECT e.id, e.first_name, e.last_name
          FROM public.employees e
@@ -38,7 +40,9 @@ export async function GET() {
          LIMIT 1
        ) other_employee ON TRUE
        LEFT JOIN public.roles other_role
-         ON other_role.id = other_user.role_id AND other_role.organization_id = other_user.organization_id
+         ON other_role.id = other_user.role_id
+        AND other_role.organization_id = other_user.organization_id
+        AND other_role.scope = 'ORGANIZATION'
        LEFT JOIN LATERAL (
          SELECT m.body FROM public.workforce_messages m
          WHERE m.conversation_id = c.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1

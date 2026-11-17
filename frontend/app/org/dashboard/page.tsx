@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { OrganizationAdminSidebar, OrganizationAdminHeader, useOrganizationAdminAutoRefresh } from "../../components/org-admin/OrganizationAdminChrome";
 import EmployeeProfilePhoto from "../../components/employee/EmployeeProfilePhoto";
 import Link from "next/link";
+import AttendanceAlerts from "../../components/notifications/AttendanceAlerts";
 
 type OrgAdminUser = {
   id: string;
@@ -652,7 +653,7 @@ export default function OrganizationDashboardPage() {
 
       <OrganizationAdminSidebar activePage="dashboard" />
 
-      <main className="relative z-10 min-h-screen lg:ml-64">
+      <main id="org-admin-main-content" tabIndex={-1} className="relative z-10 min-h-screen lg:ml-64">
         <OrganizationAdminHeader
           activePage="dashboard"
           organizationName={user.organizationName}
@@ -676,7 +677,13 @@ export default function OrganizationDashboardPage() {
             </div>
           )}
 
-          {/* Minimalist Header Info Bar with Quick Actions & Report Export */}
+          <section aria-labelledby="organization-dashboard-title" className="mb-5">
+            
+            <h1 id="organization-dashboard-title" className="text-2xl font-bold tracking-tight text-white sm:text-[28px]">Dashboard</h1>
+            <p className="sr-only">A live overview of your organization’s workforce and daily operations.</p>
+          </section>
+
+          {/* Organization context and quick actions */}
           <div id="organization-context" className="mb-6 flex flex-col gap-4 rounded-xl border border-[#29384b] bg-[#141f2e]/80 px-6 py-4 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between shadow-sm">
             <div className="flex items-center gap-3.5 min-w-0">
               <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#75c7ff]/30 bg-[#75c7ff]/10 text-[#75c7ff] font-extrabold text-sm">
@@ -690,7 +697,7 @@ export default function OrganizationDashboardPage() {
                 />
               </div>
               <div className="min-w-0">
-                <h1 className="text-base font-bold text-white truncate">{user.organizationName}</h1>
+                <h2 className="text-base font-bold text-white truncate">{user.organizationName}</h2>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2.5 shrink-0">
@@ -713,6 +720,10 @@ export default function OrganizationDashboardPage() {
                 <Icon name="mail" size={14} /> Platform Support
               </Link>
             </div>
+          </div>
+
+          <div className="mb-6">
+            <AttendanceAlerts />
           </div>
 
           {/* Metrics Grid with Shimmer Skeleton Loaders */}
@@ -890,7 +901,7 @@ export default function OrganizationDashboardPage() {
                 {activitiesLoading ? (
                   <div className="mt-5 space-y-3" role="status" aria-live="polite"><span className="sr-only">Loading recent activity</span>{[1, 2, 3].map((item) => <div key={item} className="h-[76px] animate-pulse rounded-xl border border-[#29384b] bg-[#0f1724]/70" />)}</div>
                 ) : activitiesError ? (
-                  <div role="alert" className="mt-4 rounded-xl border border-rose-400/25 bg-rose-500/10 p-4"><p className="text-xs leading-5 text-rose-200">{activitiesError}</p></div>
+                  <div role="alert" className="mt-4 flex flex-col gap-3 rounded-xl border border-rose-400/25 bg-rose-500/10 p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs leading-5 text-rose-200">{activitiesError}</p><button type="button" onClick={() => setRefreshKey((key) => key + 1)} disabled={activitiesLoading} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">Retry activity</button></div>
                 ) : filteredActivities.length === 0 ? (
                   <div className="mt-5 rounded-xl border border-dashed border-[#35465b] bg-[#0f1724]/45 px-4 py-8 text-center"><span className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl border border-[#35465b] bg-[#172538] text-slate-400"><Icon name="activity" size={18} /></span><p className="mt-3 text-sm font-semibold text-slate-200">{activities.length === 0 ? "No activity recorded yet" : "No matching activity"}</p><p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-slate-500">{activities.length === 0 ? "When organization changes are written to the audit log, they will appear here with the actor and time." : "Try another event type to see more of the organization audit trail."}</p></div>
                 ) : (

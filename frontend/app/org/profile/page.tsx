@@ -234,7 +234,7 @@ export default function OrganizationAdminProfilePage() {
   return (
     <div className="org-admin-workspace min-h-screen bg-[#0b0f17] font-sans text-slate-100">
       <OrganizationAdminSidebar activePage="profile" />
-      <main className="min-h-screen lg:ml-64">
+      <main id="org-admin-main-content" tabIndex={-1} className="min-h-screen lg:ml-64">
         <OrganizationAdminHeader
           activePage="profile"
           organizationName={user?.organizationName || "Organization"}
@@ -246,12 +246,14 @@ export default function OrganizationAdminProfilePage() {
 
         <div className="mx-auto w-full max-w-6xl px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pt-8">
           <div className="mb-6">
+            
             <h1 className="text-2xl font-bold tracking-tight text-white">My Profile</h1>
           </div>
 
           {error && (
-            <div role="alert" className="mb-5 rounded-xl border border-rose-400/25 bg-rose-500/10 p-3 text-sm text-rose-200">
-              {error}
+            <div role="alert" className="mb-5 flex flex-col gap-3 rounded-xl border border-rose-400/25 bg-rose-500/10 p-3 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between">
+              <span>{error}</span>
+              <button type="button" onClick={() => window.location.reload()} disabled={loading} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">Reload profile</button>
             </div>
           )}
           {message && (

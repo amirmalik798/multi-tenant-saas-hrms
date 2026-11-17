@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -178,6 +178,10 @@ export default function OrganizationLicensePage() {
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [submissionMessage, setSubmissionMessage] = useState("");
   const [paymentFormOpen, setPaymentFormOpen] = useState(false);
+  const [confirmPaymentSubmission, setConfirmPaymentSubmission] = useState(false);
+  const confirmedPaymentSubmitRef = useRef(false);
+  const paymentSubmitDialogRef = useRef<HTMLElement | null>(null);
+  const paymentSubmitPreviousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -254,12 +258,30 @@ export default function OrganizationLicensePage() {
 
   useOrganizationAdminAutoRefresh(() => loadLicense(true), {
     enabled: Boolean(user),
-    shouldRefresh: () => !loading && !refreshing && !submittingPayment && !proofPayment,
+    shouldRefresh: () => !loading && !refreshing && !submittingPayment && !proofPayment && !confirmPaymentSubmission,
   });
+
+  useEffect(() => {
+    if (!confirmPaymentSubmission) return;
+    paymentSubmitPreviousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    paymentSubmitDialogRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !submittingPayment) { event.preventDefault(); setConfirmPaymentSubmission(false); }
+      if (event.key !== "Tab" || !paymentSubmitDialogRef.current) return;
+      const items = Array.from(paymentSubmitDialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!items.length) return;
+      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items[items.length - 1].focus(); }
+      else if (!event.shiftKey && document.activeElement === items[items.length - 1]) { event.preventDefault(); items[0].focus(); }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => { document.removeEventListener("keydown", handleKeyDown); paymentSubmitPreviousFocusRef.current?.focus(); };
+  }, [confirmPaymentSubmission, submittingPayment]);
 
   async function submitPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submittingPayment) return;
+    const confirmed = confirmedPaymentSubmitRef.current;
+    confirmedPaymentSubmitRef.current = false;
     setSubmissionMessage("");
     setError("");
 
@@ -290,6 +312,11 @@ export default function OrganizationLicensePage() {
     }
     if (proofFile.size > 5 * 1024 * 1024) {
       setError("The receipt image must be 5 MB or smaller.");
+      return;
+    }
+
+    if (!confirmed) {
+      setConfirmPaymentSubmission(true);
       return;
     }
 
@@ -381,7 +408,7 @@ export default function OrganizationLicensePage() {
   return (
     <div className="org-admin-workspace min-h-screen bg-[#0b0f17] font-sans text-slate-100">
       <OrganizationAdminSidebar activePage="license" />
-      <main className="min-h-screen lg:ml-64">
+      <main id="org-admin-main-content" tabIndex={-1} className="min-h-screen lg:ml-64">
         <OrganizationAdminHeader
           activePage="license"
           organizationName={user?.organizationName || "Organization"}
@@ -392,6 +419,7 @@ export default function OrganizationLicensePage() {
         />
 
         <div className="mx-auto w-full max-w-7xl px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pt-8">
+          
           <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-300">
@@ -413,10 +441,30 @@ export default function OrganizationLicensePage() {
           </div>
 
           {error && (
-            <div role="alert" className="mb-5 flex items-start gap-2 rounded-xl border border-rose-400/25 bg-rose-500/10 p-3.5 text-sm text-rose-200">
-              <AlertCircle size={17} className="mt-0.5 shrink-0" />
-              <span className="min-w-0 flex-1">{error}</span>
+            <div role="alert" className="mb-5 flex flex-col gap-3 rounded-xl border border-rose-400/25 bg-rose-500/10 p-3.5 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between">
+              <span className="flex min-w-0 items-start gap-2"><AlertCircle size={17} className="mt-0.5 shrink-0" />{error}</span>
+              <button type="button" onClick={() => void loadLicense()} disabled={loading || refreshing} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">Retry</button>
+            </div>
+          )}
 
+          {confirmPaymentSubmission && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !submittingPayment) setConfirmPaymentSubmission(false); }}>
+              <section ref={paymentSubmitDialogRef} tabIndex={-1} role="alertdialog" aria-modal="true" aria-labelledby="license-submit-confirm-title" aria-describedby="license-submit-confirm-description" className="w-full max-w-lg rounded-2xl border border-amber-300/20 bg-[#111a28] p-5 text-white shadow-2xl sm:p-6">
+                <span className="flex size-11 items-center justify-center rounded-xl border border-amber-300/20 bg-amber-300/10 text-amber-200"><ShieldCheck size={20}/></span>
+                <h2 id="license-submit-confirm-title" className="mt-4 text-lg font-bold">Confirm payment proof submission</h2>
+                <p id="license-submit-confirm-description" className="mt-2 text-sm leading-6 text-slate-300">Review the amount and receipt before sending them to the Platform Super Admin. This submits payment evidence for verification; it does not activate the license or make a payment.</p>
+                <div className="mt-4 space-y-2 rounded-xl border border-white/[0.08] bg-black/15 p-4 text-sm">
+                  <p className="text-xs text-slate-500">Submitted amount</p>
+                  <p className="text-xl font-bold text-white">{paymentCurrency.trim().toUpperCase()} {paymentAmount.trim()}</p>
+                  <p className="text-slate-300">Transaction reference: {transactionReference.trim() || "Not provided"}</p>
+                  <p className="break-all text-slate-300">Receipt: {proofFile?.name || "No file selected"}</p>
+                  {proofFile && <p className="text-xs text-slate-500">File size: {(proofFile.size / (1024 * 1024)).toFixed(2)} MB</p>}
+                </div>
+                <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <button type="button" disabled={submittingPayment} onClick={() => setConfirmPaymentSubmission(false)} className="min-h-10 rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/[0.05] disabled:opacity-50">Review details</button>
+                  <button type="button" disabled={submittingPayment || !proofFile} onClick={() => { confirmedPaymentSubmitRef.current = true; setConfirmPaymentSubmission(false); window.requestAnimationFrame(() => (document.getElementById("organization-payment-proof-form") as HTMLFormElement | null)?.requestSubmit()); }} className="min-h-10 rounded-xl bg-amber-300 px-4 py-2 text-sm font-bold text-[#17120a] hover:bg-amber-200 disabled:opacity-50">Confirm and submit proof</button>
+                </div>
+              </section>
             </div>
           )}
 

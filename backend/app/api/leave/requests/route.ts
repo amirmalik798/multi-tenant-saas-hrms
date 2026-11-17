@@ -6,7 +6,7 @@ import { isRecord, isValidDateString, jsonResponse, organizationIsActive } from 
 const TYPES = new Set(["ANNUAL", "SICK", "PERSONAL", "PARENTAL", "UNPAID", "OTHER"]);
 const SELECT = `SELECT r.id, r.employee_id AS "employeeId", r.leave_type AS "leaveType", r.start_date::text AS "startDate", r.end_date::text AS "endDate", r.is_paid AS "isPaid", r.reason, r.status, r.reviewer_note AS "reviewerNote", r.decision_at AS "decisionAt", r.created_at AS "createdAt", e.employee_code AS "employeeCode", e.first_name AS "firstName", e.last_name AS "lastName", e.department_id AS "departmentId", d.name AS "departmentName" FROM public.leave_requests r JOIN public.employees e ON e.id = r.employee_id AND e.organization_id = r.organization_id LEFT JOIN public.departments d ON d.id = e.department_id AND d.organization_id = e.organization_id`;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const actor = await getTenantPermissionActor();
     if (!actor) return jsonResponse({ message: "Authentication required" }, 401);
@@ -20,16 +20,39 @@ export async function GET() {
       conditions.push(`(
         r.employee_id = $${values.length}::uuid
         OR EXISTS (
-          SELECT 1
-          FROM public.departments md
+          SELECT 1 FROM public.departments md
           WHERE md.organization_id = e.organization_id
             AND md.id = e.department_id
             AND md.manager_id = $${values.length}::uuid
         )
       )`);
-    } else if (!(actor.kind === "ORGANIZATION_ADMIN" || actor.roleName === "HR_MANAGER")) {
+      conditions.push(`NOT EXISTS (
+        SELECT 1 FROM public.roles scoped_role
+        WHERE scoped_role.id = e.workforce_role_id
+          AND scoped_role.organization_id = e.organization_id
+          AND (
+            regexp_replace(UPPER(scoped_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'HR_MANAGER%'
+            OR regexp_replace(UPPER(scoped_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'HRMANAGER%'
+          )
+      )`);
+    } else if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER") {
+      values.push(actor.employeeId);
+      conditions.push(`(
+        r.employee_id = $${values.length}::uuid
+        OR NOT EXISTS (
+          SELECT 1 FROM public.roles scoped_role
+          WHERE scoped_role.id = e.workforce_role_id
+            AND scoped_role.organization_id = e.organization_id
+            AND (
+              regexp_replace(UPPER(scoped_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'HR_MANAGER%'
+              OR regexp_replace(UPPER(scoped_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'HRMANAGER%'
+            )
+        )
+      )`);
+    } else if (actor.kind !== "ORGANIZATION_ADMIN") {
       return jsonResponse({ message: "You do not have permission to view leave requests" }, 403);
     }
+
     const result = await pool.query(`${SELECT} WHERE ${conditions.join(" AND ")} ORDER BY CASE r.status WHEN 'PENDING' THEN 0 WHEN 'APPROVED' THEN 1 ELSE 2 END, r.start_date DESC, r.created_at DESC LIMIT 500`, values);
     const requests = result.rows.map((row) => ({ ...row, isOwnRequest: actor.kind === "ORGANIZATION_USER" && row.employeeId === actor.employeeId }));
     return jsonResponse({ status: "ok", requests });

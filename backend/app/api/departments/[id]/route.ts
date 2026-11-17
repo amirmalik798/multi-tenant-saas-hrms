@@ -67,7 +67,17 @@ export async function GET(
       );
     }
 
-    if (!hasTenantPermission(actor, "department.view")) {
+    const isDepartmentManager =
+      actor.kind === "ORGANIZATION_USER" &&
+      actor.roleName === "DEPARTMENT_MANAGER";
+
+    // Department Managers may view a department only through the
+    // manager_id scope enforced in the query below. Keep this route
+    // consistent with the tenant-scoped department list endpoint.
+    if (
+      !isDepartmentManager &&
+      !hasTenantPermission(actor, "department.view")
+    ) {
       return jsonResponse(
         {
           message:
@@ -76,10 +86,6 @@ export async function GET(
         403,
       );
     }
-
-    const isDepartmentManager =
-      actor.kind === "ORGANIZATION_USER" &&
-      actor.roleName === "DEPARTMENT_MANAGER";
 
     if (!(await organizationIsActive(actor.organizationId))) {
       return jsonResponse(

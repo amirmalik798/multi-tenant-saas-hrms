@@ -48,11 +48,17 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const isDepartmentManager =
       actor.kind === "ORGANIZATION_USER" && actor.roleName === "DEPARTMENT_MANAGER";
+    const isWorkforceManager =
+      actor.kind === "ORGANIZATION_USER" &&
+      (actor.roleName === "HR_MANAGER" || actor.roleName === "DEPARTMENT_MANAGER");
     const values: unknown[] = [id, actor.organizationId];
     let scopePredicate = "";
-    if (isDepartmentManager) {
+    if (isWorkforceManager) {
       values.push(actor.employeeId);
-      scopePredicate = `AND EXISTS (
+      scopePredicate = `AND e.id <> $${values.length}::uuid`;
+    }
+    if (isDepartmentManager) {
+      scopePredicate += ` AND EXISTS (
         SELECT 1 FROM public.departments md
         WHERE md.organization_id = e.organization_id
           AND md.id = e.department_id

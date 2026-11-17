@@ -174,11 +174,12 @@ export async function GET(
          e.city,
          e.designation,
          e.manager_id,
+         e.reporting_manager_user_id,
          e.is_primary_hr_manager,
          workforce_role.name AS workforce_role,
          CASE
-           WHEN m.id IS NOT NULL
-           THEN CONCAT_WS(' ', m.first_name, m.last_name)
+           WHEN e.reporting_manager_user_id IS NOT NULL THEN 'Organization Admin'
+           WHEN m.id IS NOT NULL THEN CONCAT_WS(' ', m.first_name, m.last_name)
            ELSE NULL
          END AS manager_name,
          m.employee_code AS manager_employee_code,
@@ -186,7 +187,10 @@ export async function GET(
          m.last_name AS manager_last_name,
          m.email AS manager_email,
          m.employment_status AS manager_employment_status,
-         manager_role.name AS manager_workforce_role,
+         CASE
+           WHEN e.reporting_manager_user_id IS NOT NULL THEN 'ORGANIZATION_ADMIN'
+           ELSE manager_role.name
+         END AS manager_workforce_role,
          manager_account.status AS manager_account_status,
          e.joining_date::text AS joining_date,
          e.employment_status,
@@ -967,6 +971,7 @@ export async function PATCH(
           e.employment_status,
           e.department_id,
           e.manager_id,
+          e.reporting_manager_user_id,
           e.is_primary_hr_manager
        FROM public.employees AS e
        LEFT JOIN public.roles AS employee_role_record
@@ -1390,6 +1395,7 @@ export async function PATCH(
     ).toUpperCase();
 
     let derivedManagerId: string | null = null;
+    let derivedReportingManagerUserId: string | null = null;
 
     if (
       ![
@@ -1651,6 +1657,10 @@ export async function PATCH(
       }
 
       derivedManagerId = null;
+      derivedReportingManagerUserId =
+        actor.kind === "ORGANIZATION_ADMIN"
+          ? actor.userId
+          : existingEmployee.reporting_manager_user_id ?? null;
     }
 
     if (wantsPrimaryDesignation) {
@@ -1828,6 +1838,9 @@ export async function PATCH(
     values.push(derivedManagerId);
     assignments.push(`manager_id = $${values.length}`);
 
+    values.push(derivedReportingManagerUserId);
+    assignments.push(`reporting_manager_user_id = $${values.length}`);
+
     values.push(id);
     const employeeIdParam = values.length;
 
@@ -1916,11 +1929,12 @@ export async function PATCH(
          e.city,
          e.designation,
          e.manager_id,
+         e.reporting_manager_user_id,
          e.is_primary_hr_manager,
          workforce_role.name AS workforce_role,
          CASE
-           WHEN m.id IS NOT NULL
-           THEN CONCAT_WS(' ', m.first_name, m.last_name)
+           WHEN e.reporting_manager_user_id IS NOT NULL THEN 'Organization Admin'
+           WHEN m.id IS NOT NULL THEN CONCAT_WS(' ', m.first_name, m.last_name)
            ELSE NULL
          END AS manager_name,
          m.employee_code AS manager_employee_code,
@@ -1928,7 +1942,10 @@ export async function PATCH(
          m.last_name AS manager_last_name,
          m.email AS manager_email,
          m.employment_status AS manager_employment_status,
-         manager_role.name AS manager_workforce_role,
+         CASE
+           WHEN e.reporting_manager_user_id IS NOT NULL THEN 'ORGANIZATION_ADMIN'
+           ELSE manager_role.name
+         END AS manager_workforce_role,
          manager_account.status AS manager_account_status,
          e.joining_date::text AS joining_date,
          e.employment_status,
@@ -1975,6 +1992,7 @@ export async function PATCH(
       // Department and manager can change as a derived result of hierarchy validation.
       "department_id",
       "manager_id",
+      "reporting_manager_user_id",
       // Primary HR designation is handled separately from the ordinary field allow-list.
       "is_primary_hr_manager",
     ]);
@@ -2033,6 +2051,7 @@ export async function PATCH(
       employment_status: existingEmployee.employment_status,
       department_id: existingEmployee.department_id,
       manager_id: existingEmployee.manager_id,
+      reporting_manager_user_id: existingEmployee.reporting_manager_user_id,
       designation: existingEmployee.designation,
       // Include the date in snapshots so updated_fields can be audited against it.
       joining_date: normalizeHistoryValue(
@@ -2058,6 +2077,7 @@ export async function PATCH(
       employment_status: updatedEmployee.employment_status,
       department_id: updatedEmployee.department_id,
       manager_id: updatedEmployee.manager_id,
+      reporting_manager_user_id: updatedEmployee.reporting_manager_user_id,
       designation: updatedEmployee.designation,
       joining_date: normalizeHistoryValue(
         "joining_date",
@@ -2081,7 +2101,8 @@ export async function PATCH(
 
     const reportingLineChanged =
       beforeState.department_id !== afterState.department_id ||
-      beforeState.manager_id !== afterState.manager_id;
+      beforeState.manager_id !== afterState.manager_id ||
+      beforeState.reporting_manager_user_id !== afterState.reporting_manager_user_id;
 
     const primaryChanged =
       beforeState.is_primary_hr_manager !==

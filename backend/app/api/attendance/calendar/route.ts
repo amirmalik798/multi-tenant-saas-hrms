@@ -86,7 +86,9 @@ export async function GET(request: Request) {
       scope = "ALL";
     } else if (actor.kind === "ORGANIZATION_USER") {
       if (actor.roleName === "HR_MANAGER") {
-        scope = "ALL";
+        const requestedScope = url.searchParams.get("scope");
+        scope = requestedScope === "self" ? "SELF" : "ALL";
+        if (scope === "SELF") scopeEmployeeId = actor.employeeId;
       } else if (actor.roleName === "DEPARTMENT_MANAGER") {
         scope = "DEPARTMENT";
         scopeEmployeeId = actor.employeeId;
@@ -141,14 +143,25 @@ export async function GET(request: Request) {
          LEFT JOIN public.roles AS workforce_role
            ON workforce_role.id = e.workforce_role_id
           AND workforce_role.organization_id = e.organization_id
-         LEFT JOIN public.users AS workforce_account
-           ON workforce_account.employee_id = e.id
-          AND workforce_account.organization_id = e.organization_id
-          AND workforce_account.account_scope = 'ORGANIZATION'
-         LEFT JOIN public.roles AS account_role
-           ON account_role.id = workforce_account.role_id
+         LEFT JOIN LATERAL (
+           SELECT linked_role.name
+           FROM public.users AS workforce_account
+           JOIN public.roles AS linked_role
+             ON linked_role.id = workforce_account.role_id
+            AND linked_role.organization_id = workforce_account.organization_id
+            AND linked_role.scope = 'ORGANIZATION'
+           WHERE workforce_account.employee_id = e.id
+             AND workforce_account.organization_id = e.organization_id
+             AND workforce_account.account_scope = 'ORGANIZATION'
+           ORDER BY
+             CASE WHEN workforce_account.status = 'ACTIVE' THEN 0 ELSE 1 END,
+             workforce_account.updated_at DESC NULLS LAST,
+             workforce_account.created_at DESC NULLS LAST,
+             workforce_account.id
+           LIMIT 1
+         ) AS account_role ON TRUE
          WHERE e.organization_id = $1
-           AND regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g') IN ('EMPLOYEE', 'DEPARTMENT_MANAGER')
+           AND regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g') IN ('EMPLOYEE', 'DEPARTMENT_MANAGER', 'HR_MANAGER')
            -- A linked organization account with an admin role must never be
            -- treated as a workforce attendance row, even if the employee
            -- record's workforce_role_id is stale or says EMPLOYEE.
@@ -271,7 +284,7 @@ export async function GET(request: Request) {
              AND cr.employee_id = ae.employee_id
              AND cr.original_event_id = ae.id
              AND cr.status = 'APPROVED'
-           ORDER BY cr.decision_at DESC
+           ORDER BY cr.decision_at DESC, cr.id DESC
            LIMIT 1
          ) AS c ON TRUE
 

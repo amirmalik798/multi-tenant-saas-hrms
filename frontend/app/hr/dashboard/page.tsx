@@ -2,6 +2,7 @@
 
 import AttendanceAlerts from "../../components/notifications/AttendanceAlerts";
 import AttendanceCalendarView from "../../components/attendance/AttendanceCalendarView";
+import HRManagerDashboardAttendance from "../../components/hr/HRManagerDashboardAttendance";
 import EmployeeProfilePhoto from "../../components/employee/EmployeeProfilePhoto";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -389,6 +390,19 @@ export default function HRManagerDashboardPage() {
           <div className="min-w-0"><div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-400/[0.07] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-blue-200"><ShieldCheck size={12} /> Daily operations · {workDateLabel}</div><h2 className="mt-2 text-xl font-bold tracking-tight text-white sm:text-2xl">Today’s priorities</h2><div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-[#C5D0DE]"><span className="inline-flex items-center gap-1.5"><Building2 size={14} className="text-blue-300" />{overview?.organization.name || auth.user.organizationName}</span>{timeZone && <span>{timeZone}</span>}<span className="inline-flex items-center gap-1.5"><CheckCircle2 size={14} className="text-emerald-300" />{overview ? "Data ready" : "Loading"}</span></div></div>
           <div className="relative grid grid-cols-2 gap-2 sm:flex sm:flex-wrap"><Link href="/hr/employees?create=1" className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-blue-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"><UserRoundPlus size={14} /> Add employee</Link><Link href="/hr/work-queue" className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-[#3A4A60] bg-[#0B0F17]/70 px-3 py-2 text-xs font-semibold text-[#F8FAFC] transition hover:border-[#53647A] hover:bg-[#202D40]/80"><CheckCircle2 size={14} /> Work queue{workQueueCountReady ? ` · ${formatNumber(workQueueCount)}` : ""}</Link></div>
         </div>
+      </section>
+
+      <section aria-label="Your attendance and shift" className="overflow-hidden rounded-3xl border border-[#344357]/80 bg-[#111a27] p-3 shadow-xl shadow-black/10 sm:p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-300">Your workday</p>
+            <h2 className="mt-1 text-base font-bold text-white">Personal attendance</h2>
+          </div>
+          <Link href="/hr/my-attendance" className="inline-flex items-center gap-1.5 rounded-lg border border-[#3A4A60] px-3 py-2 text-xs font-semibold text-blue-200 transition hover:border-blue-400/40 hover:bg-blue-400/10">
+            Monthly hours & history <ArrowRight size={13} />
+          </Link>
+        </div>
+        <HRManagerDashboardAttendance employeeId={auth.user.employeeId} organizationTimeZone={timeZone || "Africa/Kigali"} />
       </section>
 
       <section aria-label="Team attendance calendar" className="overflow-hidden rounded-3xl border border-[#344357]/80 bg-[#111a27] p-3 shadow-xl shadow-black/10 sm:p-4">
