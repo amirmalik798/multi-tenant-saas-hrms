@@ -285,6 +285,7 @@ function buildMonthPage(
       </div>
       <div class="footer-note">
         ${paymentMeta ? `<p><strong>Payment record:</strong> ${escapeHtml(paymentMeta)}</p>` : ""}
+        ${month.currencyMismatch ? `<p class="warning"><strong>Currency note:</strong> Pay rates changed currency during this month. Earnings are shown separately by currency and have not been combined.</p>` : ""}
         ${month.totals.daysWithMissingRates > 0 ? `<p class="warning"><strong>Payroll review:</strong> ${month.totals.daysWithMissingRates} day(s) have payable time without a complete configured rate.</p>` : ""}
         ${month.totals.excessUnapprovedOvertimeMinutes > 0 ? `<p><strong>Overtime excluded:</strong> ${escapeHtml(duration(month.totals.excessUnapprovedOvertimeMinutes))} was recorded beyond approved pre-authorization and is not included in payable overtime.</p>` : ""}
       </div>
