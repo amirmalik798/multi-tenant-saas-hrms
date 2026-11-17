@@ -118,11 +118,10 @@ export async function GET(request: Request) {
 
     const reportScope = "Organization-wide";
 
-    // Start from the active employee list, then LEFT JOIN today's schedule,
-    // attendance and timesheet. This deliberately retains active
-    // employees and Department Managers who have no schedule and no punches.
-    // Department Managers are workforce records and use the same attendance
-    // calculations as employees; include them in HR reports and their own scope.
+    // Start from the active workforce list, then LEFT JOIN the selected day's
+    // schedule and attendance events. Retain active Employees, Department
+    // Managers and HR Managers even when they have no schedule or punches,
+    // so the organization-wide register is a complete daily roll call.
     const reportResult = await pool.query<DailyAttendanceRecord>(
       `WITH scoped_employees AS (
          SELECT
