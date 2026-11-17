@@ -640,7 +640,6 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
             title={hasUnsavedChanges ? "Save your payment edits before changing the payroll month." : "Choose the payroll month to review."}
             className={INPUT}
           />
-          {organizationTimeZone && <span className="mt-1 block text-[10px] font-medium text-slate-500">{organizationTimeZone}</span>}
           {hasUnsavedChanges && (
             <span className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-medium text-amber-200">
               Unsaved payment edits
