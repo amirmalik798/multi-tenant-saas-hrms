@@ -50,6 +50,8 @@ export type DailyAttendanceReport = {
   generatedAt: Date;
   generatedBy: string;
   rows: DailyAttendanceRecord[];
+  /** Historical dates must not extrapolate unmatched clock-ins to generation time. */
+  historicalSnapshot?: boolean;
 };
 
 type RGB = [number, number, number];
@@ -301,7 +303,7 @@ function formatDuration(seconds: number): string {
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
-function analyse(row: DailyAttendanceRecord, generatedAt: Date): Analysis {
+function analyse(row: DailyAttendanceRecord, generatedAt: Date, historicalSnapshot = false): Analysis {
   const events = Array.isArray(row.events) ? [...row.events] : [];
   events.sort((a, b) => {
     const aTime = asDate(a.recordedAt)?.getTime() ?? 0;
@@ -346,7 +348,7 @@ function analyse(row: DailyAttendanceRecord, generatedAt: Date): Analysis {
   }
 
   const hasOpenSession = Boolean(openClockIn);
-  const openSeconds = openClockIn
+  const openSeconds = openClockIn && !historicalSnapshot
     ? Math.max(0, Math.floor((generatedAt.getTime() - openClockIn.getTime()) / 1000))
     : 0;
   const hasSchedule = Boolean(row.scheduleName && row.expectedStart);
@@ -365,8 +367,10 @@ function analyse(row: DailyAttendanceRecord, generatedAt: Date): Analysis {
 
   if (hasOpenSession) {
     return {
-      status: hasSchedule ? "Clocked in" : "Clocked in - no shift",
-      statusKind: "positive",
+      status: historicalSnapshot
+        ? "Missing clock-out - review"
+        : hasSchedule ? "Clocked in" : "Clocked in - no shift",
+      statusKind: historicalSnapshot ? "warning" : "positive",
       completedSeconds,
       openSeconds,
       hasOpenSession: true,
@@ -406,11 +410,16 @@ function analyse(row: DailyAttendanceRecord, generatedAt: Date): Analysis {
   };
 }
 
-function analysisDuration(analysis: Analysis): string {
+function analysisDuration(analysis: Analysis, historicalSnapshot = false): string {
   if (analysis.invalidSequence) return "Review";
-  if (analysis.completedSeconds === 0 && analysis.openSeconds === 0) return "-";
+  if (analysis.completedSeconds === 0 && analysis.openSeconds === 0) {
+    return historicalSnapshot && analysis.hasOpenSession ? "Unclosed" : "-";
+  }
   const total = analysis.completedSeconds + analysis.openSeconds;
-  return `${formatDuration(total)}${analysis.hasOpenSession ? "*" : ""}`;
+  // Historical duration includes only completed intervals. The dagger points
+  // out that an additional clock-in has no matching clock-out and is excluded.
+  const marker = analysis.hasOpenSession ? (historicalSnapshot ? "†" : "*") : "";
+  return `${formatDuration(total)}${marker}`;
 }
 
 function statusColor(analysis: Analysis): RGB {
@@ -461,7 +470,7 @@ function drawHeader(
 }
 
 function getMetrics(report: DailyAttendanceReport) {
-  const analyses = report.rows.map((row) => analyse(row, report.generatedAt));
+  const analyses = report.rows.map((row) => analyse(row, report.generatedAt, report.historicalSnapshot));
   const scheduled = report.rows.filter((row) => Boolean(row.scheduleName && row.expectedStart)).length;
   const clockedIn = analyses.filter((analysis) => analysis.hasOpenSession && !analysis.invalidSequence).length;
   const clockedOut = analyses.filter((analysis) => analysis.status === "Clocked out").length;
@@ -476,7 +485,7 @@ function drawSummary(page: PdfPage, report: DailyAttendanceReport): void {
   const items = [
     { label: "ACTIVE EMPLOYEES", value: metrics.activeEmployees, accent: COLORS.navyLight },
     { label: "SCHEDULED SHIFTS", value: metrics.scheduled, accent: COLORS.blue },
-    { label: "OPEN SESSIONS", value: metrics.clockedIn, accent: COLORS.teal },
+    { label: report.historicalSnapshot ? "UNCLOSED CLOCK-INS" : "OPEN SESSIONS", value: metrics.clockedIn, accent: report.historicalSnapshot ? COLORS.amber : COLORS.teal },
     { label: "CLOCKED OUT", value: metrics.clockedOut, accent: COLORS.green },
     { label: "SCHEDULED, NO PUNCHES", value: metrics.noPunches, accent: metrics.noPunches ? COLORS.amber : COLORS.green },
   ];
@@ -497,7 +506,9 @@ function drawSummary(page: PdfPage, report: DailyAttendanceReport): void {
   drawText(page, "ATTENDANCE SNAPSHOT", MARGIN, 174, 6.2, COLORS.teal, true);
   drawText(
     page,
-    "Snapshot at generation time. No punches do not confirm absence. Recorded elapsed time is not payable time; scheduled breaks are not automatically deducted. Open sessions are marked *.",
+    report.historicalSnapshot
+      ? "Historical record: unmatched clock-ins are flagged; their duration and overtime are not estimated. † Completed intervals only. No punches do not prove absence."
+      : "Snapshot at generation time. No punches do not confirm absence. Recorded elapsed time is not payable time; scheduled breaks are not automatically deducted. Open sessions are marked *.",
     MARGIN + 113,
     174,
     6.3,
@@ -532,7 +543,7 @@ function drawMainRow(page: PdfPage, row: DailyAttendanceRecord, index: number, t
   drawRect(page, MARGIN, top, CONTENT_WIDTH, height, background);
   drawLine(page, MARGIN, top + height, MARGIN + CONTENT_WIDTH, top + height, COLORS.border, 0.45);
 
-  const a = analyse(row, report.generatedAt);
+  const a = analyse(row, report.generatedAt, report.historicalSnapshot);
   const cells: Array<{ width: number; draw: (x: number) => void }> = [];
   const startX = MARGIN;
 
@@ -567,7 +578,7 @@ function drawMainRow(page: PdfPage, row: DailyAttendanceRecord, index: number, t
   });
   cells.push({
     width: MAIN_COLUMNS[5].width,
-    draw: (x) => drawText(page, analysisDuration(a), x + 5, top + 12, 6.3, a.invalidSequence ? COLORS.red : COLORS.ink, true, MAIN_COLUMNS[5].width - 8),
+    draw: (x) => drawText(page, analysisDuration(a, report.historicalSnapshot), x + 5, top + 12, 6.3, a.invalidSequence ? COLORS.red : report.historicalSnapshot && a.hasOpenSession ? COLORS.amber : COLORS.ink, true, MAIN_COLUMNS[5].width - 8),
   });
   cells.push({
     width: MAIN_COLUMNS[6].width,
@@ -676,7 +687,7 @@ export type MonthlyDailyAttendanceReport = {
   generatedBy: string;
   months: Array<{
     month: string;
-    days: Array<{ reportDate: string; rows: DailyAttendanceRecord[] }>;
+    days: Array<{ reportDate: string; rows: DailyAttendanceRecord[]; historicalSnapshot: boolean }>;
   }>;
 };
 
@@ -694,6 +705,7 @@ export function createMonthlyAttendancePdf(report: MonthlyDailyAttendanceReport)
       const dailyReport: DailyAttendanceReport = {
         organizationName: report.organizationName,
         reportDate: day.reportDate,
+        historicalSnapshot: day.historicalSnapshot,
         timeZone: report.timeZone,
         reportScope: report.reportScope,
         generatedAt: report.generatedAt,
