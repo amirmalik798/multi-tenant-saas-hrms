@@ -443,24 +443,6 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
 
   return (
     <div className="mx-auto max-w-[1420px] space-y-5">
-      <section className="relative overflow-hidden rounded-3xl border border-[#34465d] bg-gradient-to-br from-[#1c3048] via-[#121d2b] to-[#101722] p-5 shadow-2xl shadow-black/15 sm:p-7">
-        <div className="pointer-events-none absolute -right-16 -top-20 size-72 rounded-full bg-sky-400/[0.08] blur-3xl"/>
-        <div className="relative flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sky-300">
-              <FileBarChart size={18}/>
-              <span className="text-[10px] font-extrabold uppercase tracking-[0.18em]">{isEmployee ? "Personal attendance" : "Workforce intelligence"}</span>
-            </div>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">{isEmployee ? "My attendance report" : "Report builder"}</h2>
-            <p className="mt-2 max-w-2xl text-sm text-slate-300">{isEmployee ? "Generate a printable PDF of your own attendance history, monthly hours and daily details." : "Generate verified attendance PDFs from your authorized reporting scope."}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-            {timeZone && <span className="inline-flex items-center gap-2 rounded-lg border border-white/[0.08] bg-black/15 px-3 py-2"><CalendarDays size={14} className="text-sky-300"/>{timeZone}</span>}
-            <span className="inline-flex items-center gap-2 rounded-lg border border-white/[0.08] bg-black/15 px-3 py-2"><FileText size={14} className="text-sky-300"/>PDF reports</span>
-          </div>
-        </div>
-      </section>
-
       {!isEmployee && (
         <section className={`grid gap-3 ${canGenerateOrganizationMonthlyReport ? "xl:grid-cols-3" : "xl:grid-cols-2"}`} aria-label="Attendance report types">
           <button
