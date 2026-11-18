@@ -50,8 +50,13 @@ function shiftMonth(value: string, offset: number): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+function isValidMonthValue(value: string): boolean {
+  const match = value.match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  return Boolean(match && Number(match[1]) >= 1900);
+}
+
 function formatMonthLabel(value: string): string {
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return value;
+  if (!isValidMonthValue(value)) return value;
   const [year, month] = value.split("-").map(Number);
   return new Intl.DateTimeFormat("en-GB", {
     month: "long",
@@ -122,8 +127,8 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
   );
   const canGenerateOrganizationMonthlyReport = isOrganizationAdmin || audience === "hr-manager";
   const validMonthRange =
-    /^\d{4}-(0[1-9]|1[0-2])$/.test(fromMonth) &&
-    /^\d{4}-(0[1-9]|1[0-2])$/.test(toMonth) &&
+    isValidMonthValue(fromMonth) &&
+    isValidMonthValue(toMonth) &&
     fromMonth <= toMonth;
   const selectedMonths = validMonthRange
     ? monthCount(`${fromMonth}-01`, `${toMonth}-01`)
@@ -509,6 +514,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                       type="month"
                       value={fromMonth}
                       disabled={dateLoading || busy}
+                      min="1900-01"
                       max={toMonth || reportDate.slice(0, 7) || undefined}
                       onChange={(event) => { monthRangeTouched.current = true; setFromMonth(event.target.value); setError(""); setNotice(""); }}
                       className={INPUT}
@@ -520,7 +526,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                       type="month"
                       value={toMonth}
                       disabled={dateLoading || busy}
-                      min={fromMonth || undefined}
+                      min={fromMonth || "1900-01"}
                       max={reportDate.slice(0, 7) || undefined}
                       onChange={(event) => { monthRangeTouched.current = true; setToMonth(event.target.value); setError(""); setNotice(""); }}
                       className={INPUT}
@@ -558,8 +564,8 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                     {validMonthRange ? `${formatMonthLabel(fromMonth)} – ${formatMonthLabel(toMonth)}` : "Select a valid month range"}
                   </p>
                   <div className="mt-3 flex items-end gap-2">
-                    <span className="text-4xl font-bold tabular-nums text-white">{selectedMonths}</span>
-                    <span className="pb-1 text-xs font-medium text-slate-400">{selectedMonths === 1 ? "calendar month" : "calendar months"}</span>
+                    <span className="text-4xl font-bold tabular-nums text-white">{validMonthRange ? selectedMonths : "—"}</span>
+                    <span className="pb-1 text-xs font-medium text-slate-400">{validMonthRange ? selectedMonths === 1 ? "calendar month" : "calendar months" : "select a valid range"}</span>
                   </div>
                   {monthPreview.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Months included in report">
