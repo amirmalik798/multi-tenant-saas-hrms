@@ -475,8 +475,8 @@ function drawSummary(page: PdfPage, report: DailyAttendanceReport): void {
   const metrics = getMetrics(report);
   const items = [
     { label: "ACTIVE EMPLOYEES", value: metrics.activeEmployees, accent: COLORS.navyLight },
-    { label: "SCHEDULED TODAY", value: metrics.scheduled, accent: COLORS.blue },
-    { label: "CLOCKED IN NOW", value: metrics.clockedIn, accent: COLORS.teal },
+    { label: "SCHEDULED SHIFTS", value: metrics.scheduled, accent: COLORS.blue },
+    { label: "OPEN SESSIONS", value: metrics.clockedIn, accent: COLORS.teal },
     { label: "CLOCKED OUT", value: metrics.clockedOut, accent: COLORS.green },
     { label: "SCHEDULED, NO PUNCHES", value: metrics.noPunches, accent: metrics.noPunches ? COLORS.amber : COLORS.green },
   ];
@@ -494,7 +494,7 @@ function drawSummary(page: PdfPage, report: DailyAttendanceReport): void {
     drawText(page, item.value, x + 9, top + 19, 16, COLORS.ink, true);
   });
 
-  drawText(page, "POINT-IN-TIME SNAPSHOT", MARGIN, 174, 6.2, COLORS.teal, true);
+  drawText(page, "ATTENDANCE SNAPSHOT", MARGIN, 174, 6.2, COLORS.teal, true);
   drawText(
     page,
     "Snapshot at generation time. No punches do not confirm absence. Recorded elapsed time is not payable time; scheduled breaks are not automatically deducted. Open sessions are marked *.",
