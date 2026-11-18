@@ -439,6 +439,26 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
     }
   }
 
+  function isMonthShortcutSelected(shortcut: "current" | "previous" | "year-to-date") {
+    const currentMonth = reportDate.slice(0, 7);
+    const previousMonth = shiftMonth(currentMonth, -1);
+    const startMonth = shortcut === "previous"
+      ? previousMonth
+      : shortcut === "year-to-date"
+        ? `${currentMonth.slice(0, 4)}-01`
+        : currentMonth;
+    const endMonth = shortcut === "previous" ? previousMonth : currentMonth;
+    // In January, "This month" and "Year to date" are the same range.
+    // Prefer the more specific "This month" label so only one option is active.
+    if (shortcut === "year-to-date" && currentMonth.endsWith("-01")) return false;
+    return fromMonth === startMonth && toMonth === endMonth;
+  }
+
+  function isMonthPresetSelected(months: number) {
+    const currentMonth = reportDate.slice(0, 7);
+    return fromMonth === shiftMonth(currentMonth, -(months - 1)) && toMonth === currentMonth;
+  }
+
   const busy = loadingMode !== null;
 
   return (
@@ -551,7 +571,12 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                         type="button"
                         onClick={() => applyMonthShortcut(shortcut.key as "current" | "previous" | "year-to-date")}
                         disabled={dateLoading || busy}
-                        className="rounded-lg border border-cyan-300/20 bg-cyan-300/[0.055] px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:border-cyan-300/45 hover:bg-cyan-300/[0.10] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 disabled:opacity-45"
+                        aria-pressed={isMonthShortcutSelected(shortcut.key as "current" | "previous" | "year-to-date")}
+                        className={`rounded-lg border px-3 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 disabled:opacity-45 ${
+                          isMonthShortcutSelected(shortcut.key as "current" | "previous" | "year-to-date")
+                            ? "border-cyan-300/40 bg-cyan-300/[0.12] text-cyan-100 shadow-sm shadow-cyan-950/20"
+                            : "border-white/[0.10] bg-white/[0.035] text-slate-300 hover:border-cyan-300/30 hover:bg-cyan-300/[0.06] hover:text-cyan-100"
+                        }`}
                       >
                         {shortcut.label}
                       </button>
@@ -562,7 +587,12 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                         type="button"
                         onClick={() => applyMonthPreset(months)}
                         disabled={dateLoading || busy || !timeZone}
-                        className="rounded-lg border border-white/[0.10] bg-white/[0.035] px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-cyan-300/35 hover:bg-cyan-300/[0.07] hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 disabled:opacity-45"
+                        aria-pressed={isMonthPresetSelected(months)}
+                        className={`rounded-lg border px-3 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 disabled:opacity-45 ${
+                          isMonthPresetSelected(months)
+                            ? "border-cyan-300/40 bg-cyan-300/[0.12] text-cyan-100 shadow-sm shadow-cyan-950/20"
+                            : "border-white/[0.10] bg-white/[0.035] text-slate-300 hover:border-cyan-300/30 hover:bg-cyan-300/[0.06] hover:text-cyan-100"
+                        }`}
                       >
                         Last {months} months
                       </button>
