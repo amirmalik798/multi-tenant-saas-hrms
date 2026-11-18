@@ -14,7 +14,6 @@ type Metadata = { organizationName: string; timeZone: string; generatedBy: strin
 type Row = Omit<DailyAttendanceRecord, "events"> & { workDate: string; events: unknown };
 
 function parseArray<T>(value: unknown): T[] {
-  if (value === null || value === undefined) return [];
   if (Array.isArray(value)) return value as T[];
   if (typeof value === "string") {
     let parsed: unknown;
@@ -309,6 +308,13 @@ export async function GET(request: Request) {
         throw new Error("Attendance query returned a work date outside the requested reporting period");
       }
       const events = parseArray<NonNullable<DailyAttendanceRecord["events"]>[number]>(eventSource);
+      const databaseEventCount = Number(row.eventCount);
+      if (!Number.isSafeInteger(databaseEventCount) || databaseEventCount !== events.length) {
+        throw new Error("Attendance event count does not match the returned event details");
+      }
+      if (typeof row.employeeId !== "string" || row.employeeId.length === 0) {
+        throw new Error("Attendance query returned a row without a valid workforce member identifier");
+      }
       const historicalSnapshot = date < organizationToday;
       const calculated = calculateDailyAttendance({
         events,
@@ -353,6 +359,30 @@ export async function GET(request: Request) {
       });
       return { month, days };
     });
+
+    // Every generated day comes from the same scoped employee CTE. Verify
+    // that no date or workforce member was silently omitted or duplicated.
+    const expectedEmployeeIds: string[] | null = monthReports[0]?.days[0]?.rows
+      .map((row) => row.employeeId)
+      .sort() ?? null;
+    if (!expectedEmployeeIds?.length) {
+      return jsonResponse({ message: "No complete daily attendance register could be assembled for this reporting period" }, 404);
+    }
+    for (const month of monthReports) {
+      for (const day of month.days) {
+        const employeeIds = day.rows.map((row) => row.employeeId);
+        if (new Set(employeeIds).size !== employeeIds.length) {
+          throw new Error(`Duplicate workforce records were returned for ${day.reportDate}`);
+        }
+        const sortedIds = [...employeeIds].sort();
+        if (
+          sortedIds.length !== expectedEmployeeIds.length ||
+          sortedIds.some((employeeId, index) => employeeId !== expectedEmployeeIds[index])
+        ) {
+          throw new Error(`The workforce roster is incomplete or inconsistent for ${day.reportDate}`);
+        }
+      }
+    }
 
     // A daily report uses ten employees per page. Keep the PDF workload
     // bounded independently from the SQL result-row limit.
