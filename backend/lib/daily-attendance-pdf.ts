@@ -645,6 +645,64 @@ function serializePdf(pages: PdfPage[]): Buffer {
   return Buffer.concat(chunks);
 }
 
+
+export type MonthlyDailyAttendanceReport = {
+  organizationName: string;
+  fromMonth: string;
+  toMonth: string;
+  timeZone: string;
+  reportScope: string;
+  generatedAt: Date;
+  generatedBy: string;
+  months: Array<{ month: string; reportDate: string; rows: DailyAttendanceRecord[] }>;
+};
+
+/**
+ * Build one PDF containing all selected monthly attendance registers.
+ * Each month starts on a fresh page; large monthly registers continue on
+ * subsequent pages without allowing the next month to share that page.
+ */
+export function createMonthlyAttendancePdf(report: MonthlyDailyAttendanceReport): Buffer {
+  const pages: PdfPage[] = [];
+  for (const month of report.months) {
+    const dailyReport: DailyAttendanceReport = {
+      organizationName: report.organizationName,
+      reportDate: month.reportDate,
+      timeZone: report.timeZone,
+      reportScope: report.reportScope,
+      generatedAt: report.generatedAt,
+      generatedBy: report.generatedBy,
+      rows: month.rows,
+    };
+    const monthPages = drawMainPages(dailyReport);
+    monthPages.forEach((page, index) => {
+      if (index === 0) {
+        const titlePage = newPage();
+        drawHeader(titlePage, dailyReport, false);
+        drawRect(titlePage, MARGIN, 115, CONTENT_WIDTH, 45, COLORS.tealLight);
+        drawText(titlePage, "MONTHLY ATTENDANCE REGISTER", MARGIN + 12, 124, 7, COLORS.teal, true);
+        drawText(titlePage, formatMonth(month.month), MARGIN + 12, 137, 16, COLORS.ink, true);
+        drawText(titlePage, report.reportScope, MARGIN + 12, 151, 6.5, COLORS.muted, false);
+        pages.push(titlePage);
+      }
+      pages.push(page);
+    });
+  }
+
+  pages.forEach((page, index) => {
+    page.content.push(
+      `BT /F1 6 Tf ${color(COLORS.muted)} rg 1 0 0 1 ${fmt(PAGE_WIDTH - MARGIN - 66)} ${fmt(PAGE_HEIGHT - 576 - 6)} Tm (${escapePdf(`Page ${index + 1} of ${pages.length}`)}) Tj ET`,
+    );
+  });
+  return serializePdf(pages);
+}
+
+function formatMonth(value: string): string {
+  const [year, month] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })
+    .format(new Date(Date.UTC(year, month - 1, 1)));
+}
+
 export function createDailyAttendancePdf(report: DailyAttendanceReport): Buffer {
   const mainPages = drawMainPages(report);
   const pages = mainPages;
