@@ -31,6 +31,27 @@ function filenameDate(value: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "attendance";
 }
 
+function displayEmployeeName(row: Pick<DailyAttendanceRecord, "firstName" | "lastName" | "employeeCode">): string {
+  return [row.firstName, row.lastName]
+    .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
+    .map((part) => part.trim())
+    .join(" ") || row.employeeCode?.trim() || "Employee";
+}
+
+function sortAttendanceRowsByName(rows: DailyAttendanceRecord[]): DailyAttendanceRecord[] {
+  const collator = new Intl.Collator("en", {
+    usage: "sort",
+    sensitivity: "base",
+    numeric: false,
+  });
+
+  return [...rows].sort((left, right) =>
+    collator.compare(displayEmployeeName(left), displayEmployeeName(right)) ||
+    collator.compare(left.employeeCode || "", right.employeeCode || "") ||
+    left.employeeId.localeCompare(right.employeeId),
+  );
+}
+
 export async function GET(request: Request) {
   // This authenticated endpoint must run per request. Keep the
   // prerender boundary outside the handler try/catch so Next.js
@@ -395,7 +416,8 @@ export async function GET(request: Request) {
       reportScope,
       generatedAt,
       generatedBy: metadata.generatedBy,
-      rows,
+      // Keep the JSON roster's existing order; alphabetize only the PDF register.
+      rows: sortAttendanceRowsByName(rows),
     };
 
     const pdf = createDailyAttendancePdf(report);

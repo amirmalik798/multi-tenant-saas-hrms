@@ -299,17 +299,39 @@ function buildMonthPage(
   </section>`;
 }
 
-export function buildSalarySlipDocument(payload: SalarySlipPayload): string {
-  const pages = payload.months.map((month, index) =>
-    buildMonthPage(payload, month, index, payload.months.length)
-  ).join("\n");
+export function buildSalarySlipDocument(input: SalarySlipPayload | SalarySlipPayload[]): string {
+  const payloads = Array.isArray(input) ? input : [input];
+  if (payloads.length === 0) throw new Error("At least one salary slip is required to build this document.");
 
+  const first = payloads[0];
+  const expectedMonths = first.months.map((month) => month.month).join("|");
+  if (payloads.some((payload) =>
+    payload.startMonth !== first.startMonth ||
+    payload.endMonth !== first.endMonth ||
+    payload.organization.name !== first.organization.name ||
+    payload.organization.timeZone !== first.organization.timeZone ||
+    payload.months.map((month) => month.month).join("|") !== expectedMonths
+  )) {
+    throw new Error("All salary slips in a combined document must use the same organization and month range.");
+  }
+
+  const pages = payloads.map((payload) =>
+    payload.months.map((month, index) =>
+      buildMonthPage(payload, month, index, payload.months.length)
+    ).join("\n")
+  ).join("\n");
+  const titleSubject = payloads.length === 1
+    ? [first.employee.firstName, first.employee.lastName].filter(Boolean).join(" ") || "Workforce member"
+    : `${payloads.length} workforce members`;
+  const toolbarCopy = payloads.length === 1
+    ? "Print-ready salary statement · Each month starts on a new page; long months continue as needed · Use “Save as PDF” in the print destination"
+    : "Combined workforce salary slips · Employees are sorted A–Z · Each employee has one statement for every selected month";
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Salary Slip · ${escapeHtml(payload.employee.firstName)} ${escapeHtml(payload.employee.lastName)} · ${escapeHtml(payload.startMonth)} to ${escapeHtml(payload.endMonth)}</title>
+<title>${payloads.length === 1 ? "Salary Slip" : "Salary Slips"} · ${escapeHtml(titleSubject)} · ${escapeHtml(first.startMonth)} to ${escapeHtml(first.endMonth)}</title>
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: #e9eef5; color: #172338; font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -409,7 +431,7 @@ export function buildSalarySlipDocument(payload: SalarySlipPayload): string {
 </head>
 <body>
 <div class="print-toolbar">
-  <span>Print-ready salary statement · Each month starts on a new page; long months continue as needed · Use “Save as PDF” in the print destination</span>
+  <span>${escapeHtml(toolbarCopy)}</span>
   <button type="button" id="salary-slip-print">Print / Save as PDF</button>
 </div>
 ${pages}

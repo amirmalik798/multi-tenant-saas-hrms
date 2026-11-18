@@ -16,6 +16,12 @@ export type AttendanceCalculationInput = {
   scheduledBreakMinutes: number | string | null | undefined;
   approvedOvertimeMinutes: number | string | null | undefined;
   asOf?: Date;
+  /**
+   * False prevents an unmatched clock-in from accumulating elapsed time.
+   * Use for historical snapshots where the true clock-out is not known.
+   * Defaults to true to preserve existing live attendance behavior.
+   */
+  estimateOpenSessionDuration?: boolean;
 };
 
 export type AttendanceCalculationResult = {
@@ -145,19 +151,24 @@ export function calculateDailyAttendance(
 
   if (openClockIn) {
     openSession = true;
-    const startMs = openClockIn.getTime();
-    const endMs = asOf.getTime();
-    if (endMs > startMs) {
-      actualElapsedMinutes += minutesBetween(startMs, endMs);
-      if (expectedStart && expectedEnd) {
-        const overlapStart = Math.max(startMs, expectedStart.getTime());
-        const overlapEnd = Math.min(endMs, expectedEnd.getTime());
-        if (overlapEnd > overlapStart) {
-          scheduledOverlapMinutes += minutesBetween(overlapStart, overlapEnd);
+    // An unclosed punch has no known end time. Live views may estimate the
+    // currently open interval; historical snapshots must not invent duration
+    // or overtime after the reporting date has passed.
+    if (input.estimateOpenSessionDuration !== false) {
+      const startMs = openClockIn.getTime();
+      const endMs = asOf.getTime();
+      if (endMs > startMs) {
+        actualElapsedMinutes += minutesBetween(startMs, endMs);
+        if (expectedStart && expectedEnd) {
+          const overlapStart = Math.max(startMs, expectedStart.getTime());
+          const overlapEnd = Math.min(endMs, expectedEnd.getTime());
+          if (overlapEnd > overlapStart) {
+            scheduledOverlapMinutes += minutesBetween(overlapStart, overlapEnd);
+          }
         }
-      }
-      if (expectedEnd && endMs > expectedEnd.getTime()) {
-        overtimeMinutes += minutesBetween(Math.max(startMs, expectedEnd.getTime()), endMs);
+        if (expectedEnd && endMs > expectedEnd.getTime()) {
+          overtimeMinutes += minutesBetween(Math.max(startMs, expectedEnd.getTime()), endMs);
+        }
       }
     }
   }
@@ -192,7 +203,7 @@ export function calculateDailyAttendance(
     calculationStatus: invalidSequence
       ? "REVIEW_REQUIRED"
       : openSession
-        ? "IN_PROGRESS"
+        ? (input.estimateOpenSessionDuration === false ? "REVIEW_REQUIRED" : "IN_PROGRESS")
         : "COMPLETE",
     actualElapsedMinutes,
     breakDeductedMinutes,

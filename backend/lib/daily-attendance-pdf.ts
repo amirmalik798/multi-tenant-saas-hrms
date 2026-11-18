@@ -50,6 +50,8 @@ export type DailyAttendanceReport = {
   generatedAt: Date;
   generatedBy: string;
   rows: DailyAttendanceRecord[];
+  /** Historical dates must not extrapolate unmatched clock-ins to generation time. */
+  historicalSnapshot?: boolean;
 };
 
 type RGB = [number, number, number];
@@ -301,7 +303,7 @@ function formatDuration(seconds: number): string {
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
-function analyse(row: DailyAttendanceRecord, generatedAt: Date): Analysis {
+function analyse(row: DailyAttendanceRecord, generatedAt: Date, historicalSnapshot = false): Analysis {
   const events = Array.isArray(row.events) ? [...row.events] : [];
   events.sort((a, b) => {
     const aTime = asDate(a.recordedAt)?.getTime() ?? 0;
@@ -346,7 +348,7 @@ function analyse(row: DailyAttendanceRecord, generatedAt: Date): Analysis {
   }
 
   const hasOpenSession = Boolean(openClockIn);
-  const openSeconds = openClockIn
+  const openSeconds = openClockIn && !historicalSnapshot
     ? Math.max(0, Math.floor((generatedAt.getTime() - openClockIn.getTime()) / 1000))
     : 0;
   const hasSchedule = Boolean(row.scheduleName && row.expectedStart);
@@ -365,8 +367,10 @@ function analyse(row: DailyAttendanceRecord, generatedAt: Date): Analysis {
 
   if (hasOpenSession) {
     return {
-      status: hasSchedule ? "Clocked in" : "Clocked in - no shift",
-      statusKind: "positive",
+      status: historicalSnapshot
+        ? "Missing clock-out - review"
+        : hasSchedule ? "Clocked in" : "Clocked in - no shift",
+      statusKind: historicalSnapshot ? "warning" : "positive",
       completedSeconds,
       openSeconds,
       hasOpenSession: true,
@@ -406,11 +410,16 @@ function analyse(row: DailyAttendanceRecord, generatedAt: Date): Analysis {
   };
 }
 
-function analysisDuration(analysis: Analysis): string {
+function analysisDuration(analysis: Analysis, historicalSnapshot = false): string {
   if (analysis.invalidSequence) return "Review";
-  if (analysis.completedSeconds === 0 && analysis.openSeconds === 0) return "-";
+  if (analysis.completedSeconds === 0 && analysis.openSeconds === 0) {
+    return historicalSnapshot && analysis.hasOpenSession ? "Unclosed" : "-";
+  }
   const total = analysis.completedSeconds + analysis.openSeconds;
-  return `${formatDuration(total)}${analysis.hasOpenSession ? "*" : ""}`;
+  // Historical duration includes only completed intervals. The plus marker
+  // indicates an additional clock-in without a matching clock-out is excluded.
+  const marker = analysis.hasOpenSession ? (historicalSnapshot ? "+" : "*") : "";
+  return `${formatDuration(total)}${marker}`;
 }
 
 function statusColor(analysis: Analysis): RGB {
@@ -420,16 +429,36 @@ function statusColor(analysis: Analysis): RGB {
   return COLORS.muted;
 }
 
-function drawHeader(page: PdfPage, report: DailyAttendanceReport, continuation: boolean): void {
+function drawHeader(
+  page: PdfPage,
+  report: DailyAttendanceReport,
+  continuation: boolean,
+  monthLabel?: string,
+): void {
   drawRect(page, 0, 0, PAGE_WIDTH, 79, COLORS.navy);
   drawRect(page, MARGIN, 18, 4, 42, COLORS.teal);
   drawText(page, "HRMS  /  WORKFORCE OPERATIONS", MARGIN + 13, 13, 7.1, [0.56, 0.88, 0.83], true);
   drawText(page, report.organizationName || "Organization", MARGIN + 13, 28, 15.5, COLORS.white, true, 435);
   drawText(page, "ATTENDANCE REPORT", MARGIN + 13, 52, 7, [0.76, 0.83, 0.9], true);
 
-  drawRightText(page, continuation ? "DAILY ATTENDANCE REPORT - CONTINUED" : "DAILY ATTENDANCE REPORT", PAGE_WIDTH - MARGIN, 17, 12.4, COLORS.white, true);
-  drawRightText(page, formatReportDate(report.reportDate), PAGE_WIDTH - MARGIN, 38, 8.2, [0.86, 0.9, 0.96]);
-  drawRightText(page, `Generated ${formatGeneratedAt(report.generatedAt, report.timeZone)} (${report.timeZone})`, PAGE_WIDTH - MARGIN, 55, 6.5, [0.72, 0.79, 0.87]);
+  if (monthLabel) {
+    drawRightText(
+      page,
+      continuation ? "MONTHLY ATTENDANCE - CONTINUED" : "MONTHLY ATTENDANCE REGISTER",
+      PAGE_WIDTH - MARGIN,
+      13,
+      10.2,
+      COLORS.white,
+      true,
+    );
+    drawRightText(page, monthLabel, PAGE_WIDTH - MARGIN, 30, 8.4, [0.56, 0.88, 0.83], true);
+    drawRightText(page, `Report date: ${formatReportDate(report.reportDate)}`, PAGE_WIDTH - MARGIN, 44, 7, [0.86, 0.9, 0.96]);
+    drawRightText(page, `Generated ${formatGeneratedAt(report.generatedAt, report.timeZone)} (${report.timeZone})`, PAGE_WIDTH - MARGIN, 58, 5.8, [0.72, 0.79, 0.87]);
+  } else {
+    drawRightText(page, continuation ? "DAILY ATTENDANCE REPORT - CONTINUED" : "DAILY ATTENDANCE REPORT", PAGE_WIDTH - MARGIN, 17, 12.4, COLORS.white, true);
+    drawRightText(page, formatReportDate(report.reportDate), PAGE_WIDTH - MARGIN, 38, 8.2, [0.86, 0.9, 0.96]);
+    drawRightText(page, `Generated ${formatGeneratedAt(report.generatedAt, report.timeZone)} (${report.timeZone})`, PAGE_WIDTH - MARGIN, 55, 6.5, [0.72, 0.79, 0.87]);
+  }
 
   drawRect(page, 0, 79, PAGE_WIDTH, 28, COLORS.panel);
   drawText(page, "REPORT SCOPE", MARGIN, 84, 5.8, COLORS.muted, true);
@@ -441,7 +470,7 @@ function drawHeader(page: PdfPage, report: DailyAttendanceReport, continuation: 
 }
 
 function getMetrics(report: DailyAttendanceReport) {
-  const analyses = report.rows.map((row) => analyse(row, report.generatedAt));
+  const analyses = report.rows.map((row) => analyse(row, report.generatedAt, report.historicalSnapshot));
   const scheduled = report.rows.filter((row) => Boolean(row.scheduleName && row.expectedStart)).length;
   const clockedIn = analyses.filter((analysis) => analysis.hasOpenSession && !analysis.invalidSequence).length;
   const clockedOut = analyses.filter((analysis) => analysis.status === "Clocked out").length;
@@ -454,9 +483,9 @@ function getMetrics(report: DailyAttendanceReport) {
 function drawSummary(page: PdfPage, report: DailyAttendanceReport): void {
   const metrics = getMetrics(report);
   const items = [
-    { label: "ACTIVE EMPLOYEES", value: metrics.activeEmployees, accent: COLORS.navyLight },
-    { label: "SCHEDULED TODAY", value: metrics.scheduled, accent: COLORS.blue },
-    { label: "CLOCKED IN NOW", value: metrics.clockedIn, accent: COLORS.teal },
+    { label: report.historicalSnapshot ? "CURRENT ACTIVE ROSTER" : "ACTIVE EMPLOYEES", value: metrics.activeEmployees, accent: COLORS.navyLight },
+    { label: "SCHEDULED SHIFTS", value: metrics.scheduled, accent: COLORS.blue },
+    { label: report.historicalSnapshot ? "UNCLOSED CLOCK-INS" : "OPEN SESSIONS", value: metrics.clockedIn, accent: report.historicalSnapshot ? COLORS.amber : COLORS.teal },
     { label: "CLOCKED OUT", value: metrics.clockedOut, accent: COLORS.green },
     { label: "SCHEDULED, NO PUNCHES", value: metrics.noPunches, accent: metrics.noPunches ? COLORS.amber : COLORS.green },
   ];
@@ -474,10 +503,12 @@ function drawSummary(page: PdfPage, report: DailyAttendanceReport): void {
     drawText(page, item.value, x + 9, top + 19, 16, COLORS.ink, true);
   });
 
-  drawText(page, "POINT-IN-TIME SNAPSHOT", MARGIN, 174, 6.2, COLORS.teal, true);
+  drawText(page, "ATTENDANCE SNAPSHOT", MARGIN, 174, 6.2, COLORS.teal, true);
   drawText(
     page,
-    "Snapshot at generation time. No punches do not confirm absence. Recorded elapsed time is not payable time; scheduled breaks are not automatically deducted. Open sessions are marked *.",
+    report.historicalSnapshot
+      ? "Historical punch data uses the current active roster. Unmatched clock-ins are flagged; durations and overtime are not estimated. + marks completed intervals only; no punches do not prove absence."
+      : "Snapshot at generation time. No punches do not confirm absence. Recorded elapsed time is not payable time; scheduled breaks are not automatically deducted. Open sessions are marked *.",
     MARGIN + 113,
     174,
     6.3,
@@ -497,11 +528,12 @@ const MAIN_COLUMNS = [
   { label: "ATTENDANCE STATUS", width: 185 },
 ] as const;
 
-function drawMainTableHeader(page: PdfPage, top: number): void {
+function drawMainTableHeader(page: PdfPage, top: number, historicalSnapshot = false): void {
   drawRect(page, MARGIN, top, CONTENT_WIDTH, 27, COLORS.navyLight);
   let x = MARGIN;
   for (const column of MAIN_COLUMNS) {
-    drawText(page, column.label, x + 5, top + 9, 5.7, COLORS.white, true, column.width - 9);
+    const label = historicalSnapshot && column.label === "RECORDED*" ? "RECORDED+" : column.label;
+    drawText(page, label, x + 5, top + 9, 5.7, COLORS.white, true, column.width - 9);
     x += column.width;
   }
 }
@@ -512,7 +544,7 @@ function drawMainRow(page: PdfPage, row: DailyAttendanceRecord, index: number, t
   drawRect(page, MARGIN, top, CONTENT_WIDTH, height, background);
   drawLine(page, MARGIN, top + height, MARGIN + CONTENT_WIDTH, top + height, COLORS.border, 0.45);
 
-  const a = analyse(row, report.generatedAt);
+  const a = analyse(row, report.generatedAt, report.historicalSnapshot);
   const cells: Array<{ width: number; draw: (x: number) => void }> = [];
   const startX = MARGIN;
 
@@ -547,7 +579,7 @@ function drawMainRow(page: PdfPage, row: DailyAttendanceRecord, index: number, t
   });
   cells.push({
     width: MAIN_COLUMNS[5].width,
-    draw: (x) => drawText(page, analysisDuration(a), x + 5, top + 12, 6.3, a.invalidSequence ? COLORS.red : COLORS.ink, true, MAIN_COLUMNS[5].width - 8),
+    draw: (x) => drawText(page, analysisDuration(a, report.historicalSnapshot), x + 5, top + 12, 6.3, a.invalidSequence ? COLORS.red : report.historicalSnapshot && a.hasOpenSession ? COLORS.amber : COLORS.ink, true, MAIN_COLUMNS[5].width - 8),
   });
   cells.push({
     width: MAIN_COLUMNS[6].width,
@@ -566,18 +598,18 @@ function newPage(): PdfPage {
   return { content: [] };
 }
 
-function drawMainPages(report: DailyAttendanceReport): PdfPage[] {
+function drawMainPages(report: DailyAttendanceReport, monthLabel?: string): PdfPage[] {
   const rows = report.rows;
   const pageCount = Math.max(1, Math.ceil(rows.length / MAIN_ROWS_PER_PAGE));
   const pages: PdfPage[] = [];
 
   for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
     const page = newPage();
-    drawHeader(page, report, pageIndex > 0);
+    drawHeader(page, report, pageIndex > 0, monthLabel);
     drawSummary(page, report);
     drawText(page, "DAILY ATTENDANCE REGISTER", MARGIN, 190, 8.4, COLORS.ink, true);
     drawRightText(page, "EMPLOYEE DETAIL REGISTER", PAGE_WIDTH - MARGIN, 192, 6.1, COLORS.muted);
-    drawMainTableHeader(page, 207);
+    drawMainTableHeader(page, 207, report.historicalSnapshot);
 
     const offset = pageIndex * MAIN_ROWS_PER_PAGE;
     const pageRows = rows.slice(offset, offset + MAIN_ROWS_PER_PAGE);
@@ -643,6 +675,63 @@ function serializePdf(pages: PdfPage[]): Buffer {
   xref += `trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
   chunks.push(Buffer.from(xref, "ascii"));
   return Buffer.concat(chunks);
+}
+
+
+export type MonthlyDailyAttendanceReport = {
+  organizationName: string;
+  fromMonth: string;
+  toMonth: string;
+  timeZone: string;
+  reportScope: string;
+  generatedAt: Date;
+  generatedBy: string;
+  months: Array<{
+    month: string;
+    days: Array<{ reportDate: string; rows: DailyAttendanceRecord[]; historicalSnapshot: boolean }>;
+  }>;
+};
+
+/**
+ * Build one combined PDF from the existing daily attendance report layout.
+ * All daily reports remain in chronological order. Every daily register
+ * carries its month label, and each date remains on its own complete page set.
+ */
+export function createMonthlyAttendancePdf(report: MonthlyDailyAttendanceReport): Buffer {
+  const pages: PdfPage[] = [];
+
+  for (const month of report.months) {
+    const monthLabel = formatMonth(month.month);
+    for (const day of month.days) {
+      const dailyReport: DailyAttendanceReport = {
+        organizationName: report.organizationName,
+        reportDate: day.reportDate,
+        historicalSnapshot: day.historicalSnapshot,
+        timeZone: report.timeZone,
+        reportScope: report.reportScope,
+        generatedAt: report.generatedAt,
+        generatedBy: report.generatedBy,
+        rows: day.rows,
+      };
+      // A month begins with the first page of its first daily register. Since
+      // every daily register is serialized as complete PDF pages, no month can
+      // share a page with the preceding month.
+      pages.push(...drawMainPages(dailyReport, monthLabel));
+    }
+  }
+
+  pages.forEach((page, index) => {
+    page.content.push(
+      `BT /F1 6 Tf ${color(COLORS.muted)} rg 1 0 0 1 ${fmt(PAGE_WIDTH - MARGIN - 66)} ${fmt(PAGE_HEIGHT - 576 - 6)} Tm (${escapePdf(`Page ${index + 1} of ${pages.length}`)}) Tj ET`,
+    );
+  });
+  return serializePdf(pages);
+}
+
+function formatMonth(value: string): string {
+  const [year, month] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })
+    .format(new Date(Date.UTC(year, month - 1, 1)));
 }
 
 export function createDailyAttendancePdf(report: DailyAttendanceReport): Buffer {

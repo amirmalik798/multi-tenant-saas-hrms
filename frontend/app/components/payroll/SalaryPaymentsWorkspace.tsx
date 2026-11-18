@@ -18,6 +18,20 @@ type PayslipDialogState = {
   endMonth: string;
   payload: SalarySlipPayload;
 };
+type BulkPayslipEmployee = {
+  employeeId: string;
+  employeeCode: string | null;
+  firstName: string;
+  lastName: string;
+  departmentName: string | null;
+  workforceRole: string | null;
+};
+type BulkPayslipProgress = { phase: "scope" | "slips" | "verify"; completed: number; total: number };
+const MAX_BULK_SLIP_STATEMENTS = 3000;
+const MAX_BULK_SLIP_EMPLOYEES = 500;
+function isPayrollMonth(value: string) { return /^\d{4}-(0[1-9]|1[0-2])$/.test(value); }
+function payrollMonthOrdinal(value: string) { const [year, month] = value.split("-").map(Number); return year * 12 + month - 1; }
+function payrollMonthFromOrdinal(value: number) { const year = Math.floor(value / 12); const month = value % 12 + 1; return String(year) + "-" + String(month).padStart(2, "0"); }
 const INPUT = "mt-1.5 w-full rounded-xl border border-slate-700 bg-[#0b111b] px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-sky-400";
 const BUTTON = "inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold !text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 [&>svg]:!text-white";
 function localDate() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -45,12 +59,19 @@ function formatPayrollTimestamp(value: string | null | undefined, timeZone: stri
 export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeEmployeeId }: Props) {
   const canEdit = audience === "hr-manager" || audience === "organization-admin";
   const [month, setMonth] = useState("");
+  const [organizationCurrentMonth, setOrganizationCurrentMonth] = useState("");
   const [monthReady, setMonthReady] = useState(false);
   const [organizationTimeZone, setOrganizationTimeZone] = useState("");
   const [dateWarning, setDateWarning] = useState("");
   const [payslipLoading, setPayslipLoading] = useState("");
   const [payslipDialog, setPayslipDialog] = useState<PayslipDialogState | null>(null);
   const [generatingPayslip, setGeneratingPayslip] = useState(false);
+  const [bulkPayslipOpen, setBulkPayslipOpen] = useState(false);
+  const [bulkStartMonth, setBulkStartMonth] = useState("");
+  const [bulkEndMonth, setBulkEndMonth] = useState("");
+  const [bulkPayslipLoading, setBulkPayslipLoading] = useState(false);
+  const [bulkPayslipError, setBulkPayslipError] = useState("");
+  const [bulkPayslipProgress, setBulkPayslipProgress] = useState<BulkPayslipProgress | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
@@ -69,6 +90,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   const paymentConfirmationRef = useRef<HTMLElement | null>(null);
   const paymentDialogPreviousFocusRef = useRef<HTMLElement | null>(null);
   const payslipPrintWindowRef = useRef<Window | null>(null);
+  const bulkPayslipPrintWindowRef = useRef<Window | null>(null);
   const payslipDialogRef = useRef<HTMLElement | null>(null);
   const payslipDialogBusyRef = useRef(false);
   useEffect(() => {
@@ -89,11 +111,18 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         if (!cancelled) {
           setOrganizationTimeZone(typeof payload?.timeZone === "string" ? payload.timeZone : "");
           setMonth(today.slice(0, 7));
+          setOrganizationCurrentMonth(today.slice(0, 7));
+          setBulkStartMonth(today.slice(0, 7));
+          setBulkEndMonth(today.slice(0, 7));
           setDateWarning("");
         }
       } catch {
         if (!cancelled) {
-          setMonth(monthNow());
+          const fallbackMonth = monthNow();
+          setMonth(fallbackMonth);
+          setOrganizationCurrentMonth(fallbackMonth);
+          setBulkStartMonth(fallbackMonth);
+          setBulkEndMonth(fallbackMonth);
           setDateWarning("Organization date settings could not be loaded. The payroll month is using your device date; verify the selected month before recording payments.");
         }
       } finally {
@@ -235,7 +264,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   useWorkspaceAutoRefresh(() => load(true), {
     enabled: true,
     intervalMs: 60_000,
-    shouldRefresh: () => monthReady && Boolean(month) && !loading && !saving && !paymentConfirmation && !hasUnsavedChanges,
+    shouldRefresh: () => monthReady && Boolean(month) && !loading && !saving && !bulkPayslipLoading && !paymentConfirmation && !hasUnsavedChanges,
   });
   const paidCount = payments.filter((payment) => payment.status === "PAID").length;
   const noHoursCount = payments.filter((payment) => payment.status === "NO_RECORDED_HOURS").length;
@@ -366,7 +395,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   }
 
   async function printSalarySlip(targetEmployeeId: string) {
-    if (!canEdit || !targetEmployeeId || payslipLoading || payslipDialog) return;
+    if (!canEdit || !targetEmployeeId || bulkPayslipLoading || payslipLoading || payslipDialog) return;
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
       setError("Choose a valid payroll month before preparing a salary slip.");
       return;
@@ -569,7 +598,262 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
     setPayslipDialog(null);
   }
 
+
+  function isBulkPayslipPresetSelected(months: number) {
+    if (!isPayrollMonth(organizationCurrentMonth) || !isPayrollMonth(bulkStartMonth) || !isPayrollMonth(bulkEndMonth)) return false;
+    const endOrdinal = payrollMonthOrdinal(organizationCurrentMonth);
+    const startOrdinal = Math.max(payrollMonthOrdinal("2000-01"), endOrdinal - months + 1);
+    return bulkStartMonth === payrollMonthFromOrdinal(startOrdinal) && bulkEndMonth === organizationCurrentMonth;
+  }
+
+  function applyBulkPayslipPreset(months: number) {
+    if (!isPayrollMonth(organizationCurrentMonth)) return;
+    const endOrdinal = payrollMonthOrdinal(organizationCurrentMonth);
+    const startOrdinal = Math.max(payrollMonthOrdinal("2000-01"), endOrdinal - months + 1);
+    setBulkStartMonth(payrollMonthFromOrdinal(startOrdinal));
+    setBulkEndMonth(organizationCurrentMonth);
+    setBulkPayslipError("");
+  }
+
+  async function generateBulkSalarySlips() {
+    if (!canEdit || bulkPayslipLoading || (bulkPayslipPrintWindowRef.current && !bulkPayslipPrintWindowRef.current.closed) || saving || payslipLoading || payslipDialog || generatingPayslip) return;
+    if (hasUnsavedChanges) {
+      setBulkPayslipError("Save or discard the unsaved payment edits before generating workforce salary slips.");
+      return;
+    }
+    if (!isPayrollMonth(bulkStartMonth) || !isPayrollMonth(bulkEndMonth)) {
+      setBulkPayslipError("Choose valid From month and To month values.");
+      return;
+    }
+
+    const startOrdinal = payrollMonthOrdinal(bulkStartMonth);
+    const endOrdinal = payrollMonthOrdinal(bulkEndMonth);
+    if (startOrdinal > endOrdinal) {
+      setBulkPayslipError("The From month must be before or equal to the To month.");
+      return;
+    }
+    const monthCount = endOrdinal - startOrdinal + 1;
+    if (monthCount > 24) {
+      setBulkPayslipError("A combined salary-slip report can cover at most 24 months.");
+      return;
+    }
+    if (isPayrollMonth(organizationCurrentMonth) && endOrdinal > payrollMonthOrdinal(organizationCurrentMonth)) {
+      setBulkPayslipError("Future payroll months cannot be included. Select a range ending no later than the current organization month.");
+      return;
+    }
+
+    // Open the print window directly in the click handler so popup blockers do not
+    // discard the report after the asynchronous workforce and payslip requests.
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      setBulkPayslipError("Your browser blocked the combined salary-slip window. Allow pop-ups for this site and try again.");
+      return;
+    }
+
+    bulkPayslipPrintWindowRef.current = printWindow;
+    printWindow.document.open();
+    printWindow.document.write("<!doctype html><html><head><title>Preparing workforce salary slips</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing workforce salary slips…</h2><p>Checking the authorized workforce and loading each monthly statement.</p></body></html>");
+    printWindow.document.close();
+
+    setBulkPayslipLoading(true);
+    setBulkPayslipError("");
+    setError("");
+    setNotice("");
+    setBulkPayslipProgress({ phase: "scope", completed: 0, total: 1 });
+
+    const query = new URLSearchParams({ startMonth: bulkStartMonth, endMonth: bulkEndMonth });
+    const loadRoster = async (): Promise<BulkPayslipEmployee[]> => {
+      const response = await fetch("/api/backend/payroll/payslips?" + query.toString(), {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      const payload = await response.json().catch(() => null) as {
+        message?: string;
+        employees?: BulkPayslipEmployee[];
+        startMonth?: string;
+        endMonth?: string;
+        limitExceeded?: boolean;
+        maxEmployees?: number;
+      } | null;
+      if (!response.ok) {
+        throw new Error(payload && typeof payload.message === "string"
+          ? payload.message
+          : "Unable to load the authorized workforce for this report.");
+      }
+      if (!payload || payload.startMonth !== bulkStartMonth || payload.endMonth !== bulkEndMonth || !Array.isArray(payload.employees)) {
+        throw new Error("The authorized workforce response was incomplete. Please retry the report.");
+      }
+      if (payload.limitExceeded) {
+        const maxEmployees = Number.isInteger(payload.maxEmployees) && Number(payload.maxEmployees) > 0
+          ? Number(payload.maxEmployees)
+          : Math.min(MAX_BULK_SLIP_EMPLOYEES, Math.floor(MAX_BULK_SLIP_STATEMENTS / monthCount));
+        throw new Error(
+          "The selected range supports up to " + maxEmployees.toLocaleString() +
+          " workforce members and " + MAX_BULK_SLIP_STATEMENTS.toLocaleString() +
+          " employee-month statements. Shorten the month range to include more people.",
+        );
+      }
+
+      const seen = new Set<string>();
+      const employees = payload.employees.map((employee) => {
+        if (
+          !employee ||
+          typeof employee.employeeId !== "string" ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(employee.employeeId) ||
+          typeof employee.firstName !== "string" ||
+          typeof employee.lastName !== "string"
+        ) {
+          throw new Error("The workforce list contained an invalid employee record. No combined report was printed.");
+        }
+        if (seen.has(employee.employeeId)) {
+          throw new Error("The workforce list contained a duplicate employee. No combined report was printed.");
+        }
+        seen.add(employee.employeeId);
+        return employee;
+      });
+      return employees.sort((a, b) => {
+        const nameA = ([a.firstName, a.lastName].filter(Boolean).join(" ") || a.employeeCode || "Employee").trim();
+        const nameB = ([b.firstName, b.lastName].filter(Boolean).join(" ") || b.employeeCode || "Employee").trim();
+        return nameA.localeCompare(nameB, "en", { sensitivity: "base", numeric: true }) ||
+          String(a.employeeCode || "").localeCompare(String(b.employeeCode || ""), "en", { sensitivity: "base", numeric: true }) ||
+          a.employeeId.localeCompare(b.employeeId);
+      });
+    };
+
+    try {
+      const employees = await loadRoster();
+      if (employees.length === 0) {
+        throw new Error("There are no eligible workforce members with active employment or payroll activity in the selected period.");
+      }
+
+      const statementCount = employees.length * monthCount;
+      if (statementCount > MAX_BULK_SLIP_STATEMENTS) {
+        throw new Error(
+          "This range would create " + statementCount.toLocaleString() +
+          " employee-month statements. The combined report limit is " +
+          MAX_BULK_SLIP_STATEMENTS.toLocaleString() +
+          ". Choose a shorter month range to keep the print job reliable.",
+        );
+      }
+
+      const expectedMonths = Array.from({ length: monthCount }, (_, index) =>
+        payrollMonthFromOrdinal(startOrdinal + index)
+      );
+      const slipsByEmployee = new Map<string, SalarySlipPayload>();
+      const concurrency = 3;
+      setBulkPayslipProgress({ phase: "slips", completed: 0, total: employees.length });
+
+      for (let offset = 0; offset < employees.length; offset += concurrency) {
+        const batch = employees.slice(offset, offset + concurrency);
+        const batchResults = await Promise.all(batch.map(async (employee) => {
+          const employeeQuery = new URLSearchParams({
+            startMonth: bulkStartMonth,
+            endMonth: bulkEndMonth,
+          });
+          const response = await fetch(
+            "/api/backend/payroll/payslips/" + encodeURIComponent(employee.employeeId) + "?" + employeeQuery.toString(),
+            { credentials: "same-origin", cache: "no-store" },
+          );
+          const payload = await response.json().catch(() => null) as SalarySlipPayload | { message?: string } | null;
+          if (!response.ok) {
+            const reason = payload && "message" in payload && typeof payload.message === "string"
+              ? payload.message
+              : "The server rejected this workforce member's salary slip.";
+            const name = ([employee.firstName, employee.lastName].filter(Boolean).join(" ") || employee.employeeCode || "Employee");
+            throw new Error("Unable to prepare the salary slip for " + name + ": " + reason);
+          }
+          if (
+            !payload ||
+            !("months" in payload) ||
+            !payload.employee ||
+            payload.employee.id !== employee.employeeId ||
+            payload.startMonth !== bulkStartMonth ||
+            payload.endMonth !== bulkEndMonth ||
+            !Array.isArray(payload.months) ||
+            payload.months.length !== monthCount ||
+            payload.months.some((item, index) => item.month !== expectedMonths[index])
+          ) {
+            const name = ([employee.firstName, employee.lastName].filter(Boolean).join(" ") || employee.employeeCode || "Employee");
+            throw new Error("The salary-slip data for " + name + " was incomplete or did not match the selected month range.");
+          }
+          return payload;
+        }));
+
+        for (const payload of batchResults) {
+          slipsByEmployee.set(payload.employee.id, payload);
+        }
+        setBulkPayslipProgress({
+          phase: "slips",
+          completed: Math.min(employees.length, offset + batch.length),
+          total: employees.length,
+        });
+      }
+
+      setBulkPayslipProgress({ phase: "verify", completed: 0, total: 1 });
+      const latestEmployees = await loadRoster();
+      const initialIds = employees.map((employee) => employee.employeeId).sort();
+      const latestIds = latestEmployees.map((employee) => employee.employeeId).sort();
+      if (initialIds.length !== latestIds.length || initialIds.some((id, index) => id !== latestIds[index])) {
+        throw new Error("The authorized workforce changed while the report was being prepared. No combined report was printed; reload and try again.");
+      }
+
+      const orderedSlips = employees.map((employee) => slipsByEmployee.get(employee.employeeId));
+      if (orderedSlips.some((payload) => !payload)) {
+        throw new Error("One or more salary slips were missing. No partial combined report was printed.");
+      }
+      const completedSlips = orderedSlips as SalarySlipPayload[];
+      const paidMonths = completedSlips.reduce(
+        (sum, payload) => sum + payload.months.filter((item) => item.payment.status === "PAID").length,
+        0,
+      );
+      const unpaidMonths = statementCount - paidMonths;
+
+      if (printWindow.closed) {
+        throw new Error("The print window was closed before the combined salary slips were ready. Reopen the report and try again.");
+      }
+      printWindow.document.open();
+      printWindow.document.write(buildSalarySlipDocument(completedSlips));
+      printWindow.document.close();
+
+      const printWhenReady = () => {
+        if (printWindow.closed) return;
+        printWindow.focus();
+        printWindow.document.getElementById("salary-slip-print")?.addEventListener("click", () => {
+          if (!printWindow.closed) {
+            printWindow.focus();
+            printWindow.print();
+          }
+        }, { once: true });
+        printWindow.print();
+      };
+      if (printWindow.document.readyState === "complete") {
+        window.setTimeout(printWhenReady, 250);
+      } else {
+        printWindow.addEventListener("load", () => window.setTimeout(printWhenReady, 250), { once: true });
+      }
+
+      setBulkPayslipProgress(null);
+      setBulkPayslipOpen(false);
+      setNotice(
+        "Combined salary slips prepared for " + employees.length +
+        " workforce members across " + monthCount + " month(s): " +
+        paidMonths + " PAID and " + unpaidMonths +
+        " UNPAID employee-month statements. Payment records were not changed.",
+      );
+      bulkPayslipPrintWindowRef.current = null;
+    } catch (caught) {
+      if (!printWindow.closed) printWindow.close();
+      bulkPayslipPrintWindowRef.current = null;
+      setBulkPayslipError(caught instanceof Error ? caught.message : "Unable to prepare the combined salary-slip report.");
+      setBulkPayslipProgress(null);
+    } finally {
+      setBulkPayslipLoading(false);
+    }
+  }
+
+
   async function save(employeeId: string, confirmed = false) {
+    if (bulkPayslipLoading) return;
     const draft = drafts[employeeId]; if (!draft) return;
     const currentPayment = payments.find((payment) => payment.employeeId === employeeId);
     const currentStatus = currentPayment?.status === "PAID" ? "PAID" : "UNPAID";
@@ -617,7 +901,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
           <input
             type="month"
             value={month}
-            disabled={!monthReady || Boolean(saving) || Boolean(payslipLoading) || Boolean(payslipDialog) || hasUnsavedChanges}
+            disabled={!monthReady || Boolean(saving) || bulkPayslipLoading || Boolean(payslipLoading) || Boolean(payslipDialog) || hasUnsavedChanges}
             onChange={(event) => {
               const nextMonth = event.target.value;
               if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(nextMonth) || nextMonth === month) return;
@@ -646,11 +930,130 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         {canEdit && (hasUnsavedChanges
           ? <span aria-disabled="true" title="Save or discard payment edits before opening pay rates." className="inline-flex min-h-10 cursor-not-allowed items-center justify-center rounded-xl border border-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-500">Manage pay rates</span>
           : <Link href={audience === "hr-manager" ? "/hr/modules/pay-rates" : "/org/pay-rates"} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-600 bg-white/[0.025] px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07]">Manage pay rates</Link>)}
-        <button type="button" onClick={exportPayrollRegister} disabled={loading || hasUnsavedChanges || payments.length === 0 || visiblePayments.length === 0} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-sky-600 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-40">
+        {canEdit && <button type="button" onClick={() => {
+          if (!bulkPayslipOpen) {
+            const currentMonth = organizationCurrentMonth || monthNow();
+            setBulkStartMonth(currentMonth);
+            setBulkEndMonth(currentMonth);
+            setBulkPayslipError("");
+          }
+          setBulkPayslipOpen(!bulkPayslipOpen);
+        }} disabled={!monthReady || loading || hasUnsavedChanges || bulkPayslipLoading || Boolean(payslipLoading) || Boolean(payslipDialog)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/25 bg-cyan-300/[0.07] px-3.5 py-2 text-xs font-bold text-cyan-100 transition hover:bg-cyan-300/[0.12] disabled:cursor-not-allowed disabled:opacity-40">
+          <Printer size={14}/>{bulkPayslipOpen ? "Close multi-month slips" : "Generate multi-month pay slips"}
+        </button>}
+        <button type="button" onClick={exportPayrollRegister} disabled={loading || bulkPayslipLoading || hasUnsavedChanges || payments.length === 0 || visiblePayments.length === 0} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-sky-600 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-40">
           <FileDown size={14}/>Export register PDF
         </button>
       </div>
     </header>
+
+    {canEdit && bulkPayslipOpen && (
+      <section aria-label="Generate combined workforce salary slips" className="rounded-2xl border border-cyan-300/20 bg-gradient-to-br from-[#123044] via-[#102234] to-[#101a29] p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200/80">Combined workforce report</p>
+            <h3 className="mt-1 text-base font-bold text-white">Multi-month salary slips</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-300">One monthly salary statement for every eligible workforce member. Members are sorted A–Z, and each statement shows the latest payment status from the payroll ledger.</p>
+          </div>
+          <span className="rounded-full border border-cyan-300/20 bg-black/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-cyan-100">
+            {audience === "organization-admin" ? "Organization-wide" : "HR reporting scope"}
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="block text-xs font-semibold text-slate-300">
+            From month
+            <input
+              type="month"
+              value={bulkStartMonth}
+              min="2000-01"
+              max={bulkEndMonth || organizationCurrentMonth || undefined}
+              disabled={bulkPayslipLoading}
+              onChange={(event) => { setBulkStartMonth(event.target.value); setBulkPayslipError(""); }}
+              className={INPUT}
+            />
+          </label>
+          <label className="block text-xs font-semibold text-slate-300">
+            To month
+            <input
+              type="month"
+              value={bulkEndMonth}
+              min={bulkStartMonth || "2000-01"}
+              max={organizationCurrentMonth || undefined}
+              disabled={bulkPayslipLoading}
+              onChange={(event) => { setBulkEndMonth(event.target.value); setBulkPayslipError(""); }}
+              className={INPUT}
+            />
+          </label>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400">Quick range</span>
+          {([
+            { months: 3, label: "Last 3 months" },
+            { months: 6, label: "Last 6 months" },
+            { months: 12, label: "Last 12 months" },
+            { months: 1, label: "This month" },
+          ] as const).map((preset) => {
+            const selected = isBulkPayslipPresetSelected(preset.months);
+            return (
+              <button
+                key={preset.months}
+                type="button"
+                onClick={() => applyBulkPayslipPreset(preset.months)}
+                disabled={bulkPayslipLoading || !monthReady}
+                aria-pressed={selected}
+                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 disabled:opacity-40 ${
+                  selected
+                    ? "border-cyan-300/40 bg-cyan-300/[0.12] text-cyan-100 shadow-sm shadow-cyan-950/20"
+                    : "border-white/[0.10] bg-white/[0.035] text-slate-300 hover:border-cyan-300/30 hover:bg-cyan-300/[0.06] hover:text-cyan-100"
+                }`}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 border-t border-white/[0.09] pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 text-xs leading-5 text-slate-300">
+            {!isPayrollMonth(bulkStartMonth) || !isPayrollMonth(bulkEndMonth)
+              ? "Choose a valid month range."
+              : payrollMonthOrdinal(bulkStartMonth) > payrollMonthOrdinal(bulkEndMonth)
+                ? <span className="text-amber-200">The From month must not be later than the To month.</span>
+                : payrollMonthOrdinal(bulkEndMonth) - payrollMonthOrdinal(bulkStartMonth) + 1 > 24
+                  ? <span className="text-amber-200">Choose a range of 24 months or fewer.</span>
+                  : <span>{payrollMonthOrdinal(bulkEndMonth) - payrollMonthOrdinal(bulkStartMonth) + 1} month(s) · A maximum of 500 workforce members and 3,000 employee-month statements per combined report.</span>}
+            <span className="mt-1 block text-[11px] text-slate-400">Only your authorized workforce is included. This report does not create, edit or mark any salary payment as paid.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => void generateBulkSalarySlips()}
+            disabled={bulkPayslipLoading || loading || !monthReady || hasUnsavedChanges || !isPayrollMonth(bulkStartMonth) || !isPayrollMonth(bulkEndMonth) || payrollMonthOrdinal(bulkStartMonth) > payrollMonthOrdinal(bulkEndMonth) || payrollMonthOrdinal(bulkEndMonth) - payrollMonthOrdinal(bulkStartMonth) + 1 > 24 || (isPayrollMonth(organizationCurrentMonth) && payrollMonthOrdinal(bulkEndMonth) > payrollMonthOrdinal(organizationCurrentMonth))}
+            className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {bulkPayslipLoading ? <RefreshCw size={14} className="animate-spin"/> : <FileDown size={14}/>}
+            {bulkPayslipLoading ? "Preparing combined PDF…" : "Generate combined PDF"}
+          </button>
+        </div>
+
+        {bulkPayslipLoading && bulkPayslipProgress && (
+          <div role="status" className="mt-3 rounded-xl border border-cyan-300/15 bg-black/15 p-3 text-xs text-cyan-100">
+            {bulkPayslipProgress.phase === "scope"
+              ? "Checking the authorized workforce…"
+              : bulkPayslipProgress.phase === "verify"
+                ? "Verifying that the reporting scope has not changed…"
+                : "Preparing salary slips: " + bulkPayslipProgress.completed + " of " + bulkPayslipProgress.total + " workforce members"}
+            {bulkPayslipProgress.phase === "slips" && (
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+                <div className="h-full rounded-full bg-cyan-300 transition-all" style={{ width: Math.round((bulkPayslipProgress.completed / Math.max(1, bulkPayslipProgress.total)) * 100) + "%" }}/>
+              </div>
+            )}
+          </div>
+        )}
+        {bulkPayslipError && <p role="alert" className="mt-3 rounded-xl border border-rose-300/20 bg-rose-300/[0.06] p-3 text-sm leading-5 text-rose-100">{bulkPayslipError}</p>}
+      </section>
+    )}
 
     {dateWarning && <div role="status" className="rounded-xl border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm text-amber-100">{dateWarning}</div>}
     {error && <div role="alert" className="flex flex-col gap-3 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between"><span>{error}</span><button type="button" disabled={loading || Boolean(saving) || hasUnsavedChanges} onClick={() => void load()} className="min-h-9 shrink-0 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-bold text-rose-100 hover:bg-rose-300/10 disabled:opacity-50">{loading ? "Retrying…" : hasUnsavedChanges ? "Discard edits to retry" : "Retry"}</button></div>}
@@ -807,7 +1210,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                         {isExpanded ? <ChevronDown size={13}/> : canEdit ? <Pencil size={13}/> : <Eye size={13}/>}
                         {isExpanded ? "Close" : canEdit ? "Manage" : "View"}
                       </button>
-                      {canEdit && <button type="button" onClick={() => void printSalarySlip(payment.employeeId)} disabled={Boolean(payslipLoading) || Boolean(payslipDialog) || hasUnsavedChanges || !month} title={hasUnsavedChanges ? "Save or discard payment edits before preparing a salary slip." : "Prepare this workforce member’s salary slip."} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-sky-300/20 bg-sky-300/[0.06] px-2.5 py-1.5 text-[11px] font-semibold text-sky-200 transition hover:bg-sky-300/[0.12] disabled:opacity-40">
+                      {canEdit && <button type="button" onClick={() => void printSalarySlip(payment.employeeId)} disabled={bulkPayslipLoading || Boolean(payslipLoading) || Boolean(payslipDialog) || hasUnsavedChanges || !month} title={hasUnsavedChanges ? "Save or discard payment edits before preparing a salary slip." : "Prepare this workforce member’s salary slip."} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-sky-300/20 bg-sky-300/[0.06] px-2.5 py-1.5 text-[11px] font-semibold text-sky-200 transition hover:bg-sky-300/[0.12] disabled:opacity-40">
                         {payslipLoading === payment.employeeId ? <RefreshCw size={13} className="animate-spin"/> : <Printer size={13}/>}Slip
                       </button>}
                     </div>
@@ -831,13 +1234,13 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                       <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-semibold text-white">Payment record</h4><span className="text-[10px] text-slate-500">{payment.paymentRecorded ? `Last updated ${formatPayrollTimestamp(payment.updatedAt, organizationTimeZone)}` : "Not yet recorded"}</span></div>
                       <div className="mt-2 text-[11px] text-slate-500">Recorded by {payment.recordedBy || "—"}{payment.paidAt ? ` · Paid ${formatPayrollTimestamp(payment.paidAt, organizationTimeZone)}` : ""}</div>
                       <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
-                        <label className="block text-xs font-medium text-slate-400">Payment status<select value={draft.status} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,status:event.target.value as "PAID"|"UNPAID"}}))} className={INPUT}><option value="UNPAID">Unpaid</option><option value="PAID">Paid</option></select></label>
-                        <label className="block text-xs font-medium text-slate-400">Payment reference<input maxLength={120} value={draft.paymentReference} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,paymentReference:event.target.value}}))} className={INPUT} placeholder="Bank / transfer reference"/></label>
-                        <label className="block text-xs font-medium text-slate-400 sm:col-span-2">Notes<input maxLength={1000} value={draft.notes} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,notes:event.target.value}}))} className={INPUT} placeholder="Payment note"/></label>
+                        <label className="block text-xs font-medium text-slate-400">Payment status<select value={draft.status} disabled={bulkPayslipLoading || Boolean(saving)} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,status:event.target.value as "PAID"|"UNPAID"}}))} className={INPUT}><option value="UNPAID">Unpaid</option><option value="PAID">Paid</option></select></label>
+                        <label className="block text-xs font-medium text-slate-400">Payment reference<input maxLength={120} value={draft.paymentReference} disabled={bulkPayslipLoading || Boolean(saving)} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,paymentReference:event.target.value}}))} className={INPUT} placeholder="Bank / transfer reference"/></label>
+                        <label className="block text-xs font-medium text-slate-400 sm:col-span-2">Notes<input maxLength={1000} value={draft.notes} disabled={bulkPayslipLoading || Boolean(saving)} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,notes:event.target.value}}))} className={INPUT} placeholder="Payment note"/></label>
                       </div>
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
                         <p className="max-w-2xl text-[11px] leading-5 text-slate-500">{(payment.payableMinutes || 0) <= 0 ? "No payable hours are available for this month." : payment.status === "CURRENCY_MISMATCH" ? "Resolve the currency mismatch in pay-rate history first." : payment.calculatedAmount == null ? "A valid effective pay rate is required before payment can be recorded." : "The payable amount is calculated from attendance, approved overtime, paid absences and effective pay rates."}</p>
-                        <button type="button" className={BUTTON} disabled={Boolean(saving) || (payment.payableMinutes || 0) <= 0 || payment.calculatedAmount == null} onClick={() => void save(payment.employeeId)}>{saving === payment.employeeId ? <RefreshCw size={14} className="animate-spin"/> : <CheckCircle2 size={14}/>}Save payment</button>
+                        <button type="button" className={BUTTON} disabled={Boolean(saving) || bulkPayslipLoading || (payment.payableMinutes || 0) <= 0 || payment.calculatedAmount == null} onClick={() => void save(payment.employeeId)}>{saving === payment.employeeId ? <RefreshCw size={14} className="animate-spin"/> : <CheckCircle2 size={14}/>}Save payment</button>
                       </div>
                     </div> : <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
                       <div className="flex items-center justify-between gap-2"><h4 className="text-sm font-semibold text-white">Payment record</h4><span className="inline-flex items-center gap-1 rounded-full border border-slate-600 px-2 py-1 text-[10px] font-semibold text-slate-400"><LockKeyhole size={10}/>Read only</span></div>

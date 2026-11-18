@@ -24,7 +24,7 @@ export default function HRManagerAttendanceReportsPage() {
       user={auth.user}
       activePage="reports"
       title="Attendance reports"
-      description="Attendance PDFs for Department Managers and Employees."
+      description="Monthly workforce and individual attendance PDFs within your reporting scope."
       onLogout={() => void auth.logout()}
       loggingOut={auth.loggingOut}
       logoutError={auth.error}
