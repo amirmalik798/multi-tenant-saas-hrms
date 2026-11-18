@@ -45,22 +45,6 @@ function dateString(year: number, monthIndex: number, day = 1): string {
 }
 function safeFilenameMonth(value: string): string { return value.replace(/[^0-9-]/g, ""); }
 
-function dateInTimeZone(value: Date, timeZone: string): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(value);
-  const part = (name: string) => parts.find((item) => item.type === name)?.value;
-  const year = part("year");
-  const month = part("month");
-  const day = part("day");
-  if (!year || !month || !day) {
-    throw new Error("Unable to determine the current date in the organization's time zone");
-  }
-  return `${year}-${month}-${day}`;
-}
 
 export async function GET(request: Request) {
   await connection();
@@ -97,22 +81,9 @@ export async function GET(request: Request) {
       return jsonResponse({ message: "A monthly attendance PDF can cover up to 24 calendar months at a time" }, 400);
     }
 
-    const organizationToday = dateInTimeZone(new Date(), metadata.timeZone);
-    const currentOrganizationMonth = organizationToday.slice(0, 7);
-    if (toMonth > currentOrganizationMonth) {
-      return jsonResponse({
-        message: `The To month cannot be after the current organization month (${currentOrganizationMonth})`,
-      }, 400);
-    }
-
     const [fromYear, fromMonthNumber] = fromMonth.split("-").map(Number);
     const [toYear, toMonthNumber] = toMonth.split("-").map(Number);
     const fromDate = dateString(fromYear, fromMonthNumber - 1);
-    // The current month is a partial period: never report future days as
-    // unpunched. Completed months retain their full calendar-month range.
-    const toDate = toMonth === currentOrganizationMonth
-      ? organizationToday
-      : dateString(toYear, toMonthNumber, 0);
 
     const metadataResult = await pool.query<Metadata>(
       `SELECT
@@ -136,12 +107,30 @@ export async function GET(request: Request) {
     try { new Intl.DateTimeFormat("en-GB", { timeZone: metadata.timeZone }); }
     catch { return jsonResponse({ message: "The organization's configured time zone is invalid" }, 500); }
 
-    const organizationToday = String(metadata.organizationToday).slice(0, 10);
-    const effectiveToDate = toDate > organizationToday ? organizationToday : toDate;
-    if (fromDate > effectiveToDate) {
-      return jsonResponse({ message: "The selected reporting period does not include any dates that have occurred in the organization's time zone" }, 400);
+    // Calculate the reporting cutoff once in the database, using the exact
+    // same organization time zone used for schedules and attendance dates.
+    const organizationToday = String(metadata.organizationToday ?? "");
+    if (!isValidDateString(organizationToday)) {
+      throw new Error("Organization time-zone date could not be validated");
     }
     const currentOrganizationMonth = organizationToday.slice(0, 7);
+    if (toMonth > currentOrganizationMonth) {
+      return jsonResponse({
+        message: `The To month cannot be after the current organization month (${currentOrganizationMonth})`,
+      }, 400);
+    }
+
+    // Completed months include all calendar days. The current month is limited
+    // to the organization's current date; future dates are never reported as
+    // days with no punches.
+    const toDate = toMonth === currentOrganizationMonth
+      ? organizationToday
+      : dateString(toYear, toMonthNumber, 0);
+    if (fromDate > toDate) {
+      return jsonResponse({
+        message: "The selected reporting period does not include any dates that have occurred in the organization's time zone",
+      }, 400);
+    }
 
     // This is intentionally bounded by both date range and result count. Every
     // month is grouped after the query, so all days for month N precede month N+1.
