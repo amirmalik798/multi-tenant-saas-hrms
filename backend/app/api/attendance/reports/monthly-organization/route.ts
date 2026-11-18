@@ -249,7 +249,6 @@ export async function GET(request: Request) {
            AND ot.request_type = 'PREAUTHORIZATION'
            AND ot.status = 'APPROVED'
        ) AS overtime ON TRUE
-       ORDER BY report_days.work_date, e.department_name NULLS LAST, e.last_name, e.first_name
        LIMIT 120001`,
       [actor.organizationId, fromDate, toDate, scopeMode, scopeEmployeeId],
     );
@@ -278,6 +277,16 @@ export async function GET(request: Request) {
       const rowsForDay = dailyRows.get(date) || [];
       rowsForDay.push({ ...record, events, ...calculated });
       dailyRows.set(date, rowsForDay);
+    }
+
+    // The bounded SQL result avoids a large global sort. Sort each day's small
+    // roster in memory to keep the PDF register deterministic.
+    for (const rowsForDay of dailyRows.values()) {
+      rowsForDay.sort((left, right) =>
+        (left.departmentName || "").localeCompare(right.departmentName || "", "en", { sensitivity: "base" }) ||
+        (left.lastName || "").localeCompare(right.lastName || "", "en", { sensitivity: "base" }) ||
+        (left.firstName || "").localeCompare(right.firstName || "", "en", { sensitivity: "base" }),
+      );
     }
 
     const monthReports = Array.from({ length: monthsCount }, (_, index) => {
