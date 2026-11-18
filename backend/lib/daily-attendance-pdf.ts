@@ -418,7 +418,7 @@ function analysisDuration(analysis: Analysis, historicalSnapshot = false): strin
   const total = analysis.completedSeconds + analysis.openSeconds;
   // Historical duration includes only completed intervals. The dagger points
   // out that an additional clock-in has no matching clock-out and is excluded.
-  const marker = analysis.hasOpenSession ? (historicalSnapshot ? "†" : "*") : "";
+  const marker = analysis.hasOpenSession ? (historicalSnapshot ? "+" : "*") : "";
   return `${formatDuration(total)}${marker}`;
 }
 
@@ -483,7 +483,7 @@ function getMetrics(report: DailyAttendanceReport) {
 function drawSummary(page: PdfPage, report: DailyAttendanceReport): void {
   const metrics = getMetrics(report);
   const items = [
-    { label: "ACTIVE EMPLOYEES", value: metrics.activeEmployees, accent: COLORS.navyLight },
+    { label: report.historicalSnapshot ? "CURRENT ACTIVE ROSTER" : "ACTIVE EMPLOYEES", value: metrics.activeEmployees, accent: COLORS.navyLight },
     { label: "SCHEDULED SHIFTS", value: metrics.scheduled, accent: COLORS.blue },
     { label: report.historicalSnapshot ? "UNCLOSED CLOCK-INS" : "OPEN SESSIONS", value: metrics.clockedIn, accent: report.historicalSnapshot ? COLORS.amber : COLORS.teal },
     { label: "CLOCKED OUT", value: metrics.clockedOut, accent: COLORS.green },
@@ -507,7 +507,7 @@ function drawSummary(page: PdfPage, report: DailyAttendanceReport): void {
   drawText(
     page,
     report.historicalSnapshot
-      ? "Historical record: unmatched clock-ins are flagged; their duration and overtime are not estimated. † Completed intervals only. No punches do not prove absence."
+      ? "Historical record: unmatched clock-ins are flagged; their duration and overtime are not estimated. + Completed intervals only. No punches do not prove absence."
       : "Snapshot at generation time. No punches do not confirm absence. Recorded elapsed time is not payable time; scheduled breaks are not automatically deducted. Open sessions are marked *.",
     MARGIN + 113,
     174,
@@ -528,11 +528,12 @@ const MAIN_COLUMNS = [
   { label: "ATTENDANCE STATUS", width: 185 },
 ] as const;
 
-function drawMainTableHeader(page: PdfPage, top: number): void {
+function drawMainTableHeader(page: PdfPage, top: number, historicalSnapshot = false): void {
   drawRect(page, MARGIN, top, CONTENT_WIDTH, 27, COLORS.navyLight);
   let x = MARGIN;
   for (const column of MAIN_COLUMNS) {
-    drawText(page, column.label, x + 5, top + 9, 5.7, COLORS.white, true, column.width - 9);
+    const label = historicalSnapshot && column.label === "RECORDED*" ? "RECORDED+" : column.label;
+    drawText(page, label, x + 5, top + 9, 5.7, COLORS.white, true, column.width - 9);
     x += column.width;
   }
 }
@@ -608,7 +609,7 @@ function drawMainPages(report: DailyAttendanceReport, monthLabel?: string): PdfP
     drawSummary(page, report);
     drawText(page, "DAILY ATTENDANCE REGISTER", MARGIN, 190, 8.4, COLORS.ink, true);
     drawRightText(page, "EMPLOYEE DETAIL REGISTER", PAGE_WIDTH - MARGIN, 192, 6.1, COLORS.muted);
-    drawMainTableHeader(page, 207);
+    drawMainTableHeader(page, 207, report.historicalSnapshot);
 
     const offset = pageIndex * MAIN_ROWS_PER_PAGE;
     const pageRows = rows.slice(offset, offset + MAIN_ROWS_PER_PAGE);
