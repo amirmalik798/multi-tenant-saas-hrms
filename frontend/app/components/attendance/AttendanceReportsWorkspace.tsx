@@ -551,7 +551,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                 <div className="relative">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200/80">Report preview</span>
-                    <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-400"><LockKeyhole size={11}/> {isOrganizationAdmin ? "Organization-wide" : "HR reporting scope"}</span>
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-400"><LockKeyhole size={11}/> {isOrganizationAdmin ? "Organization-wide" : "HR direct reports"}</span>
                   </div>
                   <p className="mt-4 text-lg font-bold tracking-tight text-white">
                     {validMonthRange ? `${formatMonthLabel(fromMonth)} – ${formatMonthLabel(toMonth)}` : "Select a valid month range"}
