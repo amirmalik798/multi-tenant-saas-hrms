@@ -529,7 +529,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                     <input
                       type="month"
                       value={fromMonth}
-                      disabled={dateLoading || busy}
+                      disabled={dateLoading || busy || !timeZone}
                       min="1900-01"
                       max={toMonth || reportDate.slice(0, 7) || undefined}
                       onChange={(event) => { monthRangeTouched.current = true; setFromMonth(event.target.value); setError(""); setNotice(""); }}
@@ -541,7 +541,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                     <input
                       type="month"
                       value={toMonth}
-                      disabled={dateLoading || busy}
+                      disabled={dateLoading || busy || !timeZone}
                       min={fromMonth || "1900-01"}
                       max={reportDate.slice(0, 7) || undefined}
                       onChange={(event) => { monthRangeTouched.current = true; setToMonth(event.target.value); setError(""); setNotice(""); }}
@@ -575,7 +575,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                         key={months}
                         type="button"
                         onClick={() => applyMonthPreset(months)}
-                        disabled={dateLoading || busy}
+                        disabled={dateLoading || busy || !timeZone}
                         className="rounded-lg border border-white/[0.10] bg-white/[0.035] px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-cyan-300/35 hover:bg-cyan-300/[0.07] hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 disabled:opacity-45"
                       >
                         Last {months} months
@@ -623,7 +623,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
               <button
                 type="button"
                 onClick={() => void generateOrganizationMonthlyReport()}
-                disabled={dateLoading || busy || !validMonthRange || monthRangeTooLarge}
+                disabled={dateLoading || busy || !timeZone || !validMonthRange || monthRangeTooLarge}
                 className={BUTTON}
               >
                 {loadingMode === "organization-monthly" ? <RefreshCw size={16} className="animate-spin"/> : <Download size={16}/>}
