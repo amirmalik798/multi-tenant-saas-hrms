@@ -466,8 +466,8 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
               <span className="flex size-11 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/[0.08] text-cyan-200"><CalendarDays size={20}/></span>
               <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${mode === "organization-monthly" ? "border-sky-300/25 bg-sky-300/10 text-sky-200" : "border-slate-700 text-slate-500"}`}>02 · Monthly series</span>
             </div>
-            <h3 className="mt-4 text-base font-bold text-white">Monthly organization report</h3>
-            <p className="mt-1 text-xs leading-5 text-slate-400">From month · To month · One combined PDF</p>
+            <h3 className="mt-4 text-base font-bold text-white">{isOrganizationAdmin ? "Monthly organization report" : "Monthly direct-reports report"}</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-400">{isOrganizationAdmin ? "Full organization · From month · To month" : "Authorized direct reports · From month · To month"}</p>
           </button>
           )}
           <button
@@ -493,7 +493,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
             <div className="flex items-start gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-cyan-400/[0.08] text-cyan-200 ring-1 ring-cyan-300/15"><CalendarDays size={18}/></span>
               <div className="min-w-0">
-                <h3 className="text-base font-bold text-white">Monthly attendance series</h3>
+                <h3 className="text-base font-bold text-white">{isOrganizationAdmin ? "Organization attendance · Monthly series" : "HR attendance · Monthly series"}</h3>
                 <p className="mt-1 text-xs text-slate-400">Choose an inclusive month range. One PDF will contain every daily attendance register in chronological order.</p>
               </div>
               <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/[0.07] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-200">
