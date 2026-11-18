@@ -256,11 +256,14 @@ export async function GET(request: Request) {
     if (reportResult.rows.length > 120000) {
       return jsonResponse({ message: "This report exceeds the 120,000 daily workforce-row limit. Reduce the selected month range." }, 413);
     }
+    if (reportResult.rows.length === 0) {
+      return jsonResponse({ message: "No active workforce members are available in your reporting scope for this period" }, 404);
+    }
+
     const generatedAt = new Date();
-    const months = new Map<string, DailyAttendanceRecord[]>();
+    const dailyRows = new Map<string, DailyAttendanceRecord[]>();
     for (const row of reportResult.rows) {
-      const date = typeof row.workDate === "string" ? row.workDate.slice(0, 10) : String(row.workDate).slice(0, 10);
-      const month = date.slice(0, 7);
+      const date = String(row.workDate).slice(0, 10);
       const events = parseArray<NonNullable<DailyAttendanceRecord["events"]>[number]>(row.events);
       const calculated = calculateDailyAttendance({
         events,
@@ -271,9 +274,9 @@ export async function GET(request: Request) {
         asOf: generatedAt,
       });
       const { workDate: _workDate, ...record } = row;
-      const monthRows = months.get(month) || [];
-      monthRows.push({ ...record, events, ...calculated });
-      months.set(month, monthRows);
+      const rowsForDay = dailyRows.get(date) || [];
+      rowsForDay.push({ ...record, events, ...calculated });
+      dailyRows.set(date, rowsForDay);
     }
 
     const monthReports = Array.from({ length: monthsCount }, (_, index) => {
@@ -281,8 +284,28 @@ export async function GET(request: Request) {
       const year = Math.floor(ordinalMonth / 12);
       const monthIndex = ordinalMonth % 12;
       const month = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
-      return { month, reportDate: `${month}-01`, rows: months.get(month) || [] };
+      const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+      const days = Array.from({ length: daysInMonth }, (_, dayIndex) => {
+        const reportDate = `${month}-${String(dayIndex + 1).padStart(2, "0")}`;
+        return { reportDate, rows: dailyRows.get(reportDate) || [] };
+      });
+      return { month, days };
     });
+
+    // A daily report uses ten employees per page. Keep the PDF workload
+    // bounded independently from the SQL result-row limit.
+    const estimatedPdfPages = monthReports.reduce(
+      (total, month) => total + month.days.reduce(
+        (dayTotal, day) => dayTotal + Math.max(1, Math.ceil(day.rows.length / 10)),
+        0,
+      ),
+      0,
+    );
+    if (estimatedPdfPages > 5000) {
+      return jsonResponse({
+        message: "This selection would produce more than 5,000 PDF pages. Reduce the month range or reporting scope.",
+      }, 413);
+    }
 
     const report: MonthlyDailyAttendanceReport = {
       organizationName: metadata.organizationName,
