@@ -11,7 +11,7 @@ import {
 
 type ScopeMode = "ALL" | "HR_DIRECT_REPORTS";
 type Metadata = { organizationName: string; timeZone: string; generatedBy: string };
-type Row = DailyAttendanceRecord & { workDate: string; events: unknown };
+type Row = Omit<DailyAttendanceRecord, "events"> & { workDate: string; events: unknown };
 
 function parseArray<T>(value: unknown): T[] {
   if (Array.isArray(value)) return value as T[];
