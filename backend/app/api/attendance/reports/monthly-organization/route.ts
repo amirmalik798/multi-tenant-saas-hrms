@@ -30,7 +30,8 @@ function ordinal(value: string): number {
   return year * 12 + month - 1;
 }
 function dateString(year: number, monthIndex: number, day = 1): string {
-  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const date = new Date(Date.UTC(year, monthIndex, day));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
 }
 function safeFilenameMonth(value: string): string { return value.replace(/[^0-9-]/g, ""); }
 
