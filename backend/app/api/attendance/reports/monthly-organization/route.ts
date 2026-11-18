@@ -2,7 +2,7 @@ import { connection } from "next/server";
 import { pool } from "../../../../../lib/db";
 import { calculateDailyAttendance } from "../../../../../lib/attendance-calculations";
 import { getTenantPermissionActor } from "../../../../../lib/permissions";
-import { isValidDateString, jsonResponse, organizationIsActive } from "../../../../../lib/schedule-utils";
+import { jsonResponse, organizationIsActive } from "../../../../../lib/schedule-utils";
 import {
   createMonthlyAttendancePdf,
   type DailyAttendanceRecord,
@@ -263,8 +263,9 @@ export async function GET(request: Request) {
     const generatedAt = new Date();
     const dailyRows = new Map<string, DailyAttendanceRecord[]>();
     for (const row of reportResult.rows) {
-      const date = String(row.workDate).slice(0, 10);
-      const events = parseArray<NonNullable<DailyAttendanceRecord["events"]>[number]>(row.events);
+      const { workDate, events: eventSource, ...record } = row;
+      const date = String(workDate).slice(0, 10);
+      const events = parseArray<NonNullable<DailyAttendanceRecord["events"]>[number]>(eventSource);
       const calculated = calculateDailyAttendance({
         events,
         expectedStart: row.expectedStart,
@@ -273,7 +274,6 @@ export async function GET(request: Request) {
         approvedOvertimeMinutes: row.approvedOvertimeMinutes,
         asOf: generatedAt,
       });
-      const { workDate: _workDate, ...record } = row;
       const rowsForDay = dailyRows.get(date) || [];
       rowsForDay.push({ ...record, events, ...calculated });
       dailyRows.set(date, rowsForDay);
