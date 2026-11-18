@@ -690,7 +690,7 @@ export function createMonthlyAttendancePdf(report: MonthlyDailyAttendanceReport)
 
   for (const month of report.months) {
     const monthLabel = formatMonth(month.month);
-    for (const [dayIndex, day] of month.days.entries()) {
+    for (const day of month.days) {
       const dailyReport: DailyAttendanceReport = {
         organizationName: report.organizationName,
         reportDate: day.reportDate,
