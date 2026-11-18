@@ -16,7 +16,7 @@ function json(body: unknown, status = 200) {
 }
 
 function validMonth(value: string | null): value is string {
-  if (!value || !/^\\d{4}-(0[1-9]|1[0-2])$/.test(value)) return false;
+  if (!value || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return false;
   const [year, month] = value.split("-").map(Number);
   return year >= 2000 && year <= 2100 && month >= 1 && month <= 12;
 }
