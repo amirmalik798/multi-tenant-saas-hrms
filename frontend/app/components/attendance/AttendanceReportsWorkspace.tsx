@@ -106,6 +106,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
   const isEmployee = audience === "employee";
   const [mode, setMode] = useState<ReportMode>(audience === "organization-admin" || audience === "hr-manager" ? "organization-monthly" : isOrganizationAdmin ? "daily" : "member");
   const [reportDate, setReportDate] = useState(() => localDate());
+  const [organizationToday, setOrganizationToday] = useState(() => localDate());
   const [fromDate, setFromDate] = useState(() => monthStart(localDate()));
   const [toDate, setToDate] = useState(() => localDate());
   const [fromMonth, setFromMonth] = useState(() => monthStart(localDate()).slice(0, 7));
@@ -159,6 +160,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
         const organizationZone = typeof data.timeZone === "string" ? data.timeZone : "";
         if (cancelled) return;
         setTimeZone(organizationZone);
+        setOrganizationToday(today);
         if (!dailyDateTouched.current) setReportDate(today);
         if (!individualRangeTouched.current) {
           setFromDate(monthStart(today));
@@ -274,7 +276,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
   }
 
   function applyMonthPreset(months: number) {
-    const endMonth = reportDate.slice(0, 7);
+    const endMonth = organizationToday.slice(0, 7);
     setFromMonth(shiftMonth(endMonth, -(months - 1)));
     setToMonth(endMonth);
     monthRangeTouched.current = true;
@@ -283,7 +285,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
   }
 
   function applyMonthShortcut(shortcut: "current" | "previous" | "year-to-date") {
-    const currentMonth = reportDate.slice(0, 7);
+    const currentMonth = organizationToday.slice(0, 7);
     const previousMonth = shiftMonth(currentMonth, -1);
     const startMonth = shortcut === "previous"
       ? previousMonth
@@ -440,7 +442,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
   }
 
   function isMonthShortcutSelected(shortcut: "current" | "previous" | "year-to-date") {
-    const currentMonth = reportDate.slice(0, 7);
+    const currentMonth = organizationToday.slice(0, 7);
     const previousMonth = shiftMonth(currentMonth, -1);
     const startMonth = shortcut === "previous"
       ? previousMonth
@@ -455,7 +457,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
   }
 
   function isMonthPresetSelected(months: number) {
-    const currentMonth = reportDate.slice(0, 7);
+    const currentMonth = organizationToday.slice(0, 7);
     return fromMonth === shiftMonth(currentMonth, -(months - 1)) && toMonth === currentMonth;
   }
 
@@ -537,7 +539,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                       value={fromMonth}
                       disabled={dateLoading || busy || !timeZone}
                       min="1900-01"
-                      max={toMonth || reportDate.slice(0, 7) || undefined}
+                      max={toMonth || organizationToday.slice(0, 7) || undefined}
                       onChange={(event) => { monthRangeTouched.current = true; setFromMonth(event.target.value); setError(""); setNotice(""); }}
                       className={INPUT}
                     />
@@ -549,7 +551,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                       value={toMonth}
                       disabled={dateLoading || busy || !timeZone}
                       min={fromMonth || "1900-01"}
-                      max={reportDate.slice(0, 7) || undefined}
+                      max={organizationToday.slice(0, 7) || undefined}
                       onChange={(event) => { monthRangeTouched.current = true; setToMonth(event.target.value); setError(""); setNotice(""); }}
                       className={INPUT}
                     />
@@ -623,7 +625,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                     </div>
                   )}
                   <div className="mt-4 border-t border-white/[0.09] pt-3 text-[11px] leading-5 text-slate-300/80">
-                    Completed months include every calendar day. The current month runs only through day {Number(reportDate.slice(8, 10))} of {formatMonthLabel(reportDate.slice(0, 7))}; future dates are excluded rather than shown as missing punches.
+                    Completed months include every calendar day. The current month runs only through day {Number(organizationToday.slice(8, 10))} of {formatMonthLabel(organizationToday.slice(0, 7))}; future dates are excluded rather than shown as missing punches.
                   </div>
                 </div>
               </aside>
