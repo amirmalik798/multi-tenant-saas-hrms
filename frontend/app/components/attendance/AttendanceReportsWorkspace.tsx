@@ -431,7 +431,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => { setMode("member"); setError(""); setNotice(""); }
+            onClick={() => { setMode("member"); setError(""); setNotice(""); }}
             disabled={busy}
             aria-pressed={mode === "member"}
             className={`group min-w-0 rounded-2xl border p-4 text-left transition sm:p-5 ${mode === "member" ? "border-sky-400/45 bg-sky-400/[0.07] shadow-lg shadow-sky-950/10" : "border-white/[0.08] bg-[#151e2b] hover:border-white/[0.16]"}`}
