@@ -10,7 +10,7 @@ import {
 } from "../../../../../lib/daily-attendance-pdf";
 
 type ScopeMode = "ALL" | "HR_DIRECT_REPORTS";
-type Metadata = { organizationName: string; timeZone: string; generatedBy: string; organizationToday: string };
+type Metadata = { organizationName: string; timeZone: string; generatedBy: string; organizationToday: string; generatedAt: Date | string };
 type Row = Omit<DailyAttendanceRecord, "events"> & { workDate: string; events: unknown };
 
 function parseArray<T>(value: unknown): T[] {
@@ -90,6 +90,7 @@ export async function GET(request: Request) {
          o.name AS "organizationName",
          COALESCE(NULLIF(os.time_zone, ''), 'Africa/Kigali') AS "timeZone",
          TO_CHAR((NOW() AT TIME ZONE COALESCE(NULLIF(os.time_zone, ''), 'Africa/Kigali'))::date, 'YYYY-MM-DD') AS "organizationToday",
+         NOW() AS "generatedAt",
          COALESCE(
            NULLIF(TRIM(CONCAT_WS(' ', actor_employee.first_name, actor_employee.last_name)), ''),
            NULLIF(actor_user.email, ''),
@@ -112,6 +113,12 @@ export async function GET(request: Request) {
     const organizationToday = String(metadata.organizationToday ?? "");
     if (!isValidDateString(organizationToday)) {
       throw new Error("Organization time-zone date could not be validated");
+    }
+    const generatedAt = metadata.generatedAt instanceof Date
+      ? new Date(metadata.generatedAt.getTime())
+      : new Date(metadata.generatedAt);
+    if (!Number.isFinite(generatedAt.getTime())) {
+      throw new Error("The report generation timestamp returned by the database is invalid");
     }
     const currentOrganizationMonth = organizationToday.slice(0, 7);
     if (toMonth > currentOrganizationMonth) {
@@ -203,10 +210,12 @@ export async function GET(request: Request) {
              AND cr.employee_id = ae.employee_id
              AND cr.original_event_id = ae.id
              AND cr.status = 'APPROVED'
+             AND cr.decision_at <= $6::timestamptz
            ORDER BY cr.decision_at DESC, cr.id DESC LIMIT 1
          ) AS c ON TRUE
          WHERE ae.organization_id = $1::uuid
            AND ae.work_date BETWEEN $2::date AND $3::date
+           AND COALESCE(c.requested_at, ae.recorded_at) <= $6::timestamptz
          UNION ALL
          SELECT ('CORRECTION:' || cr.id::text), cr.employee_id, cr.work_date, cr.event_type,
                 cr.requested_at, cr.time_zone, 'APPROVED_MISSING_PUNCH'
@@ -215,6 +224,8 @@ export async function GET(request: Request) {
          WHERE cr.organization_id = $1::uuid
            AND cr.original_event_id IS NULL
            AND cr.status = 'APPROVED'
+           AND cr.decision_at <= $6::timestamptz
+           AND cr.requested_at <= $6::timestamptz
            AND cr.work_date BETWEEN $2::date AND $3::date
        ),
        event_summary AS (
@@ -284,6 +295,7 @@ export async function GET(request: Request) {
            AND ot.work_date = report_days.work_date
            AND ot.request_type = 'PREAUTHORIZATION'
            AND ot.status = 'APPROVED'
+           AND ot.decision_at <= $6::timestamptz
        ) AS overtime ON TRUE
        LIMIT 120001`,
       [actor.organizationId, fromDate, effectiveToDate, scopeMode, scopeEmployeeId],
@@ -296,7 +308,6 @@ export async function GET(request: Request) {
       return jsonResponse({ message: "No active workforce members are available in your reporting scope for this period" }, 404);
     }
 
-    const generatedAt = new Date();
     const dailyRows = new Map<string, DailyAttendanceRecord[]>();
     for (const row of reportResult.rows) {
       const { workDate, events: eventSource, ...record } = row;
