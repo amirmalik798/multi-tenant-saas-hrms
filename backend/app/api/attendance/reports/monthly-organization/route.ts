@@ -29,7 +29,12 @@ function parseArray<T>(value: unknown): T[] {
 }
 
 function validMonth(value: string | null): value is string {
-  return typeof value === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+  if (typeof value !== "string") return false;
+  const match = value.match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  if (!match) return false;
+  const year = Number(match[1]);
+  // Avoid JavaScript's Date.UTC special handling for years 0 through 99.
+  return year >= 1900 && year <= 9999;
 }
 function ordinal(value: string): number {
   const [year, month] = value.split("-").map(Number);
