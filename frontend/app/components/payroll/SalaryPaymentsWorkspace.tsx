@@ -599,12 +599,19 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   }
 
 
+  function isBulkPayslipPresetSelected(months: number) {
+    if (!isPayrollMonth(organizationCurrentMonth) || !isPayrollMonth(bulkStartMonth) || !isPayrollMonth(bulkEndMonth)) return false;
+    const endOrdinal = payrollMonthOrdinal(organizationCurrentMonth);
+    const startOrdinal = Math.max(payrollMonthOrdinal("2000-01"), endOrdinal - months + 1);
+    return bulkStartMonth === payrollMonthFromOrdinal(startOrdinal) && bulkEndMonth === organizationCurrentMonth;
+  }
+
   function applyBulkPayslipPreset(months: number) {
     if (!isPayrollMonth(organizationCurrentMonth)) return;
     const endOrdinal = payrollMonthOrdinal(organizationCurrentMonth);
     const startOrdinal = Math.max(payrollMonthOrdinal("2000-01"), endOrdinal - months + 1);
     setBulkStartMonth(payrollMonthFromOrdinal(startOrdinal));
-    setBulkEndMonth(month);
+    setBulkEndMonth(organizationCurrentMonth);
     setBulkPayslipError("");
   }
 
@@ -982,10 +989,30 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <span className="mr-1 text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400">Quick range</span>
-          <button type="button" onClick={() => applyBulkPayslipPreset(3)} disabled={bulkPayslipLoading || !monthReady} className="rounded-lg border border-cyan-300/20 bg-cyan-300/[0.06] px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-300/[0.12] disabled:opacity-40">Last 3 months</button>
-          <button type="button" onClick={() => applyBulkPayslipPreset(6)} disabled={bulkPayslipLoading || !monthReady} className="rounded-lg border border-cyan-300/20 bg-cyan-300/[0.06] px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-300/[0.12] disabled:opacity-40">Last 6 months</button>
-          <button type="button" onClick={() => applyBulkPayslipPreset(12)} disabled={bulkPayslipLoading || !monthReady} className="rounded-lg border border-white/[0.10] bg-white/[0.035] px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07] disabled:opacity-40">Last 12 months</button>
-          <button type="button" onClick={() => applyBulkPayslipPreset(1)} disabled={bulkPayslipLoading || !monthReady} className="rounded-lg border border-white/[0.10] bg-white/[0.035] px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07] disabled:opacity-40">This month</button>
+          {([
+            { months: 3, label: "Last 3 months" },
+            { months: 6, label: "Last 6 months" },
+            { months: 12, label: "Last 12 months" },
+            { months: 1, label: "This month" },
+          ] as const).map((preset) => {
+            const selected = isBulkPayslipPresetSelected(preset.months);
+            return (
+              <button
+                key={preset.months}
+                type="button"
+                onClick={() => applyBulkPayslipPreset(preset.months)}
+                disabled={bulkPayslipLoading || !monthReady}
+                aria-pressed={selected}
+                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 disabled:opacity-40 ${
+                  selected
+                    ? "border-cyan-300/40 bg-cyan-300/[0.12] text-cyan-100 shadow-sm shadow-cyan-950/20"
+                    : "border-white/[0.10] bg-white/[0.035] text-slate-300 hover:border-cyan-300/30 hover:bg-cyan-300/[0.06] hover:text-cyan-100"
+                }`}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
         </div>
 
         <div className="mt-4 flex flex-col gap-3 border-t border-white/[0.09] pt-4 sm:flex-row sm:items-center sm:justify-between">
