@@ -416,8 +416,8 @@ function analysisDuration(analysis: Analysis, historicalSnapshot = false): strin
     return historicalSnapshot && analysis.hasOpenSession ? "Unclosed" : "-";
   }
   const total = analysis.completedSeconds + analysis.openSeconds;
-  // Historical duration includes only completed intervals. The dagger points
-  // out that an additional clock-in has no matching clock-out and is excluded.
+  // Historical duration includes only completed intervals. The plus marker
+  // indicates an additional clock-in without a matching clock-out is excluded.
   const marker = analysis.hasOpenSession ? (historicalSnapshot ? "+" : "*") : "";
   return `${formatDuration(total)}${marker}`;
 }
@@ -507,7 +507,7 @@ function drawSummary(page: PdfPage, report: DailyAttendanceReport): void {
   drawText(
     page,
     report.historicalSnapshot
-      ? "Historical record: unmatched clock-ins are flagged; their duration and overtime are not estimated. + Completed intervals only. No punches do not prove absence."
+      ? "Historical punch data uses the current active roster. Unmatched clock-ins are flagged; durations and overtime are not estimated. + marks completed intervals only; no punches do not prove absence."
       : "Snapshot at generation time. No punches do not confirm absence. Recorded elapsed time is not payable time; scheduled breaks are not automatically deducted. Open sessions are marked *.",
     MARGIN + 113,
     174,
