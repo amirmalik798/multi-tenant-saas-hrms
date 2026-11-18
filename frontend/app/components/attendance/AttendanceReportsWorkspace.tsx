@@ -689,7 +689,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
         )}
         {error && <div role="alert" className="mt-4 flex items-start gap-2 rounded-xl border border-rose-400/20 bg-rose-400/[0.05] p-3.5 text-sm leading-6 text-rose-200"><span>{error}</span></div>}
         {mode === "member" && !error && targetsError && <div role="alert" className="mt-4 flex items-start gap-2 rounded-xl border border-rose-400/20 bg-rose-400/[0.05] p-3.5 text-sm leading-6 text-rose-200"><span>{targetsError}</span></div>}
-        {mode === "member" && !error && !targetsError && !targetsLoading && targets.length === 0 && <div role="status" className="mt-4 rounded-xl border border-amber-300/15 bg-amber-300/[0.05] p-3.5 text-sm leading-6 text-amber-100">No workforce members are currently available within your reporting scope.</div>}
+        {mode === "member" && !isEmployee && !error && !targetsError && !targetsLoading && targets.length === 0 && <div role="status" className="mt-4 rounded-xl border border-amber-300/15 bg-amber-300/[0.05] p-3.5 text-sm leading-6 text-amber-100">No workforce members are currently available within your reporting scope.</div>}
         {notice && <div role="status" className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] p-3.5 text-sm leading-6 text-emerald-200"><CheckCircle2 size={16} className="mt-0.5 shrink-0"/><span>{notice}</span></div>}
         {dateLoading && <p role="status" className="mt-3 text-xs text-slate-500">Loading organization date and timezone…</p>}
       </section>
