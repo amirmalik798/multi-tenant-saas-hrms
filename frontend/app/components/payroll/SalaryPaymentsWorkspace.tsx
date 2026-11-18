@@ -58,6 +58,7 @@ function formatPayrollTimestamp(value: string | null | undefined, timeZone: stri
 export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeEmployeeId }: Props) {
   const canEdit = audience === "hr-manager" || audience === "organization-admin";
   const [month, setMonth] = useState("");
+  const [organizationCurrentMonth, setOrganizationCurrentMonth] = useState("");
   const [monthReady, setMonthReady] = useState(false);
   const [organizationTimeZone, setOrganizationTimeZone] = useState("");
   const [dateWarning, setDateWarning] = useState("");
@@ -109,6 +110,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         if (!cancelled) {
           setOrganizationTimeZone(typeof payload?.timeZone === "string" ? payload.timeZone : "");
           setMonth(today.slice(0, 7));
+          setOrganizationCurrentMonth(today.slice(0, 7));
           setBulkStartMonth(today.slice(0, 7));
           setBulkEndMonth(today.slice(0, 7));
           setDateWarning("");
@@ -117,6 +119,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         if (!cancelled) {
           const fallbackMonth = monthNow();
           setMonth(fallbackMonth);
+          setOrganizationCurrentMonth(fallbackMonth);
           setBulkStartMonth(fallbackMonth);
           setBulkEndMonth(fallbackMonth);
           setDateWarning("Organization date settings could not be loaded. The payroll month is using your device date; verify the selected month before recording payments.");
@@ -391,7 +394,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   }
 
   async function printSalarySlip(targetEmployeeId: string) {
-    if (!canEdit || !targetEmployeeId || payslipLoading || payslipDialog) return;
+    if (!canEdit || !targetEmployeeId || bulkPayslipLoading || payslipLoading || payslipDialog) return;
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
       setError("Choose a valid payroll month before preparing a salary slip.");
       return;
@@ -596,8 +599,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
 
 
   function applyBulkPayslipPreset(months: number) {
-    if (!isPayrollMonth(month)) return;
-    const endOrdinal = payrollMonthOrdinal(month);
+    if (!isPayrollMonth(organizationCurrentMonth)) return;
+    const endOrdinal = payrollMonthOrdinal(organizationCurrentMonth);
     const startOrdinal = Math.max(payrollMonthOrdinal("2000-01"), endOrdinal - months + 1);
     setBulkStartMonth(payrollMonthFromOrdinal(startOrdinal));
     setBulkEndMonth(month);
@@ -605,7 +608,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   }
 
   async function generateBulkSalarySlips() {
-    if (!canEdit || bulkPayslipLoading || payslipLoading || payslipDialog || generatingPayslip) return;
+    if (!canEdit || bulkPayslipLoading || saving || payslipLoading || payslipDialog || generatingPayslip) return;
     if (hasUnsavedChanges) {
       setBulkPayslipError("Save or discard the unsaved payment edits before generating workforce salary slips.");
       return;
@@ -626,7 +629,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       setBulkPayslipError("A combined salary-slip report can cover at most 24 months.");
       return;
     }
-    if (isPayrollMonth(month) && endOrdinal > payrollMonthOrdinal(month)) {
+    if (isPayrollMonth(organizationCurrentMonth) && endOrdinal > payrollMonthOrdinal(organizationCurrentMonth)) {
       setBulkPayslipError("Future payroll months cannot be included. Select a range ending no later than the current organization month.");
       return;
     }
@@ -661,6 +664,8 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
         employees?: BulkPayslipEmployee[];
         startMonth?: string;
         endMonth?: string;
+        limitExceeded?: boolean;
+        maxEmployees?: number;
       } | null;
       if (!response.ok) {
         throw new Error(payload && typeof payload.message === "string"
@@ -669,6 +674,16 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       }
       if (!payload || payload.startMonth !== bulkStartMonth || payload.endMonth !== bulkEndMonth || !Array.isArray(payload.employees)) {
         throw new Error("The authorized workforce response was incomplete. Please retry the report.");
+      }
+      if (payload.limitExceeded) {
+        const maxEmployees = Number.isInteger(payload.maxEmployees) && Number(payload.maxEmployees) > 0
+          ? Number(payload.maxEmployees)
+          : Math.floor(MAX_BULK_SLIP_STATEMENTS / monthCount);
+        throw new Error(
+          "The selected range supports up to " + maxEmployees.toLocaleString() +
+          " workforce members (" + MAX_BULK_SLIP_STATEMENTS.toLocaleString() +
+          " employee-month statements). Shorten the month range to include more people.",
+        );
       }
 
       const seen = new Set<string>();
@@ -830,6 +845,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
 
 
   async function save(employeeId: string, confirmed = false) {
+    if (bulkPayslipLoading) return;
     const draft = drafts[employeeId]; if (!draft) return;
     const currentPayment = payments.find((payment) => payment.employeeId === employeeId);
     const currentStatus = currentPayment?.status === "PAID" ? "PAID" : "UNPAID";
@@ -943,7 +959,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
               type="month"
               value={bulkStartMonth}
               min="2000-01"
-              max={bulkEndMonth || month || undefined}
+              max={bulkEndMonth || organizationCurrentMonth || undefined}
               disabled={bulkPayslipLoading}
               onChange={(event) => { setBulkStartMonth(event.target.value); setBulkPayslipError(""); }}
               className={INPUT}
@@ -955,7 +971,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
               type="month"
               value={bulkEndMonth}
               min={bulkStartMonth || "2000-01"}
-              max={month || undefined}
+              max={organizationCurrentMonth || undefined}
               disabled={bulkPayslipLoading}
               onChange={(event) => { setBulkEndMonth(event.target.value); setBulkPayslipError(""); }}
               className={INPUT}
@@ -985,7 +1001,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
           <button
             type="button"
             onClick={() => void generateBulkSalarySlips()}
-            disabled={bulkPayslipLoading || loading || !monthReady || hasUnsavedChanges || !isPayrollMonth(bulkStartMonth) || !isPayrollMonth(bulkEndMonth) || payrollMonthOrdinal(bulkStartMonth) > payrollMonthOrdinal(bulkEndMonth) || payrollMonthOrdinal(bulkEndMonth) - payrollMonthOrdinal(bulkStartMonth) + 1 > 24 || (isPayrollMonth(month) && payrollMonthOrdinal(bulkEndMonth) > payrollMonthOrdinal(month))}
+            disabled={bulkPayslipLoading || loading || !monthReady || hasUnsavedChanges || !isPayrollMonth(bulkStartMonth) || !isPayrollMonth(bulkEndMonth) || payrollMonthOrdinal(bulkStartMonth) > payrollMonthOrdinal(bulkEndMonth) || payrollMonthOrdinal(bulkEndMonth) - payrollMonthOrdinal(bulkStartMonth) + 1 > 24 || (isPayrollMonth(organizationCurrentMonth) && payrollMonthOrdinal(bulkEndMonth) > payrollMonthOrdinal(organizationCurrentMonth))}
             className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {bulkPayslipLoading ? <RefreshCw size={14} className="animate-spin"/> : <FileDown size={14}/>}
@@ -1166,7 +1182,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                         {isExpanded ? <ChevronDown size={13}/> : canEdit ? <Pencil size={13}/> : <Eye size={13}/>}
                         {isExpanded ? "Close" : canEdit ? "Manage" : "View"}
                       </button>
-                      {canEdit && <button type="button" onClick={() => void printSalarySlip(payment.employeeId)} disabled={Boolean(payslipLoading) || Boolean(payslipDialog) || hasUnsavedChanges || !month} title={hasUnsavedChanges ? "Save or discard payment edits before preparing a salary slip." : "Prepare this workforce member’s salary slip."} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-sky-300/20 bg-sky-300/[0.06] px-2.5 py-1.5 text-[11px] font-semibold text-sky-200 transition hover:bg-sky-300/[0.12] disabled:opacity-40">
+                      {canEdit && <button type="button" onClick={() => void printSalarySlip(payment.employeeId)} disabled={bulkPayslipLoading || Boolean(payslipLoading) || Boolean(payslipDialog) || hasUnsavedChanges || !month} title={hasUnsavedChanges ? "Save or discard payment edits before preparing a salary slip." : "Prepare this workforce member’s salary slip."} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-sky-300/20 bg-sky-300/[0.06] px-2.5 py-1.5 text-[11px] font-semibold text-sky-200 transition hover:bg-sky-300/[0.12] disabled:opacity-40">
                         {payslipLoading === payment.employeeId ? <RefreshCw size={13} className="animate-spin"/> : <Printer size={13}/>}Slip
                       </button>}
                     </div>
@@ -1190,13 +1206,13 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                       <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-semibold text-white">Payment record</h4><span className="text-[10px] text-slate-500">{payment.paymentRecorded ? `Last updated ${formatPayrollTimestamp(payment.updatedAt, organizationTimeZone)}` : "Not yet recorded"}</span></div>
                       <div className="mt-2 text-[11px] text-slate-500">Recorded by {payment.recordedBy || "—"}{payment.paidAt ? ` · Paid ${formatPayrollTimestamp(payment.paidAt, organizationTimeZone)}` : ""}</div>
                       <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
-                        <label className="block text-xs font-medium text-slate-400">Payment status<select value={draft.status} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,status:event.target.value as "PAID"|"UNPAID"}}))} className={INPUT}><option value="UNPAID">Unpaid</option><option value="PAID">Paid</option></select></label>
-                        <label className="block text-xs font-medium text-slate-400">Payment reference<input maxLength={120} value={draft.paymentReference} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,paymentReference:event.target.value}}))} className={INPUT} placeholder="Bank / transfer reference"/></label>
-                        <label className="block text-xs font-medium text-slate-400 sm:col-span-2">Notes<input maxLength={1000} value={draft.notes} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,notes:event.target.value}}))} className={INPUT} placeholder="Payment note"/></label>
+                        <label className="block text-xs font-medium text-slate-400">Payment status<select value={draft.status} disabled={bulkPayslipLoading || Boolean(saving)} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,status:event.target.value as "PAID"|"UNPAID"}}))} className={INPUT}><option value="UNPAID">Unpaid</option><option value="PAID">Paid</option></select></label>
+                        <label className="block text-xs font-medium text-slate-400">Payment reference<input maxLength={120} value={draft.paymentReference} disabled={bulkPayslipLoading || Boolean(saving)} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,paymentReference:event.target.value}}))} className={INPUT} placeholder="Bank / transfer reference"/></label>
+                        <label className="block text-xs font-medium text-slate-400 sm:col-span-2">Notes<input maxLength={1000} value={draft.notes} disabled={bulkPayslipLoading || Boolean(saving)} onChange={(event) => setDrafts((old) => ({...old,[payment.employeeId]:{...draft,notes:event.target.value}}))} className={INPUT} placeholder="Payment note"/></label>
                       </div>
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
                         <p className="max-w-2xl text-[11px] leading-5 text-slate-500">{(payment.payableMinutes || 0) <= 0 ? "No payable hours are available for this month." : payment.status === "CURRENCY_MISMATCH" ? "Resolve the currency mismatch in pay-rate history first." : payment.calculatedAmount == null ? "A valid effective pay rate is required before payment can be recorded." : "The payable amount is calculated from attendance, approved overtime, paid absences and effective pay rates."}</p>
-                        <button type="button" className={BUTTON} disabled={Boolean(saving) || (payment.payableMinutes || 0) <= 0 || payment.calculatedAmount == null} onClick={() => void save(payment.employeeId)}>{saving === payment.employeeId ? <RefreshCw size={14} className="animate-spin"/> : <CheckCircle2 size={14}/>}Save payment</button>
+                        <button type="button" className={BUTTON} disabled={Boolean(saving) || bulkPayslipLoading || (payment.payableMinutes || 0) <= 0 || payment.calculatedAmount == null} onClick={() => void save(payment.employeeId)}>{saving === payment.employeeId ? <RefreshCw size={14} className="animate-spin"/> : <CheckCircle2 size={14}/>}Save payment</button>
                       </div>
                     </div> : <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
                       <div className="flex items-center justify-between gap-2"><h4 className="text-sm font-semibold text-white">Payment record</h4><span className="inline-flex items-center gap-1 rounded-full border border-slate-600 px-2 py-1 text-[10px] font-semibold text-slate-400"><LockKeyhole size={10}/>Read only</span></div>
