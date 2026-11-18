@@ -104,7 +104,7 @@ function loadingDocument(title: string, detail: string): string {
 export default function AttendanceReportsWorkspace({ audience }: Props) {
   const isOrganizationAdmin = audience === "organization-admin";
   const isEmployee = audience === "employee";
-  const [mode, setMode] = useState<ReportMode>(canGenerateOrganizationMonthlyReport ? "organization-monthly" : isOrganizationAdmin ? "daily" : "member");
+  const [mode, setMode] = useState<ReportMode>(audience === "organization-admin" || audience === "hr-manager" ? "organization-monthly" : isOrganizationAdmin ? "daily" : "member");
   const [reportDate, setReportDate] = useState(() => localDate());
   const [fromDate, setFromDate] = useState(() => monthStart(localDate()));
   const [toDate, setToDate] = useState(() => localDate());
