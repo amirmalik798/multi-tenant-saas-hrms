@@ -677,13 +677,12 @@ export function createMonthlyAttendancePdf(report: MonthlyDailyAttendanceReport)
     const monthPages = drawMainPages(dailyReport);
     monthPages.forEach((page, index) => {
       if (index === 0) {
-        const titlePage = newPage();
-        drawHeader(titlePage, dailyReport, false);
-        drawRect(titlePage, MARGIN, 115, CONTENT_WIDTH, 45, COLORS.tealLight);
-        drawText(titlePage, "MONTHLY ATTENDANCE REGISTER", MARGIN + 12, 124, 7, COLORS.teal, true);
-        drawText(titlePage, formatMonth(month.month), MARGIN + 12, 137, 16, COLORS.ink, true);
-        drawText(titlePage, report.reportScope, MARGIN + 12, 151, 6.5, COLORS.muted, false);
-        pages.push(titlePage);
+        // Integrate month context into the first attendance page rather than
+        // inserting a separate cover, preserving a compact report sequence.
+        drawRect(page, MARGIN, 111, CONTENT_WIDTH, 22, COLORS.tealLight);
+        drawText(page, "MONTH", MARGIN + 9, 118, 5.8, COLORS.teal, true);
+        drawText(page, formatMonth(month.month), MARGIN + 52, 115, 11, COLORS.ink, true);
+        drawText(page, report.reportScope, PAGE_WIDTH - MARGIN - 190, 119, 5.8, COLORS.muted, false, 180);
       }
       pages.push(page);
     });
