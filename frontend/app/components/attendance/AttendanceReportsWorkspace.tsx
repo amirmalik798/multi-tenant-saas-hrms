@@ -51,7 +51,7 @@ function shiftMonth(value: string, offset: number): string {
 }
 
 function formatMonthLabel(value: string): string {
-  if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(value)) return value;
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return value;
   const [year, month] = value.split("-").map(Number);
   return new Intl.DateTimeFormat("en-GB", {
     month: "long",
@@ -122,8 +122,8 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
   );
   const canGenerateOrganizationMonthlyReport = isOrganizationAdmin || audience === "hr-manager";
   const validMonthRange =
-    /^\\d{4}-(0[1-9]|1[0-2])$/.test(fromMonth) &&
-    /^\\d{4}-(0[1-9]|1[0-2])$/.test(toMonth) &&
+    /^\d{4}-(0[1-9]|1[0-2])$/.test(fromMonth) &&
+    /^\d{4}-(0[1-9]|1[0-2])$/.test(toMonth) &&
     fromMonth <= toMonth;
   const selectedMonths = validMonthRange
     ? monthCount(`${fromMonth}-01`, `${toMonth}-01`)
