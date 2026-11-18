@@ -44,6 +44,22 @@ function monthStart(value: string): string {
   return value.slice(0, 7) + "-01";
 }
 
+function shiftMonth(value: string, offset: number): string {
+  const [year, month] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1 + offset, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatMonthLabel(value: string): string {
+  if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(value)) return value;
+  const [year, month] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-GB", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, 1)));
+}
+
 function monthCount(fromDate: string, toDate: string): number {
   return (
     Number(toDate.slice(0, 4)) * 12 +
@@ -98,11 +114,24 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const dailyDateTouched = useRef(false);
-  const rangeTouched = useRef(false);
+  const individualRangeTouched = useRef(false);
+  const monthRangeTouched = useRef(false);
   const selectedTarget = useMemo(
     () => targets.find((target) => target.employeeId === selectedTargetId) || null,
     [targets, selectedTargetId],
   );
+  const canGenerateOrganizationMonthlyReport = isOrganizationAdmin || audience === "hr-manager";
+  const validMonthRange =
+    /^\\d{4}-(0[1-9]|1[0-2])$/.test(fromMonth) &&
+    /^\\d{4}-(0[1-9]|1[0-2])$/.test(toMonth) &&
+    fromMonth <= toMonth;
+  const selectedMonths = validMonthRange
+    ? monthCount(`${fromMonth}-01`, `${toMonth}-01`)
+    : 0;
+  const monthRangeTooLarge = selectedMonths > 24;
+  const monthPreview = validMonthRange && !monthRangeTooLarge
+    ? Array.from({ length: selectedMonths }, (_, index) => formatMonthLabel(shiftMonth(fromMonth, index)))
+    : [];
 
   useEffect(() => {
     let cancelled = false;
@@ -125,9 +154,11 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
         if (cancelled) return;
         setTimeZone(organizationZone);
         if (!dailyDateTouched.current) setReportDate(today);
-        if (!rangeTouched.current) {
+        if (!individualRangeTouched.current) {
           setFromDate(monthStart(today));
           setToDate(today);
+        }
+        if (!monthRangeTouched.current) {
           setFromMonth(today.slice(0, 7));
           setToMonth(today.slice(0, 7));
         }
@@ -235,8 +266,17 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
     }
   }
 
+  function applyMonthPreset(months: number) {
+    const endMonth = reportDate.slice(0, 7);
+    setFromMonth(shiftMonth(endMonth, -(months - 1)));
+    setToMonth(endMonth);
+    monthRangeTouched.current = true;
+    setError("");
+    setNotice("");
+  }
+
   async function generateOrganizationMonthlyReport() {
-    if (!isOrganizationAdmin && audience !== "hr-manager") {
+    if (!canGenerateOrganizationMonthlyReport) {
       setError("Monthly organization reports are available to Organization Admins and HR Managers only.");
       return;
     }
@@ -246,8 +286,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
       setError("Choose valid From month and To month values. From month must be on or before To month.");
       return;
     }
-    const selectedMonths = monthCount(`${fromMonth}-01`, `${toMonth}-01`);
-    if (selectedMonths > 24) {
+    if (monthRangeTooLarge) {
       setError("A report can cover up to 24 calendar months at a time.");
       return;
     }
@@ -398,7 +437,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
       </section>
 
       {!isEmployee && (
-        <section className="grid gap-3 xl:grid-cols-3" aria-label="Attendance report types">
+        <section className={`grid gap-3 ${canGenerateOrganizationMonthlyReport ? "xl:grid-cols-3" : "xl:grid-cols-2"}`} aria-label="Attendance report types">
           <button
             type="button"
             onClick={() => { if (isOrganizationAdmin) { setMode("daily"); setError(""); setNotice(""); } }}
@@ -415,6 +454,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
             <h3 className="mt-4 text-base font-bold text-white">Single-day organization report</h3>
             <p className="mt-1 text-xs leading-5 text-slate-400">One date · Active workforce · Daily attendance register</p>
           </button>
+          {canGenerateOrganizationMonthlyReport && (
           <button
             type="button"
             onClick={() => { setMode("organization-monthly"); setError(""); setNotice(""); }}
@@ -429,6 +469,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
             <h3 className="mt-4 text-base font-bold text-white">Monthly organization report</h3>
             <p className="mt-1 text-xs leading-5 text-slate-400">From month · To month · One combined PDF</p>
           </button>
+          )}
           <button
             type="button"
             onClick={() => { setMode("member"); setError(""); setNotice(""); }}
@@ -451,21 +492,104 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
           <>
             <div className="flex items-start gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-cyan-400/[0.08] text-cyan-200 ring-1 ring-cyan-300/15"><CalendarDays size={18}/></span>
-              <div><h3 className="text-base font-bold text-white">Organization attendance · Monthly range</h3><p className="mt-1 text-xs text-slate-400">Each selected month contains its complete authorized attendance register.</p></div>
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-white">Monthly attendance series</h3>
+                <p className="mt-1 text-xs text-slate-400">Choose an inclusive month range. One PDF will contain every daily attendance register in chronological order.</p>
+              </div>
+              <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/[0.07] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-200">
+                <FileText size={12}/> Combined PDF
+              </span>
             </div>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 sm:items-end">
-              <label className="block min-w-0 text-xs font-semibold text-slate-300">From month
-                <input type="month" value={fromMonth} disabled={dateLoading || busy} max={toMonth || undefined} onChange={(event) => { rangeTouched.current = true; setFromMonth(event.target.value); setError(""); setNotice(""); }} className={INPUT}/>
-              </label>
-              <label className="block min-w-0 text-xs font-semibold text-slate-300">To month
-                <input type="month" value={toMonth} disabled={dateLoading || busy} min={fromMonth || undefined} onChange={(event) => { rangeTouched.current = true; setToMonth(event.target.value); setError(""); setNotice(""); }} className={INPUT}/>
-              </label>
+            <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
+              <div className="rounded-2xl border border-white/[0.07] bg-[#0d1724]/75 p-4 sm:p-5">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block min-w-0 text-xs font-semibold text-slate-300">
+                    <span className="flex items-center gap-2"><CalendarDays size={14} className="text-cyan-300"/>From month</span>
+                    <input
+                      type="month"
+                      value={fromMonth}
+                      disabled={dateLoading || busy}
+                      max={toMonth || undefined}
+                      onChange={(event) => { monthRangeTouched.current = true; setFromMonth(event.target.value); setError(""); setNotice(""); }}
+                      className={INPUT}
+                    />
+                  </label>
+                  <label className="block min-w-0 text-xs font-semibold text-slate-300">
+                    <span className="flex items-center gap-2"><CalendarDays size={14} className="text-cyan-300"/>To month</span>
+                    <input
+                      type="month"
+                      value={toMonth}
+                      disabled={dateLoading || busy}
+                      min={fromMonth || undefined}
+                      onChange={(event) => { monthRangeTouched.current = true; setToMonth(event.target.value); setError(""); setNotice(""); }}
+                      className={INPUT}
+                    />
+                  </label>
+                </div>
+                <div className="mt-5 border-t border-white/[0.06] pt-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Quick range</span>
+                    <span className="text-[11px] text-slate-500">Anchored to organization date</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {[3, 6, 12].map((months) => (
+                      <button
+                        key={months}
+                        type="button"
+                        onClick={() => applyMonthPreset(months)}
+                        disabled={dateLoading || busy}
+                        className="rounded-lg border border-white/[0.10] bg-white/[0.035] px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-cyan-300/35 hover:bg-cyan-300/[0.07] hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 disabled:opacity-45"
+                      >
+                        Last {months} months
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <aside className="relative overflow-hidden rounded-2xl border border-cyan-300/15 bg-gradient-to-br from-[#123044] via-[#102234] to-[#101a29] p-4 sm:p-5">
+                <div className="pointer-events-none absolute -right-10 -top-12 size-40 rounded-full bg-cyan-300/[0.09] blur-3xl"/>
+                <div className="relative">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200/80">Report preview</span>
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-400"><LockKeyhole size={11}/> {isOrganizationAdmin ? "Organization-wide" : "HR reporting scope"}</span>
+                  </div>
+                  <p className="mt-4 text-lg font-bold tracking-tight text-white">
+                    {validMonthRange ? `${formatMonthLabel(fromMonth)} – ${formatMonthLabel(toMonth)}` : "Select a valid month range"}
+                  </p>
+                  <div className="mt-3 flex items-end gap-2">
+                    <span className="text-4xl font-bold tabular-nums text-white">{selectedMonths}</span>
+                    <span className="pb-1 text-xs font-medium text-slate-400">{selectedMonths === 1 ? "calendar month" : "calendar months"}</span>
+                  </div>
+                  {monthPreview.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Months included in report">
+                      {monthPreview.slice(0, 4).map((month) => (
+                        <span key={month} className="rounded-md border border-white/[0.09] bg-black/15 px-2 py-1 text-[10px] font-medium text-slate-300">{month}</span>
+                      ))}
+                      {monthPreview.length > 4 && <span className="rounded-md bg-black/15 px-2 py-1 text-[10px] font-semibold text-cyan-200">+{monthPreview.length - 4} more</span>}
+                    </div>
+                  )}
+                  <div className="mt-4 border-t border-white/[0.09] pt-3 text-[11px] leading-5 text-slate-300/80">
+                    Includes the daily workforce register, schedule and punch details for every calendar day in each selected month.
+                  </div>
+                </div>
+              </aside>
             </div>
             <div className="mt-4 flex flex-col gap-3 border-t border-white/[0.06] pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-slate-500">Inclusive calendar months · Each month starts on a new PDF page · Maximum 24 months</p>
-              <button type="button" onClick={() => void generateOrganizationMonthlyReport()} disabled={dateLoading || busy || !fromMonth || !toMonth || fromMonth > toMonth} className={BUTTON}>
+              <div className="min-w-0 text-xs text-slate-500">
+                {monthRangeTooLarge
+                  ? <span className="text-amber-200">Choose a range of 24 months or fewer.</span>
+                  : validMonthRange
+                    ? "Each month begins on a fresh page; daily registers follow in calendar order."
+                    : "Choose a valid From month and To month."}
+              </div>
+              <button
+                type="button"
+                onClick={() => void generateOrganizationMonthlyReport()}
+                disabled={dateLoading || busy || !validMonthRange || monthRangeTooLarge}
+                className={BUTTON}
+              >
                 {loadingMode === "organization-monthly" ? <RefreshCw size={16} className="animate-spin"/> : <Download size={16}/>}
-                {loadingMode === "organization-monthly" ? "Generating PDF…" : "Generate monthly organization PDF"}
+                {loadingMode === "organization-monthly" ? "Building combined PDF…" : "Generate combined PDF"}
               </button>
             </div>
           </>
@@ -506,10 +630,10 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                 </label>
               )}
               <label className="block min-w-0 text-xs font-semibold text-slate-300">Start date
-                <input type="date" value={fromDate} disabled={dateLoading || busy} onChange={(event) => { rangeTouched.current = true; setFromDate(event.target.value); setError(""); setNotice(""); }} className={INPUT}/>
+                <input type="date" value={fromDate} disabled={dateLoading || busy} onChange={(event) => { individualRangeTouched.current = true; setFromDate(event.target.value); setError(""); setNotice(""); }} className={INPUT}/>
               </label>
               <label className="block min-w-0 text-xs font-semibold text-slate-300">End date
-                <input type="date" value={toDate} disabled={dateLoading || busy} onChange={(event) => { rangeTouched.current = true; setToDate(event.target.value); setError(""); setNotice(""); }} className={INPUT}/>
+                <input type="date" value={toDate} disabled={dateLoading || busy} onChange={(event) => { individualRangeTouched.current = true; setToDate(event.target.value); setError(""); setNotice(""); }} className={INPUT}/>
               </label>
             </div>
             <div className="mt-4 flex flex-col gap-3 border-t border-white/[0.06] pt-4 sm:flex-row sm:items-center sm:justify-between">
