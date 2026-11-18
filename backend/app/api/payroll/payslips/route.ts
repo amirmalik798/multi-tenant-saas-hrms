@@ -58,10 +58,30 @@ export async function GET(request: Request) {
     if (monthOrdinal(startMonth) > monthOrdinal(endMonth)) {
       return json({ message: "The start month must be before or equal to the end month" }, 400);
     }
-    if (monthOrdinal(endMonth) - monthOrdinal(startMonth) + 1 > 24) {
+    const monthCount = monthOrdinal(endMonth) - monthOrdinal(startMonth) + 1;
+    if (monthCount > 24) {
       return json({ message: "A salary-slip report can cover at most 24 months at a time" }, 400);
     }
 
+    const organizationDateResult = await pool.query<{ today: string }>(
+      `SELECT (now() AT TIME ZONE COALESCE(NULLIF(os.time_zone, ''), 'Africa/Kigali'))::date::text AS today
+       FROM public.organizations AS o
+       LEFT JOIN public.organization_settings AS os
+         ON os.organization_id = o.id
+       WHERE o.id = $1::uuid
+       LIMIT 1`,
+      [actor.organizationId],
+    );
+    const organizationToday = organizationDateResult.rows[0]?.today;
+    if (!organizationToday || !/^\\d{4}-\\d{2}-\\d{2}$/.test(organizationToday)) {
+      return json({ message: "The organization payroll date is unavailable. Please retry later." }, 503);
+    }
+    if (endMonth > organizationToday.slice(0, 7)) {
+      return json({ message: "Future payroll months cannot be included in a salary-slip report" }, 400);
+    }
+
+    const maxEmployees = Math.floor(3000 / monthCount);
+    const rosterLimit = maxEmployees + 1;
     const [endYear, endMonthNumber] = endMonth.split("-").map(Number);
     const fromDate = `${startMonth}-01`;
     const toDate = new Date(Date.UTC(endYear, endMonthNumber, 0)).toISOString().slice(0, 10);
@@ -189,7 +209,8 @@ export async function GET(request: Request) {
        ORDER BY
          LOWER(TRIM(CONCAT_WS(' ', e.first_name, e.last_name))) NULLS LAST,
          e.employee_code NULLS LAST,
-         e.id`,
+         e.id
+       LIMIT $7`,
       [
         actor.organizationId,
         fromDate,
@@ -197,6 +218,7 @@ export async function GET(request: Request) {
         allowedWorkforceRoles,
         isHrManager,
         isHrManager ? actor.employeeId : null,
+        rosterLimit,
       ],
     );
 
@@ -206,7 +228,9 @@ export async function GET(request: Request) {
       endMonth,
       scope: isOrganizationAdmin ? "ORGANIZATION" : "HR_DIRECT_REPORTS",
       generatedAt: new Date().toISOString(),
-      employees: result.rows.map((row) => ({
+      limitExceeded: result.rows.length > maxEmployees,
+      maxEmployees,
+      employees: result.rows.slice(0, maxEmployees).map((row) => ({
         employeeId: row.employeeId,
         employeeCode: row.employeeCode,
         firstName: row.firstName,
