@@ -35,6 +35,23 @@ function dateString(year: number, monthIndex: number, day = 1): string {
 }
 function safeFilenameMonth(value: string): string { return value.replace(/[^0-9-]/g, ""); }
 
+function dateInTimeZone(value: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+  const part = (name: string) => parts.find((item) => item.type === name)?.value;
+  const year = part("year");
+  const month = part("month");
+  const day = part("day");
+  if (!year || !month || !day) {
+    throw new Error("Unable to determine the current date in the organization's time zone");
+  }
+  return `${year}-${month}-${day}`;
+}
+
 export async function GET(request: Request) {
   await connection();
   try {
@@ -70,10 +87,22 @@ export async function GET(request: Request) {
       return jsonResponse({ message: "A monthly attendance PDF can cover up to 24 calendar months at a time" }, 400);
     }
 
+    const organizationToday = dateInTimeZone(new Date(), metadata.timeZone);
+    const currentOrganizationMonth = organizationToday.slice(0, 7);
+    if (toMonth > currentOrganizationMonth) {
+      return jsonResponse({
+        message: `The To month cannot be after the current organization month (${currentOrganizationMonth})`,
+      }, 400);
+    }
+
     const [fromYear, fromMonthNumber] = fromMonth.split("-").map(Number);
     const [toYear, toMonthNumber] = toMonth.split("-").map(Number);
     const fromDate = dateString(fromYear, fromMonthNumber - 1);
-    const toDate = dateString(toYear, toMonthNumber, 0);
+    // The current month is a partial period: never report future days as
+    // unpunched. Completed months retain their full calendar-month range.
+    const toDate = toMonth === currentOrganizationMonth
+      ? organizationToday
+      : dateString(toYear, toMonthNumber, 0);
 
     const metadataResult = await pool.query<Metadata>(
       `SELECT
@@ -266,6 +295,7 @@ export async function GET(request: Request) {
       const { workDate, events: eventSource, ...record } = row;
       const date = String(workDate).slice(0, 10);
       const events = parseArray<NonNullable<DailyAttendanceRecord["events"]>[number]>(eventSource);
+      const historicalSnapshot = date < organizationToday;
       const calculated = calculateDailyAttendance({
         events,
         expectedStart: row.expectedStart,
@@ -273,6 +303,7 @@ export async function GET(request: Request) {
         scheduledBreakMinutes: row.scheduledBreakMinutes,
         approvedOvertimeMinutes: row.approvedOvertimeMinutes,
         asOf: generatedAt,
+        estimateOpenSessionDuration: !historicalSnapshot,
       });
       const rowsForDay = dailyRows.get(date) || [];
       rowsForDay.push({ ...record, events, ...calculated });
@@ -295,9 +326,16 @@ export async function GET(request: Request) {
       const monthIndex = ordinalMonth % 12;
       const month = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
       const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
-      const days = Array.from({ length: daysInMonth }, (_, dayIndex) => {
+      const reportDayCount = month === currentOrganizationMonth
+        ? Number(organizationToday.slice(8, 10))
+        : daysInMonth;
+      const days = Array.from({ length: reportDayCount }, (_, dayIndex) => {
         const reportDate = `${month}-${String(dayIndex + 1).padStart(2, "0")}`;
-        return { reportDate, rows: dailyRows.get(reportDate) || [] };
+        return {
+          reportDate,
+          rows: dailyRows.get(reportDate) || [],
+          historicalSnapshot: reportDate < organizationToday,
+        };
       });
       return { month, days };
     });
