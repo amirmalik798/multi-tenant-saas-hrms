@@ -203,7 +203,7 @@ export function calculateDailyAttendance(
     calculationStatus: invalidSequence
       ? "REVIEW_REQUIRED"
       : openSession
-        ? input.estimateOpenSessionDuration === false ? "REVIEW_REQUIRED" : "IN_PROGRESS"
+        ? (input.estimateOpenSessionDuration === false ? "REVIEW_REQUIRED" : "IN_PROGRESS")
         : "COMPLETE",
     actualElapsedMinutes,
     breakDeductedMinutes,
