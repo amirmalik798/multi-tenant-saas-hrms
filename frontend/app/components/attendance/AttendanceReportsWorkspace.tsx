@@ -240,8 +240,8 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
       setError("Monthly organization reports are available to Organization Admins and HR Managers only.");
       return;
     }
-    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(fromMonth) ||
-        !/^\\d{4}-(0[1-9]|1[0-2])$/.test(toMonth) ||
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(fromMonth) ||
+        !/^\d{4}-(0[1-9]|1[0-2])$/.test(toMonth) ||
         fromMonth > toMonth) {
       setError("Choose valid From month and To month values. From month must be on or before To month.");
       return;
@@ -438,7 +438,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
           >
             <div className="flex items-start justify-between gap-4">
               <span className="flex size-11 items-center justify-center rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] text-indigo-200"><FileText size={20}/></span>
-              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${mode === "member" ? "border-sky-300/25 bg-sky-300/10 text-sky-200" : "border-slate-700 text-slate-500"}`}>02 · Workforce member</span>
+              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${mode === "member" ? "border-sky-300/25 bg-sky-300/10 text-sky-200" : "border-slate-700 text-slate-500"}`}>03 · Workforce member</span>
             </div>
             <h3 className="mt-4 text-base font-bold text-white">Individual attendance report</h3>
             <p className="mt-1 text-xs leading-5 text-slate-400">Selected member · Date range · Monthly hours and daily detail</p>
