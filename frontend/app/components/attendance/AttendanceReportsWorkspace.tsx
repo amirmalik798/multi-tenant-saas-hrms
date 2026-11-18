@@ -509,7 +509,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                       type="month"
                       value={fromMonth}
                       disabled={dateLoading || busy}
-                      max={reportDate.slice(0, 7) || undefined}
+                      max={toMonth || reportDate.slice(0, 7) || undefined}
                       onChange={(event) => { monthRangeTouched.current = true; setFromMonth(event.target.value); setError(""); setNotice(""); }}
                       className={INPUT}
                     />
@@ -570,7 +570,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                     </div>
                   )}
                   <div className="mt-4 border-t border-white/[0.09] pt-3 text-[11px] leading-5 text-slate-300/80">
-                    Completed months include every calendar day. The current month runs through ${formatMonthLabel(reportDate.slice(0, 7))} day ${Number(reportDate.slice(8, 10))}; future dates are excluded rather than shown as missing punches.
+                    Completed months include every calendar day. The current month runs only through day {Number(reportDate.slice(8, 10))} of {formatMonthLabel(reportDate.slice(0, 7))}; future dates are excluded rather than shown as missing punches.
                   </div>
                 </div>
               </aside>
