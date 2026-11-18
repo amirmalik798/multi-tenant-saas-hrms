@@ -10,7 +10,7 @@ import {
 } from "../../../../../lib/daily-attendance-pdf";
 
 type ScopeMode = "ALL" | "HR_DIRECT_REPORTS";
-type Metadata = { organizationName: string; timeZone: string; generatedBy: string };
+type Metadata = { organizationName: string; timeZone: string; generatedBy: string; organizationToday: string };
 type Row = Omit<DailyAttendanceRecord, "events"> & { workDate: string; events: unknown };
 
 function parseArray<T>(value: unknown): T[] {
@@ -118,6 +118,7 @@ export async function GET(request: Request) {
       `SELECT
          o.name AS "organizationName",
          COALESCE(NULLIF(os.time_zone, ''), 'Africa/Kigali') AS "timeZone",
+         TO_CHAR((NOW() AT TIME ZONE COALESCE(NULLIF(os.time_zone, ''), 'Africa/Kigali'))::date, 'YYYY-MM-DD') AS "organizationToday",
          COALESCE(
            NULLIF(TRIM(CONCAT_WS(' ', actor_employee.first_name, actor_employee.last_name)), ''),
            NULLIF(actor_user.email, ''),
@@ -134,6 +135,13 @@ export async function GET(request: Request) {
     if (!metadata) return jsonResponse({ message: "Organization details could not be loaded" }, 404);
     try { new Intl.DateTimeFormat("en-GB", { timeZone: metadata.timeZone }); }
     catch { return jsonResponse({ message: "The organization's configured time zone is invalid" }, 500); }
+
+    const organizationToday = String(metadata.organizationToday).slice(0, 10);
+    const effectiveToDate = toDate > organizationToday ? organizationToday : toDate;
+    if (fromDate > effectiveToDate) {
+      return jsonResponse({ message: "The selected reporting period does not include any dates that have occurred in the organization's time zone" }, 400);
+    }
+    const currentOrganizationMonth = organizationToday.slice(0, 7);
 
     // This is intentionally bounded by both date range and result count. Every
     // month is grouped after the query, so all days for month N precede month N+1.
@@ -289,7 +297,7 @@ export async function GET(request: Request) {
            AND ot.status = 'APPROVED'
        ) AS overtime ON TRUE
        LIMIT 120001`,
-      [actor.organizationId, fromDate, toDate, scopeMode, scopeEmployeeId],
+      [actor.organizationId, fromDate, effectiveToDate, scopeMode, scopeEmployeeId],
     );
 
     if (reportResult.rows.length > 120000) {
