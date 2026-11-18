@@ -28,6 +28,7 @@ type BulkPayslipEmployee = {
 };
 type BulkPayslipProgress = { phase: "scope" | "slips" | "verify"; completed: number; total: number };
 const MAX_BULK_SLIP_STATEMENTS = 3000;
+const MAX_BULK_SLIP_EMPLOYEES = 500;
 function isPayrollMonth(value: string) { return /^\d{4}-(0[1-9]|1[0-2])$/.test(value); }
 function payrollMonthOrdinal(value: string) { const [year, month] = value.split("-").map(Number); return year * 12 + month - 1; }
 function payrollMonthFromOrdinal(value: number) { const year = Math.floor(value / 12); const month = value % 12 + 1; return String(year) + "-" + String(month).padStart(2, "0"); }
@@ -678,11 +679,11 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
       if (payload.limitExceeded) {
         const maxEmployees = Number.isInteger(payload.maxEmployees) && Number(payload.maxEmployees) > 0
           ? Number(payload.maxEmployees)
-          : Math.floor(MAX_BULK_SLIP_STATEMENTS / monthCount);
+          : Math.min(MAX_BULK_SLIP_EMPLOYEES, Math.floor(MAX_BULK_SLIP_STATEMENTS / monthCount));
         throw new Error(
           "The selected range supports up to " + maxEmployees.toLocaleString() +
-          " workforce members (" + MAX_BULK_SLIP_STATEMENTS.toLocaleString() +
-          " employee-month statements). Shorten the month range to include more people.",
+          " workforce members and " + MAX_BULK_SLIP_STATEMENTS.toLocaleString() +
+          " employee-month statements. Shorten the month range to include more people.",
         );
       }
 
@@ -995,7 +996,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
                 ? <span className="text-amber-200">The From month must not be later than the To month.</span>
                 : payrollMonthOrdinal(bulkEndMonth) - payrollMonthOrdinal(bulkStartMonth) + 1 > 24
                   ? <span className="text-amber-200">Choose a range of 24 months or fewer.</span>
-                  : <span>{payrollMonthOrdinal(bulkEndMonth) - payrollMonthOrdinal(bulkStartMonth) + 1} month(s) · A maximum of 3,000 employee-month statements per combined report.</span>}
+                  : <span>{payrollMonthOrdinal(bulkEndMonth) - payrollMonthOrdinal(bulkStartMonth) + 1} month(s) · A maximum of 500 workforce members and 3,000 employee-month statements per combined report.</span>}
             <span className="mt-1 block text-[11px] text-slate-400">Only your authorized workforce is included. This report does not create, edit or mark any salary payment as paid.</span>
           </div>
           <button
