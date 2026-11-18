@@ -2,7 +2,7 @@ import { connection } from "next/server";
 import { pool } from "../../../../../lib/db";
 import { calculateDailyAttendance } from "../../../../../lib/attendance-calculations";
 import { getTenantPermissionActor } from "../../../../../lib/permissions";
-import { jsonResponse, organizationIsActive } from "../../../../../lib/schedule-utils";
+import { isValidDateString, jsonResponse, organizationIsActive } from "../../../../../lib/schedule-utils";
 import {
   createMonthlyAttendancePdf,
   type DailyAttendanceRecord,
@@ -14,12 +14,18 @@ type Metadata = { organizationName: string; timeZone: string; generatedBy: strin
 type Row = Omit<DailyAttendanceRecord, "events"> & { workDate: string; events: unknown };
 
 function parseArray<T>(value: unknown): T[] {
+  if (value === null || value === undefined) return [];
   if (Array.isArray(value)) return value as T[];
   if (typeof value === "string") {
-    try { const parsed: unknown = JSON.parse(value); return Array.isArray(parsed) ? parsed as T[] : []; }
-    catch { return []; }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      throw new Error("Attendance event data returned by the database is malformed");
+    }
+    if (Array.isArray(parsed)) return parsed as T[];
   }
-  return [];
+  throw new Error("Attendance event data returned by the database has an invalid structure");
 }
 
 function validMonth(value: string | null): value is string {
@@ -294,6 +300,9 @@ export async function GET(request: Request) {
     for (const row of reportResult.rows) {
       const { workDate, events: eventSource, ...record } = row;
       const date = String(workDate).slice(0, 10);
+      if (!isValidDateString(date) || date < fromDate || date > toDate) {
+        throw new Error("Attendance query returned a work date outside the requested reporting period");
+      }
       const events = parseArray<NonNullable<DailyAttendanceRecord["events"]>[number]>(eventSource);
       const historicalSnapshot = date < organizationToday;
       const calculated = calculateDailyAttendance({
