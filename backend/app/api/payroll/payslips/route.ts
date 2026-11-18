@@ -80,7 +80,7 @@ export async function GET(request: Request) {
       return json({ message: "Future payroll months cannot be included in a salary-slip report" }, 400);
     }
 
-    const maxEmployees = Math.floor(3000 / monthCount);
+    const maxEmployees = Math.min(500, Math.floor(3000 / monthCount));
     const rosterLimit = maxEmployees + 1;
     const [endYear, endMonthNumber] = endMonth.split("-").map(Number);
     const fromDate = `${startMonth}-01`;
