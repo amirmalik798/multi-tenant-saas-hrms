@@ -682,8 +682,8 @@ export type MonthlyDailyAttendanceReport = {
 
 /**
  * Build one combined PDF from the existing daily attendance report layout.
- * All daily reports remain in chronological order. The first daily register
- * of every month carries a clear month banner, with each daily register kept separate.
+ * All daily reports remain in chronological order. Every daily register
+ * carries its month label, and each date remains on its own complete page set.
  */
 export function createMonthlyAttendancePdf(report: MonthlyDailyAttendanceReport): Buffer {
   const pages: PdfPage[] = [];
