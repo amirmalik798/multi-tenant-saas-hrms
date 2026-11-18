@@ -317,8 +317,8 @@ export function buildSalarySlipDocument(input: SalarySlipPayload | SalarySlipPay
   const pages = payloads.map((payload) =>
     payload.months.map((month, index) =>
       buildMonthPage(payload, month, index, payload.months.length)
-    ).join("\\n")
-  ).join("\\n");
+    ).join("\n")
+  ).join("\n");
   const titleSubject = payloads.length === 1
     ? [first.employee.firstName, first.employee.lastName].filter(Boolean).join(" ") || "Workforce member"
     : `${payloads.length} workforce members`;
