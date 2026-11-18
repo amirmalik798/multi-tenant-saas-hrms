@@ -18,7 +18,7 @@ import {
 } from "./attendance-report-document";
 
 type Audience = "organization-admin" | "hr-manager" | "department-manager" | "employee";
-type ReportMode = "daily" | "member";
+type ReportMode = "daily" | "member" | "organization-monthly";
 type ReportTarget = {
   employeeId: string;
   employeeCode: string | null;
@@ -87,6 +87,8 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
   const [reportDate, setReportDate] = useState(() => localDate());
   const [fromDate, setFromDate] = useState(() => monthStart(localDate()));
   const [toDate, setToDate] = useState(() => localDate());
+  const [fromMonth, setFromMonth] = useState(() => monthStart(localDate()).slice(0, 7));
+  const [toMonth, setToMonth] = useState(() => localDate().slice(0, 7));
   const [timeZone, setTimeZone] = useState("");
   const [targets, setTargets] = useState<ReportTarget[]>([]);
   const [selectedTargetId, setSelectedTargetId] = useState("");
@@ -126,6 +128,8 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
         if (!rangeTouched.current) {
           setFromDate(monthStart(today));
           setToDate(today);
+          setFromMonth(today.slice(0, 7));
+          setToMonth(today.slice(0, 7));
         }
       } catch (cause) {
         if (!cancelled) {
@@ -226,6 +230,59 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
     } catch (cause) {
       if (!reportWindow.closed) reportWindow.close();
       setError(cause instanceof Error ? cause.message : "Unable to generate the daily attendance report.");
+    } finally {
+      setLoadingMode(null);
+    }
+  }
+
+  async function generateOrganizationMonthlyReport() {
+    if (!isOrganizationAdmin && audience !== "hr-manager") {
+      setError("Monthly organization reports are available to Organization Admins and HR Managers only.");
+      return;
+    }
+    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(fromMonth) ||
+        !/^\\d{4}-(0[1-9]|1[0-2])$/.test(toMonth) ||
+        fromMonth > toMonth) {
+      setError("Choose valid From month and To month values. From month must be on or before To month.");
+      return;
+    }
+    const selectedMonths = monthCount(`${fromMonth}-01`, `${toMonth}-01`);
+    if (selectedMonths > 24) {
+      setError("A report can cover up to 24 calendar months at a time.");
+      return;
+    }
+
+    const reportWindow = openPreparationWindow(
+      "Preparing monthly attendance report",
+      "Compiling each month in sequence with the full attendance register for that month.",
+    );
+    if (!reportWindow) return;
+
+    setLoadingMode("organization-monthly");
+    setError("");
+    setNotice("");
+    try {
+      const query = new URLSearchParams({ fromMonth, toMonth });
+      const response = await fetch(`/api/backend/attendance/reports/monthly-organization?${query.toString()}`, {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        const payload: unknown = await response.json().catch(() => null);
+        throw new Error(readMessage(payload) || `Unable to generate the monthly report (${response.status}).`);
+      }
+      const blob = await response.blob();
+      if (!blob.size || !blob.type.toLowerCase().includes("pdf")) {
+        throw new Error("The monthly attendance report could not be prepared as a PDF.");
+      }
+      if (reportWindow.closed) return;
+      const objectUrl = URL.createObjectURL(blob);
+      reportWindow.location.replace(objectUrl);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120_000);
+      setNotice(`Monthly attendance PDF prepared from ${fromMonth} through ${toMonth}.`);
+    } catch (cause) {
+      if (!reportWindow.closed) reportWindow.close();
+      setError(cause instanceof Error ? cause.message : "Unable to generate the monthly attendance report.");
     } finally {
       setLoadingMode(null);
     }
@@ -341,7 +398,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
       </section>
 
       {!isEmployee && (
-        <section className="grid gap-3 xl:grid-cols-2" aria-label="Attendance report types">
+        <section className="grid gap-3 xl:grid-cols-3" aria-label="Attendance report types">
           <button
             type="button"
             onClick={() => { if (isOrganizationAdmin) { setMode("daily"); setError(""); setNotice(""); } }}
@@ -360,7 +417,21 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => { setMode("member"); setError(""); setNotice(""); }}
+            onClick={() => { setMode("organization-monthly"); setError(""); setNotice(""); }}
+            disabled={busy}
+            aria-pressed={mode === "organization-monthly"}
+            className={`group min-w-0 rounded-2xl border p-4 text-left transition sm:p-5 ${mode === "organization-monthly" ? "border-sky-400/45 bg-sky-400/[0.07] shadow-lg shadow-sky-950/10" : "border-white/[0.08] bg-[#151e2b] hover:border-white/[0.16]"}`}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <span className="flex size-11 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/[0.08] text-cyan-200"><CalendarDays size={20}/></span>
+              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${mode === "organization-monthly" ? "border-sky-300/25 bg-sky-300/10 text-sky-200" : "border-slate-700 text-slate-500"}`}>02 · Monthly series</span>
+            </div>
+            <h3 className="mt-4 text-base font-bold text-white">Monthly organization report</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-400">From month · To month · One combined PDF</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode("member"); setError(""); setNotice(""); }
             disabled={busy}
             aria-pressed={mode === "member"}
             className={`group min-w-0 rounded-2xl border p-4 text-left transition sm:p-5 ${mode === "member" ? "border-sky-400/45 bg-sky-400/[0.07] shadow-lg shadow-sky-950/10" : "border-white/[0.08] bg-[#151e2b] hover:border-white/[0.16]"}`}
@@ -376,7 +447,29 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
       )}
 
       <section className="rounded-2xl border border-[#34465d]/80 bg-[#141e2b] p-5 shadow-xl shadow-black/10 sm:p-7">
-        {mode === "daily" ? (
+        {mode === "organization-monthly" ? (
+          <>
+            <div className="flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-cyan-400/[0.08] text-cyan-200 ring-1 ring-cyan-300/15"><CalendarDays size={18}/></span>
+              <div><h3 className="text-base font-bold text-white">Organization attendance · Monthly range</h3><p className="mt-1 text-xs text-slate-400">Each selected month contains its complete authorized attendance register.</p></div>
+            </div>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 sm:items-end">
+              <label className="block min-w-0 text-xs font-semibold text-slate-300">From month
+                <input type="month" value={fromMonth} disabled={dateLoading || busy} max={toMonth || undefined} onChange={(event) => { rangeTouched.current = true; setFromMonth(event.target.value); setError(""); setNotice(""); }} className={INPUT}/>
+              </label>
+              <label className="block min-w-0 text-xs font-semibold text-slate-300">To month
+                <input type="month" value={toMonth} disabled={dateLoading || busy} min={fromMonth || undefined} onChange={(event) => { rangeTouched.current = true; setToMonth(event.target.value); setError(""); setNotice(""); }} className={INPUT}/>
+              </label>
+            </div>
+            <div className="mt-4 flex flex-col gap-3 border-t border-white/[0.06] pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-slate-500">Inclusive calendar months · Each month starts on a new PDF page · Maximum 24 months</p>
+              <button type="button" onClick={() => void generateOrganizationMonthlyReport()} disabled={dateLoading || busy || !fromMonth || !toMonth || fromMonth > toMonth} className={BUTTON}>
+                {loadingMode === "organization-monthly" ? <RefreshCw size={16} className="animate-spin"/> : <Download size={16}/>}
+                {loadingMode === "organization-monthly" ? "Generating PDF…" : "Generate monthly organization PDF"}
+              </button>
+            </div>
+          </>
+        ) : mode === "daily" ? (
           <>
             <div className="flex items-start gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky-400/[0.08] text-sky-200 ring-1 ring-sky-300/15"><CalendarDays size={18}/></span>
