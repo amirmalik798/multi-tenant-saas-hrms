@@ -117,6 +117,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
   const [dateLoading, setDateLoading] = useState(true);
   const [loadingMode, setLoadingMode] = useState<ReportMode | null>(null);
   const [error, setError] = useState("");
+  const [targetsError, setTargetsError] = useState("");
   const [notice, setNotice] = useState("");
   const dailyDateTouched = useRef(false);
   const individualRangeTouched = useRef(false);
@@ -197,6 +198,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
           : [];
         if (!cancelled) {
           setTargets(rows);
+          setTargetsError("");
           setSelectedTargetId((current) => rows.some((row) => row.employeeId === current)
             ? current
             : rows[0]?.employeeId || "");
@@ -205,7 +207,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
         if (!cancelled) {
           setTargets([]);
           setSelectedTargetId("");
-          setError(cause instanceof Error ? cause.message : "Unable to load permitted workforce members.");
+          setTargetsError(cause instanceof Error ? cause.message : "Unable to load permitted workforce members.");
         }
       } finally {
         if (!cancelled) setTargetsLoading(false);
@@ -338,7 +340,9 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
       if (reportWindow.closed) return;
       const objectUrl = URL.createObjectURL(blob);
       reportWindow.location.replace(objectUrl);
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120_000);
+      // Larger monthly reports can take longer to render in the browser's PDF
+      // viewer. Keep the temporary object URL alive long enough to load/print.
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 600_000);
       setNotice(`Monthly attendance PDF prepared from ${fromMonth} through ${toMonth}.`);
     } catch (cause) {
       if (!reportWindow.closed) reportWindow.close();
@@ -662,7 +666,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
               ) : (
                 <label className="block min-w-0 text-xs font-semibold text-slate-300 md:col-span-2 xl:col-span-2">Workforce member
                   <select value={selectedTargetId} disabled={targetsLoading || busy || targets.length === 0} onChange={(event) => { setSelectedTargetId(event.target.value); setError(""); setNotice(""); }} className={INPUT}>
-                    <option value="">{targetsLoading ? "Loading permitted members…" : "Select workforce member"}</option>
+                    <option value="">{targetsLoading ? "Loading permitted members…" : targets.length === 0 ? "No permitted workforce members" : "Select workforce member"}</option>
                     {targets.map((target) => <option key={target.employeeId} value={target.employeeId}>{targetLabel(target)}</option>)}
                   </select>
                 </label>
@@ -684,6 +688,8 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
           </>
         )}
         {error && <div role="alert" className="mt-4 flex items-start gap-2 rounded-xl border border-rose-400/20 bg-rose-400/[0.05] p-3.5 text-sm leading-6 text-rose-200"><span>{error}</span></div>}
+        {mode === "member" && !error && targetsError && <div role="alert" className="mt-4 flex items-start gap-2 rounded-xl border border-rose-400/20 bg-rose-400/[0.05] p-3.5 text-sm leading-6 text-rose-200"><span>{targetsError}</span></div>}
+        {mode === "member" && !error && !targetsError && !targetsLoading && targets.length === 0 && <div role="status" className="mt-4 rounded-xl border border-amber-300/15 bg-amber-300/[0.05] p-3.5 text-sm leading-6 text-amber-100">No workforce members are currently available within your reporting scope.</div>}
         {notice && <div role="status" className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] p-3.5 text-sm leading-6 text-emerald-200"><CheckCircle2 size={16} className="mt-0.5 shrink-0"/><span>{notice}</span></div>}
         {dateLoading && <p role="status" className="mt-3 text-xs text-slate-500">Loading organization date and timezone…</p>}
       </section>
