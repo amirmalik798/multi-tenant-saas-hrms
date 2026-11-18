@@ -420,16 +420,36 @@ function statusColor(analysis: Analysis): RGB {
   return COLORS.muted;
 }
 
-function drawHeader(page: PdfPage, report: DailyAttendanceReport, continuation: boolean): void {
+function drawHeader(
+  page: PdfPage,
+  report: DailyAttendanceReport,
+  continuation: boolean,
+  monthLabel?: string,
+): void {
   drawRect(page, 0, 0, PAGE_WIDTH, 79, COLORS.navy);
   drawRect(page, MARGIN, 18, 4, 42, COLORS.teal);
   drawText(page, "HRMS  /  WORKFORCE OPERATIONS", MARGIN + 13, 13, 7.1, [0.56, 0.88, 0.83], true);
   drawText(page, report.organizationName || "Organization", MARGIN + 13, 28, 15.5, COLORS.white, true, 435);
   drawText(page, "ATTENDANCE REPORT", MARGIN + 13, 52, 7, [0.76, 0.83, 0.9], true);
 
-  drawRightText(page, continuation ? "DAILY ATTENDANCE REPORT - CONTINUED" : "DAILY ATTENDANCE REPORT", PAGE_WIDTH - MARGIN, 17, 12.4, COLORS.white, true);
-  drawRightText(page, formatReportDate(report.reportDate), PAGE_WIDTH - MARGIN, 38, 8.2, [0.86, 0.9, 0.96]);
-  drawRightText(page, `Generated ${formatGeneratedAt(report.generatedAt, report.timeZone)} (${report.timeZone})`, PAGE_WIDTH - MARGIN, 55, 6.5, [0.72, 0.79, 0.87]);
+  if (monthLabel) {
+    drawRightText(
+      page,
+      continuation ? "MONTHLY ATTENDANCE - CONTINUED" : "MONTHLY ATTENDANCE REGISTER",
+      PAGE_WIDTH - MARGIN,
+      13,
+      10.2,
+      COLORS.white,
+      true,
+    );
+    drawRightText(page, monthLabel, PAGE_WIDTH - MARGIN, 30, 8.4, [0.56, 0.88, 0.83], true);
+    drawRightText(page, `Report date: ${formatReportDate(report.reportDate)}`, PAGE_WIDTH - MARGIN, 44, 7, [0.86, 0.9, 0.96]);
+    drawRightText(page, `Generated ${formatGeneratedAt(report.generatedAt, report.timeZone)} (${report.timeZone})`, PAGE_WIDTH - MARGIN, 58, 5.8, [0.72, 0.79, 0.87]);
+  } else {
+    drawRightText(page, continuation ? "DAILY ATTENDANCE REPORT - CONTINUED" : "DAILY ATTENDANCE REPORT", PAGE_WIDTH - MARGIN, 17, 12.4, COLORS.white, true);
+    drawRightText(page, formatReportDate(report.reportDate), PAGE_WIDTH - MARGIN, 38, 8.2, [0.86, 0.9, 0.96]);
+    drawRightText(page, `Generated ${formatGeneratedAt(report.generatedAt, report.timeZone)} (${report.timeZone})`, PAGE_WIDTH - MARGIN, 55, 6.5, [0.72, 0.79, 0.87]);
+  }
 
   drawRect(page, 0, 79, PAGE_WIDTH, 28, COLORS.panel);
   drawText(page, "REPORT SCOPE", MARGIN, 84, 5.8, COLORS.muted, true);
@@ -566,14 +586,14 @@ function newPage(): PdfPage {
   return { content: [] };
 }
 
-function drawMainPages(report: DailyAttendanceReport): PdfPage[] {
+function drawMainPages(report: DailyAttendanceReport, monthLabel?: string): PdfPage[] {
   const rows = report.rows;
   const pageCount = Math.max(1, Math.ceil(rows.length / MAIN_ROWS_PER_PAGE));
   const pages: PdfPage[] = [];
 
   for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
     const page = newPage();
-    drawHeader(page, report, pageIndex > 0);
+    drawHeader(page, report, pageIndex > 0, monthLabel);
     drawSummary(page, report);
     drawText(page, "DAILY ATTENDANCE REGISTER", MARGIN, 190, 8.4, COLORS.ink, true);
     drawRightText(page, "EMPLOYEE DETAIL REGISTER", PAGE_WIDTH - MARGIN, 192, 6.1, COLORS.muted);
@@ -654,38 +674,37 @@ export type MonthlyDailyAttendanceReport = {
   reportScope: string;
   generatedAt: Date;
   generatedBy: string;
-  months: Array<{ month: string; reportDate: string; rows: DailyAttendanceRecord[] }>;
+  months: Array<{
+    month: string;
+    days: Array<{ reportDate: string; rows: DailyAttendanceRecord[] }>;
+  }>;
 };
 
 /**
- * Build one PDF containing all selected monthly attendance registers.
- * Each month starts on a fresh page; large monthly registers continue on
- * subsequent pages without allowing the next month to share that page.
+ * Build one combined PDF from the existing daily attendance report layout.
+ * All daily reports remain in chronological order. The first daily register
+ * of every month carries a clear month banner and always starts on a new page.
  */
 export function createMonthlyAttendancePdf(report: MonthlyDailyAttendanceReport): Buffer {
   const pages: PdfPage[] = [];
+
   for (const month of report.months) {
-    const dailyReport: DailyAttendanceReport = {
-      organizationName: report.organizationName,
-      reportDate: month.reportDate,
-      timeZone: report.timeZone,
-      reportScope: report.reportScope,
-      generatedAt: report.generatedAt,
-      generatedBy: report.generatedBy,
-      rows: month.rows,
-    };
-    const monthPages = drawMainPages(dailyReport);
-    monthPages.forEach((page, index) => {
-      if (index === 0) {
-        // Integrate month context into the first attendance page rather than
-        // inserting a separate cover, preserving a compact report sequence.
-        drawRect(page, MARGIN, 111, CONTENT_WIDTH, 22, COLORS.tealLight);
-        drawText(page, "MONTH", MARGIN + 9, 118, 5.8, COLORS.teal, true);
-        drawText(page, formatMonth(month.month), MARGIN + 52, 115, 11, COLORS.ink, true);
-        drawText(page, report.reportScope, PAGE_WIDTH - MARGIN - 190, 119, 5.8, COLORS.muted, false, 180);
-      }
-      pages.push(page);
-    });
+    const monthLabel = formatMonth(month.month);
+    for (const [dayIndex, day] of month.days.entries()) {
+      const dailyReport: DailyAttendanceReport = {
+        organizationName: report.organizationName,
+        reportDate: day.reportDate,
+        timeZone: report.timeZone,
+        reportScope: report.reportScope,
+        generatedAt: report.generatedAt,
+        generatedBy: report.generatedBy,
+        rows: day.rows,
+      };
+      // A month begins with the first page of its first daily register. Since
+      // every daily register is serialized as complete PDF pages, no month can
+      // share a page with the preceding month.
+      pages.push(...drawMainPages(dailyReport, dayIndex === 0 ? monthLabel : undefined));
+    }
   }
 
   pages.forEach((page, index) => {
