@@ -298,7 +298,7 @@ export async function GET(request: Request) {
            AND ot.decision_at <= $6::timestamptz
        ) AS overtime ON TRUE
        LIMIT 120001`,
-      [actor.organizationId, fromDate, effectiveToDate, scopeMode, scopeEmployeeId],
+      [actor.organizationId, fromDate, toDate, scopeMode, scopeEmployeeId, generatedAt],
     );
 
     if (reportResult.rows.length > 120000) {
