@@ -609,7 +609,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
   }
 
   async function generateBulkSalarySlips() {
-    if (!canEdit || bulkPayslipLoading || saving || payslipLoading || payslipDialog || generatingPayslip) return;
+    if (!canEdit || bulkPayslipLoading || (bulkPayslipPrintWindowRef.current && !bulkPayslipPrintWindowRef.current.closed) || saving || payslipLoading || payslipDialog || generatingPayslip) return;
     if (hasUnsavedChanges) {
       setBulkPayslipError("Save or discard the unsaved payment edits before generating workforce salary slips.");
       return;
