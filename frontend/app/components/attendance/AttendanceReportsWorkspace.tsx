@@ -104,7 +104,7 @@ function loadingDocument(title: string, detail: string): string {
 export default function AttendanceReportsWorkspace({ audience }: Props) {
   const isOrganizationAdmin = audience === "organization-admin";
   const isEmployee = audience === "employee";
-  const [mode, setMode] = useState<ReportMode>(isOrganizationAdmin ? "daily" : "member");
+  const [mode, setMode] = useState<ReportMode>(canGenerateOrganizationMonthlyReport ? "organization-monthly" : isOrganizationAdmin ? "daily" : "member");
   const [reportDate, setReportDate] = useState(() => localDate());
   const [fromDate, setFromDate] = useState(() => monthStart(localDate()));
   const [toDate, setToDate] = useState(() => localDate());
@@ -274,6 +274,22 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
   function applyMonthPreset(months: number) {
     const endMonth = reportDate.slice(0, 7);
     setFromMonth(shiftMonth(endMonth, -(months - 1)));
+    setToMonth(endMonth);
+    monthRangeTouched.current = true;
+    setError("");
+    setNotice("");
+  }
+
+  function applyMonthShortcut(shortcut: "current" | "previous" | "year-to-date") {
+    const currentMonth = reportDate.slice(0, 7);
+    const previousMonth = shiftMonth(currentMonth, -1);
+    const startMonth = shortcut === "previous"
+      ? previousMonth
+      : shortcut === "year-to-date"
+        ? `${currentMonth.slice(0, 4)}-01`
+        : currentMonth;
+    const endMonth = shortcut === "previous" ? previousMonth : currentMonth;
+    setFromMonth(startMonth);
     setToMonth(endMonth);
     monthRangeTouched.current = true;
     setError("");
@@ -539,6 +555,21 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                     <span className="text-[11px] text-slate-500">Anchored to organization date</span>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
+                    {[
+                      { key: "current", label: "This month" },
+                      { key: "previous", label: "Last month" },
+                      { key: "year-to-date", label: "Year to date" },
+                    ].map((shortcut) => (
+                      <button
+                        key={shortcut.key}
+                        type="button"
+                        onClick={() => applyMonthShortcut(shortcut.key as "current" | "previous" | "year-to-date")}
+                        disabled={dateLoading || busy}
+                        className="rounded-lg border border-cyan-300/20 bg-cyan-300/[0.055] px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:border-cyan-300/45 hover:bg-cyan-300/[0.10] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 disabled:opacity-45"
+                      >
+                        {shortcut.label}
+                      </button>
+                    ))}
                     {[3, 6, 12].map((months) => (
                       <button
                         key={months}
@@ -596,7 +627,7 @@ export default function AttendanceReportsWorkspace({ audience }: Props) {
                 className={BUTTON}
               >
                 {loadingMode === "organization-monthly" ? <RefreshCw size={16} className="animate-spin"/> : <Download size={16}/>}
-                {loadingMode === "organization-monthly" ? "Building combined PDF…" : "Generate combined PDF"}
+                {loadingMode === "organization-monthly" ? "Building combined PDF…" : `Generate PDF · ${selectedMonths} ${selectedMonths === 1 ? "month" : "months"}`}
               </button>
             </div>
           </>
