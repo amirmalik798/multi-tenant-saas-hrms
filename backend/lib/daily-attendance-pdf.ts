@@ -683,7 +683,7 @@ export type MonthlyDailyAttendanceReport = {
 /**
  * Build one combined PDF from the existing daily attendance report layout.
  * All daily reports remain in chronological order. The first daily register
- * of every month carries a clear month banner and always starts on a new page.
+ * of every month carries a clear month banner, with each daily register kept separate.
  */
 export function createMonthlyAttendancePdf(report: MonthlyDailyAttendanceReport): Buffer {
   const pages: PdfPage[] = [];
@@ -703,7 +703,7 @@ export function createMonthlyAttendancePdf(report: MonthlyDailyAttendanceReport)
       // A month begins with the first page of its first daily register. Since
       // every daily register is serialized as complete PDF pages, no month can
       // share a page with the preceding month.
-      pages.push(...drawMainPages(dailyReport, dayIndex === 0 ? monthLabel : undefined));
+      pages.push(...drawMainPages(dailyReport, monthLabel));
     }
   }
 
