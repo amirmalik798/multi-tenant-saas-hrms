@@ -925,7 +925,7 @@ export default function SalaryPaymentsWorkspace({ audience, employeeId, excludeE
           : <Link href={audience === "hr-manager" ? "/hr/modules/pay-rates" : "/org/pay-rates"} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-600 bg-white/[0.025] px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07]">Manage pay rates</Link>)}
         {canEdit && <button type="button" onClick={() => {
           if (!bulkPayslipOpen) {
-            const currentMonth = month || monthNow();
+            const currentMonth = organizationCurrentMonth || monthNow();
             setBulkStartMonth(currentMonth);
             setBulkEndMonth(currentMonth);
             setBulkPayslipError("");
