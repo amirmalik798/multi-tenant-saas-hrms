@@ -73,7 +73,7 @@ export async function GET(request: Request) {
       [actor.organizationId],
     );
     const organizationToday = organizationDateResult.rows[0]?.today;
-    if (!organizationToday || !/^\\d{4}-\\d{2}-\\d{2}$/.test(organizationToday)) {
+    if (!organizationToday || !/^\d{4}-\d{2}-\d{2}$/.test(organizationToday)) {
       return json({ message: "The organization payroll date is unavailable. Please retry later." }, 503);
     }
     if (endMonth > organizationToday.slice(0, 7)) {
