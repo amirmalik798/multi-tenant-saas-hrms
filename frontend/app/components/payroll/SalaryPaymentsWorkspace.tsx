@@ -28,7 +28,7 @@ type BulkPayslipEmployee = {
 };
 type BulkPayslipProgress = { phase: "scope" | "slips" | "verify"; completed: number; total: number };
 const MAX_BULK_SLIP_STATEMENTS = 3000;
-function isPayrollMonth(value: string) { return /^\\d{4}-(0[1-9]|1[0-2])$/.test(value); }
+function isPayrollMonth(value: string) { return /^\d{4}-(0[1-9]|1[0-2])$/.test(value); }
 function payrollMonthOrdinal(value: string) { const [year, month] = value.split("-").map(Number); return year * 12 + month - 1; }
 function payrollMonthFromOrdinal(value: number) { const year = Math.floor(value / 12); const month = value % 12 + 1; return String(year) + "-" + String(month).padStart(2, "0"); }
 const INPUT = "mt-1.5 w-full rounded-xl border border-slate-700 bg-[#0b111b] px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-sky-400";
