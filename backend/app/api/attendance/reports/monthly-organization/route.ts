@@ -316,6 +316,9 @@ export async function GET(request: Request) {
         throw new Error("Attendance query returned a work date outside the requested reporting period");
       }
       const events = parseArray<NonNullable<DailyAttendanceRecord["events"]>[number]>(eventSource);
+      if (events.some((event) => !event || typeof event !== "object" || Array.isArray(event))) {
+        throw new Error("Attendance event details contain an invalid record");
+      }
       const databaseEventCount = Number(row.eventCount);
       if (!Number.isSafeInteger(databaseEventCount) || databaseEventCount !== events.length) {
         throw new Error("Attendance event count does not match the returned event details");
@@ -344,7 +347,8 @@ export async function GET(request: Request) {
       rowsForDay.sort((left, right) =>
         (left.departmentName || "").localeCompare(right.departmentName || "", "en", { sensitivity: "base" }) ||
         (left.lastName || "").localeCompare(right.lastName || "", "en", { sensitivity: "base" }) ||
-        (left.firstName || "").localeCompare(right.firstName || "", "en", { sensitivity: "base" }),
+        (left.firstName || "").localeCompare(right.firstName || "", "en", { sensitivity: "base" }) ||
+        left.employeeId.localeCompare(right.employeeId),
       );
     }
 
