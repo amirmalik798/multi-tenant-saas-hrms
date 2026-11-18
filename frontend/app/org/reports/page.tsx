@@ -8,7 +8,7 @@ export default function OrganizationAdminReportsPage() {
     <OrganizationAdminHRModuleShell
       activePage="reports"
       title="Attendance reports"
-      description="Organization-wide and individual attendance PDFs."
+      description="Daily, monthly and individual attendance PDFs."
     >
       <AttendanceReportsWorkspace audience="organization-admin" />
     </OrganizationAdminHRModuleShell>
