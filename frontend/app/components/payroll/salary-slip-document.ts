@@ -309,6 +309,7 @@ export function buildSalarySlipDocument(input: SalarySlipPayload | SalarySlipPay
     payload.startMonth !== first.startMonth ||
     payload.endMonth !== first.endMonth ||
     payload.organization.name !== first.organization.name ||
+    payload.organization.timeZone !== first.organization.timeZone ||
     payload.months.map((month) => month.month).join("|") !== expectedMonths
   )) {
     throw new Error("All salary slips in a combined document must use the same organization and month range.");
@@ -330,7 +331,7 @@ export function buildSalarySlipDocument(input: SalarySlipPayload | SalarySlipPay
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Salary Slips · ${escapeHtml(titleSubject)} · ${escapeHtml(first.startMonth)} to ${escapeHtml(first.endMonth)}</title>
+<title>${payloads.length === 1 ? "Salary Slip" : "Salary Slips"} · ${escapeHtml(titleSubject)} · ${escapeHtml(first.startMonth)} to ${escapeHtml(first.endMonth)}</title>
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: #e9eef5; color: #172338; font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
