@@ -169,9 +169,15 @@ export default function WorkspaceClock({
 
     let active = true;
     let requestInFlight = false;
+    let refreshQueued = false;
 
     const loadAttendanceStatus = async () => {
-      if (requestInFlight || document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible") return;
+      if (requestInFlight) {
+        // Do not lose a clock-action event that arrives during an older read.
+        refreshQueued = true;
+        return;
+      }
       requestInFlight = true;
       const revision = attendanceStatusRevisionRef.current;
 
@@ -186,6 +192,10 @@ export default function WorkspaceClock({
         }
       } finally {
         requestInFlight = false;
+        if (active && refreshQueued && document.visibilityState === "visible") {
+          refreshQueued = false;
+          void loadAttendanceStatus();
+        }
       }
     };
 
