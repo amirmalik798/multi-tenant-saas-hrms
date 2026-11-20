@@ -461,9 +461,20 @@ export default function WorkspaceClock({
         <span className="sa-clock-time flex items-center gap-1.5 whitespace-nowrap font-mono text-[11px] font-bold tabular-nums tracking-tight text-slate-100 sm:text-sm">
           {snapshot?.time ?? "--:--:--"}
           {showAttendanceStatus && (
-            <span className={"inline-flex items-center gap-1 rounded-md border border-current/15 bg-black/10 px-1.5 py-0.5 font-sans text-[8px] font-extrabold tracking-[0.08em] sm:text-[9px] " + attendanceTone.label}>
+            <span
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className={"inline-flex items-center gap-1 rounded-md border border-current/15 bg-black/10 px-1.5 py-0.5 font-sans text-[8px] font-extrabold tracking-[0.08em] sm:text-[9px] " + attendanceTone.label}
+            >
               <span className={"size-1.5 rounded-full " + attendanceTone.dot} />
-              {attendanceLabel}
+              {currentClockAction === "CLOCK_IN"
+                ? "CLOCK-IN"
+                : currentClockAction === "CLOCK_OUT"
+                  ? "CLOCK-OUT"
+                  : attendanceStatus === "loading"
+                    ? "CHECKING"
+                    : "UNAVAILABLE"}
             </span>
           )}
         </span>
