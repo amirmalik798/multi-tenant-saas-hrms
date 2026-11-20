@@ -471,8 +471,30 @@ export default function WorkspaceClock({
           label: "text-slate-400",
           dot: "bg-slate-400",
         };
-  const containerTone = showAttendanceStatus ? attendanceTone.container : "border-sky-400/20 bg-gradient-to-br from-sky-400/[0.12] to-indigo-400/[0.06]";
-  const iconTone = showAttendanceStatus ? attendanceTone.icon : "border-sky-300/20 bg-sky-300/10 text-sky-200";
+  // The header color communicates the next available action, not the
+  // stored attendance state: clock-in is actionable in green; clock-out in red.
+  const clockActionTone = currentClockAction === "CLOCK_IN"
+    ? {
+        container: "border-emerald-400/30 bg-gradient-to-br from-emerald-400/[0.14] to-emerald-500/[0.06]",
+        icon: "border-emerald-300/25 bg-emerald-300/10 text-emerald-200",
+        label: "text-emerald-300",
+        dot: "bg-emerald-400",
+      }
+    : currentClockAction === "CLOCK_OUT"
+      ? {
+          container: "border-rose-400/30 bg-gradient-to-br from-rose-400/[0.14] to-rose-500/[0.06]",
+          icon: "border-rose-300/25 bg-rose-300/10 text-rose-200",
+          label: "text-rose-300",
+          dot: "bg-rose-400",
+        }
+      : {
+          container: "border-sky-400/20 bg-gradient-to-br from-sky-400/[0.12] to-indigo-400/[0.06]",
+          icon: "border-sky-300/20 bg-sky-300/10 text-sky-200",
+          label: "text-slate-400",
+          dot: "bg-slate-400",
+        };
+  const containerTone = showAttendanceStatus ? clockActionTone.container : "border-sky-400/20 bg-gradient-to-br from-sky-400/[0.12] to-indigo-400/[0.06]";
+  const iconTone = showAttendanceStatus ? clockActionTone.icon : "border-sky-300/20 bg-sky-300/10 text-sky-200";
   const statusLabel = requireOrganizationTimeZone && contextStatus !== "ready"
     ? contextStatus === "loading" ? "Loading organization time…" : "Organization time unavailable"
     : "Workspace time";
@@ -491,9 +513,9 @@ export default function WorkspaceClock({
               role="status"
               aria-live="polite"
               aria-atomic="true"
-              className={"inline-flex items-center gap-1 rounded-md border border-current/15 bg-black/10 px-1.5 py-0.5 font-sans text-[8px] font-extrabold tracking-[0.08em] sm:text-[9px] " + attendanceTone.label}
+              className={"inline-flex items-center gap-1 rounded-md border border-current/15 bg-black/10 px-1.5 py-0.5 font-sans text-[8px] font-extrabold tracking-[0.08em] sm:text-[9px] " + clockActionTone.label}
             >
-              <span className={"size-1.5 rounded-full " + attendanceTone.dot} />
+              <span className={"size-1.5 rounded-full " + clockActionTone.dot} />
               {attendanceStatus === "loading"
                 ? "CHECKING"
                 : attendanceStatus === "unavailable"
