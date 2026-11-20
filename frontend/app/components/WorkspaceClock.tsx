@@ -341,8 +341,16 @@ export default function WorkspaceClock({
         );
       }
 
+      // Re-read the server's effective attendance stream after a successful
+      // punch (including approved corrections) before publishing the new action.
+      const confirmedStatus = await readAttendanceStatus();
+      const expectedStatus = action === "CLOCK_IN" ? "CLOCKED_IN" : "CLOCKED_OUT";
+      if (confirmedStatus !== expectedStatus) {
+        throw new Error("Your attendance action was accepted, but the latest status could not be confirmed. Refresh the status before continuing.");
+      }
+
       attendanceStatusRevisionRef.current += 1;
-      setAttendanceStatus(action === "CLOCK_IN" ? "CLOCKED_IN" : "CLOCKED_OUT");
+      setAttendanceStatus(confirmedStatus);
       setCompletedAction(action);
       setClockActionResult("success");
 
