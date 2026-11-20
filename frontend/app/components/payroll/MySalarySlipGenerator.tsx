@@ -10,7 +10,7 @@ function localDate(): string {
 }
 
 function validMonth(value: string): boolean {
-  return /^\\d{4}-(0[1-9]|1[0-2])$/.test(value);
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
 }
 
 function monthOrdinal(value: string): number {
@@ -44,7 +44,7 @@ export default function MySalarySlipGenerator({ employeeId }: { employeeId: stri
           { credentials: "same-origin", cache: "no-store" },
         );
         const payload = await response.json().catch(() => null) as { today?: unknown; message?: unknown } | null;
-        const today = typeof payload?.today === "string" && /^\\d{4}-\\d{2}-\\d{2}$/.test(payload.today)
+        const today = typeof payload?.today === "string" && /^\d{4}-\d{2}-\d{2}$/.test(payload.today)
           ? payload.today
           : "";
         if (!response.ok || !today) {
