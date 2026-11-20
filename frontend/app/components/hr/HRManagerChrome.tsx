@@ -283,18 +283,28 @@ export function useHRManagerAutoRefresh(
 
     let lastRefreshAt = Date.now();
     let running = false;
+    let attendanceRefreshPending = false;
+    let retryTimeout: number | null = null;
 
-    const refreshIfStale = () => {
-      if (
-        running ||
-        document.visibilityState !== "visible" ||
-        Date.now() - lastRefreshAt < intervalMs ||
-        (shouldRefreshRef.current && !shouldRefreshRef.current())
-      ) {
+    const refreshWorkspace = (force = false) => {
+      if (document.visibilityState !== "visible") {
+        if (force) attendanceRefreshPending = true;
+        return;
+      }
+      if (running) {
+        if (force) attendanceRefreshPending = true;
+        return;
+      }
+      if (shouldRefreshRef.current && !shouldRefreshRef.current()) {
+        if (force) attendanceRefreshPending = true;
+        return;
+      }
+      if (!force && !attendanceRefreshPending && Date.now() - lastRefreshAt < intervalMs) {
         return;
       }
 
       lastRefreshAt = Date.now();
+      attendanceRefreshPending = false;
       running = true;
 
       Promise.resolve()
@@ -305,19 +315,33 @@ export function useHRManagerAutoRefresh(
         })
         .finally(() => {
           running = false;
+          // A punch that arrived during an in-flight read must trigger a
+          // second read after that request settles.
+          if (attendanceRefreshPending && retryTimeout === null) {
+            retryTimeout = window.setTimeout(() => {
+              retryTimeout = null;
+              refreshWorkspace(true);
+            }, 0);
+          }
         });
     };
+
+    const refreshIfStale = () => refreshWorkspace(attendanceRefreshPending);
+    const refreshAfterAttendanceChange = () => refreshWorkspace(true);
 
     const timer = window.setInterval(refreshIfStale, 10_000);
 
     window.addEventListener("focus", refreshIfStale);
     window.addEventListener("pageshow", refreshIfStale);
+    window.addEventListener("hrms:attendance-status-changed", refreshAfterAttendanceChange);
     document.addEventListener("visibilitychange", refreshIfStale);
 
     return () => {
       window.clearInterval(timer);
+      if (retryTimeout !== null) window.clearTimeout(retryTimeout);
       window.removeEventListener("focus", refreshIfStale);
       window.removeEventListener("pageshow", refreshIfStale);
+      window.removeEventListener("hrms:attendance-status-changed", refreshAfterAttendanceChange);
       document.removeEventListener("visibilitychange", refreshIfStale);
     };
   }, [enabled, intervalMs]);

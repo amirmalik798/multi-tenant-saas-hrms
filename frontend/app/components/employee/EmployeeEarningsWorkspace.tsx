@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspaceAutoRefresh } from "../shared/useWorkspaceAutoRefresh";
 import { Award, BadgeDollarSign, CalendarDays, Clock3, Flame, RefreshCw, TrendingUp } from "lucide-react";
 import SalaryPaymentsWorkspace from "../payroll/SalaryPaymentsWorkspace";
+import MySalarySlipGenerator from "../payroll/MySalarySlipGenerator";
 import { formatDate as formatWorkDate } from "../../../lib/attendance-format";
 
 type Day = {
@@ -142,9 +143,9 @@ function monthLabel(value: string) {
   return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(date) : value;
 }
 
-export default function EmployeeEarningsWorkspace({ employeeId, showTitle = true, showMonthSelector = true }: { employeeId?: string; showTitle?: boolean; showMonthSelector?: boolean } = {}) {
+export default function EmployeeEarningsWorkspace({ employeeId, showTitle = true, showMonthSelector = true, allowOwnPayslips = false }: { employeeId?: string; showTitle?: boolean; showMonthSelector?: boolean; allowOwnPayslips?: boolean } = {}) {
   const [month, setMonth] = useState(monthNow);
-  const [activeView, setActiveView] = useState<"earnings" | "payments">("earnings");
+  const [activeView, setActiveView] = useState<"earnings" | "payments" | "payslips">("earnings");
   const [data, setData] = useState<EarningsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -227,6 +228,7 @@ export default function EmployeeEarningsWorkspace({ employeeId, showTitle = true
       <div role="tablist" aria-label="My Earnings sections" className="inline-flex w-fit max-w-full flex-wrap gap-2 rounded-2xl border border-white/[0.08] bg-[#141c28] p-2">
         <button type="button" role="tab" aria-selected={activeView === "earnings"} onClick={() => setActiveView("earnings")} className={`dm-earnings-tab rounded-xl px-4 py-2.5 text-sm font-semibold transition ${activeView === "earnings" ? "bg-sky-600 text-white ring-1 ring-sky-500 shadow-sm" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>Earnings overview</button>
         <button type="button" role="tab" aria-selected={activeView === "payments"} onClick={() => setActiveView("payments")} className={`dm-earnings-tab rounded-xl px-4 py-2.5 text-sm font-semibold transition ${activeView === "payments" ? "bg-sky-600 text-white ring-1 ring-sky-500 shadow-sm" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>Payment history</button>
+        {allowOwnPayslips && <button type="button" role="tab" aria-selected={activeView === "payslips"} onClick={() => setActiveView("payslips")} className={`dm-earnings-tab rounded-xl px-4 py-2.5 text-sm font-semibold transition ${activeView === "payslips" ? "bg-sky-600 text-white ring-1 ring-sky-500 shadow-sm" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}>My payslips</button>}
       </div>
       {showMonthSelector && activeView === "earnings" && <div className="flex flex-wrap items-center gap-2">
         <label htmlFor="employee-earnings-month" className="text-sm text-slate-400">Month</label>
@@ -321,7 +323,11 @@ export default function EmployeeEarningsWorkspace({ employeeId, showTitle = true
           <p className="text-xs leading-5 text-slate-500">{data.disclaimer}</p>
         </>
       )}
-      </> : <SalaryPaymentsWorkspace audience="employee" employeeId={employeeId} />}
+      </> : activeView === "payments" ? (
+        <SalaryPaymentsWorkspace audience="employee" employeeId={employeeId} />
+      ) : (
+        <MySalarySlipGenerator employeeId={employeeId || ""} />
+      )}
     </section>
   );
 }

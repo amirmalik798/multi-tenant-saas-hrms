@@ -95,9 +95,10 @@ function validRate(value: string | number | null): number | null {
 /**
  * GET /api/payroll/payslips/:employeeId?startMonth=YYYY-MM&endMonth=YYYY-MM
  *
- * Payslips are restricted to tenant payroll administrators. The target role
- * is checked here, independently of the frontend employee list, so changing
- * the URL cannot bypass HR Manager / Organization Admin eligibility rules.
+ * Organization Admins and HR Managers retain their existing workforce
+ * payslip access. Employees and Department Managers may request only their
+ * own payslip; the employee ID is checked against the authenticated actor
+ * before any payroll data is queried.
  */
 export async function GET(request: Request, context: RouteContext) {
   await connection();
@@ -108,21 +109,27 @@ export async function GET(request: Request, context: RouteContext) {
 
     const isOrganizationAdmin = actor.kind === "ORGANIZATION_ADMIN";
     const isHrManager = actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER";
-    if (!isOrganizationAdmin && !isHrManager) {
-      return json({ message: "Only an Organization Admin or HR Manager can print workforce salary slips" }, 403);
-    }
-
-    if (!(await organizationIsActive(pool, actor.organizationId))) {
-      return json({ message: "This organization is not active" }, 403);
-    }
 
     const { employeeId } = await context.params;
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(employeeId)) {
       return json({ message: "Provide a valid workforce member ID" }, 400);
     }
 
-    if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER" && employeeId === actor.employeeId) {
-      return json({ message: "HR Managers cannot print their own salary slips" }, 403);
+    const isHrManagerSelf = isHrManager && actor.employeeId === employeeId;
+    const isDepartmentManagerSelf = actor.kind === "ORGANIZATION_USER" &&
+      actor.roleName === "DEPARTMENT_MANAGER" &&
+      actor.employeeId === employeeId;
+    const isEmployeeSelf = actor.kind === "ORGANIZATION_USER" &&
+      actor.roleName === "EMPLOYEE" &&
+      actor.employeeId === employeeId;
+    const isAuthorizedSelfRequest = isHrManagerSelf || isDepartmentManagerSelf || isEmployeeSelf;
+
+    if (!isOrganizationAdmin && !isHrManager && !isAuthorizedSelfRequest) {
+      return json({ message: "Department Managers and Employees can generate salary slips for their own account only" }, 403);
+    }
+
+    if (!(await organizationIsActive(pool, actor.organizationId))) {
+      return json({ message: "This organization is not active" }, 403);
     }
 
     const url = new URL(request.url);
@@ -213,7 +220,8 @@ export async function GET(request: Request, context: RouteContext) {
     const isDepartmentManagerTarget = targetRole === "DEPARTMENT_MANAGER" || targetRole === "DEPARTMENTMANAGER";
     const isEmployeeTarget = targetRole === "EMPLOYEE";
     const roleIsEligible = isDepartmentManagerTarget || isEmployeeTarget ||
-      (isOrganizationAdmin && isHrManagerTarget);
+      (isOrganizationAdmin && isHrManagerTarget) ||
+      (isHrManagerSelf && isHrManagerTarget);
 
     if (target.isOrganizationAdmin || !roleIsEligible) {
       return json({

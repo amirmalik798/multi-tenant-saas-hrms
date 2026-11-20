@@ -1,7 +1,9 @@
 "use client";
 
 import EmployeeEarningsWorkspace from "../../components/employee/EmployeeEarningsWorkspace";
+import { useEmployeeWorkspaceUser } from "../../components/employee/EmployeeChrome";
 
 export default function EmployeePayrollPage() {
-  return <EmployeeEarningsWorkspace />;
+  const user = useEmployeeWorkspaceUser();
+  return <EmployeeEarningsWorkspace employeeId={user?.employeeId} allowOwnPayslips />;
 }

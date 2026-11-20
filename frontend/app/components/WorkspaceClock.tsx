@@ -169,9 +169,15 @@ export default function WorkspaceClock({
 
     let active = true;
     let requestInFlight = false;
+    let refreshQueued = false;
 
     const loadAttendanceStatus = async () => {
-      if (requestInFlight || document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible") return;
+      if (requestInFlight) {
+        // Do not lose a clock-action event that arrives during an older read.
+        refreshQueued = true;
+        return;
+      }
       requestInFlight = true;
       const revision = attendanceStatusRevisionRef.current;
 
@@ -186,6 +192,10 @@ export default function WorkspaceClock({
         }
       } finally {
         requestInFlight = false;
+        if (active && refreshQueued && document.visibilityState === "visible") {
+          refreshQueued = false;
+          void loadAttendanceStatus();
+        }
       }
     };
 
@@ -323,6 +333,7 @@ export default function WorkspaceClock({
 
     setClockSubmitting(true);
     setClockActionError("");
+    let attendanceChangeBroadcast = false;
     try {
       const response = await fetch("/api/backend/attendance/events", {
         method: "POST",
@@ -341,8 +352,22 @@ export default function WorkspaceClock({
         );
       }
 
+      // The POST response is sent only after the attendance transaction commits.
+      // Notify mounted pages now so they can reload even if the follow-up status
+      // read encounters a temporary network or availability problem.
+      window.dispatchEvent(new Event("hrms:attendance-status-changed"));
+      attendanceChangeBroadcast = true;
+
+      // Re-read the server's effective attendance stream after a successful
+      // punch (including approved corrections) before publishing the new action.
+      const confirmedStatus = await readAttendanceStatus();
+      const expectedStatus = action === "CLOCK_IN" ? "CLOCKED_IN" : "CLOCKED_OUT";
+      if (confirmedStatus !== expectedStatus) {
+        throw new Error("Your attendance action was accepted, but the latest status could not be confirmed. Refresh the status before continuing.");
+      }
+
       attendanceStatusRevisionRef.current += 1;
-      setAttendanceStatus(action === "CLOCK_IN" ? "CLOCKED_IN" : "CLOCKED_OUT");
+      setAttendanceStatus(confirmedStatus);
       setCompletedAction(action);
       setClockActionResult("success");
 
@@ -365,7 +390,6 @@ export default function WorkspaceClock({
         }
       }
 
-      window.dispatchEvent(new Event("hrms:attendance-status-changed"));
     } catch (caught) {
       let latestStatus: ConfirmedAttendanceStatus | null = null;
       try {
@@ -382,7 +406,9 @@ export default function WorkspaceClock({
         setClockActionError("");
         setCompletedAction(action);
         setClockActionResult("success");
-        window.dispatchEvent(new Event("hrms:attendance-status-changed"));
+        if (!attendanceChangeBroadcast) {
+          window.dispatchEvent(new Event("hrms:attendance-status-changed"));
+        }
       } else {
         setClockActionError(
           caught instanceof Error
@@ -445,8 +471,30 @@ export default function WorkspaceClock({
           label: "text-slate-400",
           dot: "bg-slate-400",
         };
-  const containerTone = showAttendanceStatus ? attendanceTone.container : "border-sky-400/20 bg-gradient-to-br from-sky-400/[0.12] to-indigo-400/[0.06]";
-  const iconTone = showAttendanceStatus ? attendanceTone.icon : "border-sky-300/20 bg-sky-300/10 text-sky-200";
+  // The header color communicates the next available action, not the
+  // stored attendance state: clock-in is actionable in green; clock-out in red.
+  const clockActionTone = currentClockAction === "CLOCK_IN"
+    ? {
+        container: "border-emerald-400/30 bg-gradient-to-br from-emerald-400/[0.14] to-emerald-500/[0.06]",
+        icon: "border-emerald-300/25 bg-emerald-300/10 text-emerald-200",
+        label: "text-emerald-300",
+        dot: "bg-emerald-400",
+      }
+    : currentClockAction === "CLOCK_OUT"
+      ? {
+          container: "border-rose-400/30 bg-gradient-to-br from-rose-400/[0.14] to-rose-500/[0.06]",
+          icon: "border-rose-300/25 bg-rose-300/10 text-rose-200",
+          label: "text-rose-300",
+          dot: "bg-rose-400",
+        }
+      : {
+          container: "border-sky-400/20 bg-gradient-to-br from-sky-400/[0.12] to-indigo-400/[0.06]",
+          icon: "border-sky-300/20 bg-sky-300/10 text-sky-200",
+          label: "text-slate-400",
+          dot: "bg-slate-400",
+        };
+  const containerTone = showAttendanceStatus ? clockActionTone.container : "border-sky-400/20 bg-gradient-to-br from-sky-400/[0.12] to-indigo-400/[0.06]";
+  const iconTone = showAttendanceStatus ? clockActionTone.icon : "border-sky-300/20 bg-sky-300/10 text-sky-200";
   const statusLabel = requireOrganizationTimeZone && contextStatus !== "ready"
     ? contextStatus === "loading" ? "Loading organization time…" : "Organization time unavailable"
     : "Workspace time";
@@ -461,9 +509,20 @@ export default function WorkspaceClock({
         <span className="sa-clock-time flex items-center gap-1.5 whitespace-nowrap font-mono text-[11px] font-bold tabular-nums tracking-tight text-slate-100 sm:text-sm">
           {snapshot?.time ?? "--:--:--"}
           {showAttendanceStatus && (
-            <span className={"inline-flex items-center gap-1 rounded-md border border-current/15 bg-black/10 px-1.5 py-0.5 font-sans text-[8px] font-extrabold tracking-[0.08em] sm:text-[9px] " + attendanceTone.label}>
-              <span className={"size-1.5 rounded-full " + attendanceTone.dot} />
-              {attendanceLabel}
+            <span
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className={"inline-flex items-center gap-1 rounded-md border border-current/15 bg-black/10 px-1.5 py-0.5 font-sans text-[8px] font-extrabold tracking-[0.08em] sm:text-[9px] " + clockActionTone.label}
+            >
+              <span className={"size-1.5 rounded-full " + clockActionTone.dot} />
+              {attendanceStatus === "loading"
+                ? "CHECKING"
+                : attendanceStatus === "unavailable"
+                  ? "UNAVAILABLE"
+                  : currentClockAction === "CLOCK_IN"
+                    ? "CLOCK-IN"
+                    : "CLOCK-OUT"}
             </span>
           )}
         </span>
