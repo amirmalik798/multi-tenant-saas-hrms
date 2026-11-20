@@ -323,6 +323,7 @@ export default function WorkspaceClock({
 
     setClockSubmitting(true);
     setClockActionError("");
+    let attendanceChangeBroadcast = false;
     try {
       const response = await fetch("/api/backend/attendance/events", {
         method: "POST",
@@ -340,6 +341,12 @@ export default function WorkspaceClock({
             : "Your attendance action could not be recorded. Please try again.",
         );
       }
+
+      // The POST response is sent only after the attendance transaction commits.
+      // Notify mounted pages now so they can reload even if the follow-up status
+      // read encounters a temporary network or availability problem.
+      window.dispatchEvent(new Event("hrms:attendance-status-changed"));
+      attendanceChangeBroadcast = true;
 
       // Re-read the server's effective attendance stream after a successful
       // punch (including approved corrections) before publishing the new action.
@@ -373,7 +380,6 @@ export default function WorkspaceClock({
         }
       }
 
-      window.dispatchEvent(new Event("hrms:attendance-status-changed"));
     } catch (caught) {
       let latestStatus: ConfirmedAttendanceStatus | null = null;
       try {
@@ -390,7 +396,9 @@ export default function WorkspaceClock({
         setClockActionError("");
         setCompletedAction(action);
         setClockActionResult("success");
-        window.dispatchEvent(new Event("hrms:attendance-status-changed"));
+        if (!attendanceChangeBroadcast) {
+          window.dispatchEvent(new Event("hrms:attendance-status-changed"));
+        }
       } else {
         setClockActionError(
           caught instanceof Error
