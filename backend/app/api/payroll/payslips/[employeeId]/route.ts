@@ -115,13 +115,14 @@ export async function GET(request: Request, context: RouteContext) {
       return json({ message: "Provide a valid workforce member ID" }, 400);
     }
 
+    const isHrManagerSelf = isHrManager && actor.employeeId === employeeId;
     const isDepartmentManagerSelf = actor.kind === "ORGANIZATION_USER" &&
       actor.roleName === "DEPARTMENT_MANAGER" &&
       actor.employeeId === employeeId;
     const isEmployeeSelf = actor.kind === "ORGANIZATION_USER" &&
       actor.roleName === "EMPLOYEE" &&
       actor.employeeId === employeeId;
-    const isAuthorizedSelfRequest = isDepartmentManagerSelf || isEmployeeSelf;
+    const isAuthorizedSelfRequest = isHrManagerSelf || isDepartmentManagerSelf || isEmployeeSelf;
 
     if (!isOrganizationAdmin && !isHrManager && !isAuthorizedSelfRequest) {
       return json({ message: "Department Managers and Employees can generate salary slips for their own account only" }, 403);
@@ -129,10 +130,6 @@ export async function GET(request: Request, context: RouteContext) {
 
     if (!(await organizationIsActive(pool, actor.organizationId))) {
       return json({ message: "This organization is not active" }, 403);
-    }
-
-    if (isHrManager && employeeId === actor.employeeId) {
-      return json({ message: "HR Managers cannot print their own salary slips" }, 403);
     }
 
     const url = new URL(request.url);
@@ -223,7 +220,8 @@ export async function GET(request: Request, context: RouteContext) {
     const isDepartmentManagerTarget = targetRole === "DEPARTMENT_MANAGER" || targetRole === "DEPARTMENTMANAGER";
     const isEmployeeTarget = targetRole === "EMPLOYEE";
     const roleIsEligible = isDepartmentManagerTarget || isEmployeeTarget ||
-      (isOrganizationAdmin && isHrManagerTarget);
+      (isOrganizationAdmin && isHrManagerTarget) ||
+      (isHrManagerSelf && isHrManagerTarget);
 
     if (target.isOrganizationAdmin || !roleIsEligible) {
       return json({
