@@ -34,7 +34,7 @@ export default function HRManagerMyEarningsPage() {
       loggingOut={auth.loggingOut}
       logoutError={auth.error}
     >
-      <EmployeeEarningsWorkspace employeeId={auth.user.employeeId} />
+      <EmployeeEarningsWorkspace employeeId={auth.user.employeeId} allowOwnPayslips />
     </HRManagerShell>
   );
 }
