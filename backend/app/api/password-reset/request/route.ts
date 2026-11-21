@@ -1,10 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
-import { isIP } from "node:net";
 import { NextResponse } from "next/server";
 
 import { pool } from "../../../../lib/db";
 import { sendPasswordResetEmail } from "../../../../lib/email";
 import { consumeRateLimit } from "../../../../lib/rate-limit";
+import { getTrustedClientIp } from "../../../../lib/trusted-client-ip";
 import {
   parseJsonRequestBody,
   validateSameOriginRequest,
@@ -65,59 +65,18 @@ function rateLimitedGenericResponse(
 }
 
 /**
- * Read the client IP only from an explicitly configured trusted
- * proxy header.
- *
- * The proxy must overwrite this header, not merely append to a
- * value supplied by the client. Do not configure this setting to
- * a header that clients can choose freely.
- *
- * During local development, if no trusted header is configured,
- * IP limiting is skipped. Account-based limiting remains active.
- */
-function getClientIp(request: Request): string | null {
-  const trustedHeaderName =
-    process.env.RATE_LIMIT_TRUSTED_IP_HEADER
-      ?.trim()
-      .toLowerCase();
-
-  if (!trustedHeaderName) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error(
-        "RATE_LIMIT_TRUSTED_IP_HEADER must be configured in production.",
-      );
-    }
-
-    return null;
-  }
-
-  if (!/^[a-z0-9-]+$/.test(trustedHeaderName)) {
-    throw new Error(
-      "RATE_LIMIT_TRUSTED_IP_HEADER has an invalid header name.",
-    );
-  }
-
-  const candidate =
-    request.headers.get(trustedHeaderName)?.trim();
-
-  // Reject forwarding chains and accept exactly one IP.
-  if (!candidate || candidate.includes(",")) {
-    return null;
-  }
-
-  return isIP(candidate) !== 0 ? candidate : null;
-}
-
-/**
  * Use an explicitly configured, trusted frontend URL.
  * Never construct reset links from request headers.
  */
 function getPasswordResetBaseUrl(): URL {
-  const configuredUrl = process.env.PASSWORD_RESET_BASE_URL;
+  const configuredUrl =
+    process.env.PASSWORD_RESET_BASE_URL?.trim() ||
+    process.env.FRONTEND_URL?.trim() ||
+    process.env.APP_ORIGIN?.trim();
 
   if (!configuredUrl) {
     throw new Error(
-      "PASSWORD_RESET_BASE_URL is not configured.",
+      "Configure PASSWORD_RESET_BASE_URL, FRONTEND_URL, or APP_ORIGIN for password reset links.",
     );
   }
 
@@ -166,7 +125,7 @@ export async function POST(request: Request) {
   // account, so the endpoint itself is protected when a trusted
   // client IP source is available.
   try {
-    const clientIp = getClientIp(request);
+    const clientIp = getTrustedClientIp(request);
 
     if (clientIp) {
       const ipLimit = await consumeRateLimit({
