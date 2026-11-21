@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Activity, CheckCircle2, LockKeyhole, ShieldCheck, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Field, TextInput } from "@/components/ui/Field";
+import { Field, PasswordInput, TextInput } from "@/components/ui/Field";
 import { CountrySelect, COUNTRY_OPTIONS, countryOption, getCountryCallingCode, replacePhoneCountryCode, type CountryOption } from "@/components/ui/CountryPhoneFields";
 import { Panel } from "@/components/ui/Panel";
 import { apiRequest } from "@/lib/api-client";
@@ -231,10 +231,10 @@ export function InvitationAcceptanceWorkspace({ token, type }: { token: string; 
               </div>
               <div className="org-invitation-simple-grid">
                 <Field label="Create password" hint="At least 15 characters; maximum 72 UTF-8 bytes.">
-                  <TextInput type="password" required autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} />
+                  <PasswordInput required autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} />
                 </Field>
                 <Field label="Confirm password">
-                  <TextInput type="password" required autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
+                  <PasswordInput required autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
                 </Field>
               </div>
               {passwordError ? <p className="field-error">{passwordError}</p> : null}
