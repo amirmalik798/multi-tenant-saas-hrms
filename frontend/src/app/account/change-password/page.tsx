@@ -6,7 +6,7 @@ import Link from "next/link";
 import { KeyRound, ShieldCheck } from "lucide-react";
 import { WorkspaceGate } from "@/components/layout/WorkspaceGate";
 import { Button } from "@/components/ui/Button";
-import { Field, TextInput } from "@/components/ui/Field";
+import { Field, PasswordInput } from "@/components/ui/Field";
 import { Panel } from "@/components/ui/Panel";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { apiRequest } from "@/lib/api-client";
@@ -34,9 +34,9 @@ function ChangePasswordForm() {
 
   return <><PageHeader eyebrow="Account security" title="Change password" description="Update your sign-in credentials. Your current session will be signed out after a successful change." /><div style={{ maxWidth: 640, margin: "0 auto" }}><Panel className="panel-pad"><div className="form-note" style={{ marginBottom: 20 }}><ShieldCheck size={16} /> The existing backend applies password policy, rate limiting, and invalidates existing sessions after a successful change.</div><form onSubmit={submit} style={{ display: "grid", gap: 15 }}>
     {error ? <div role="alert" className="form-error">{error}</div> : null}{success ? <div role="status" className="info-callout">{success}</div> : null}
-    <Field label="Current password"><TextInput type="password" autoComplete="current-password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} /></Field>
-    <Field label="New password"><TextInput type="password" autoComplete="new-password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} /></Field>
-    <Field label="Confirm new password"><TextInput type="password" autoComplete="new-password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} /></Field>
+    <Field label="Current password"><PasswordInput autoComplete="current-password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} /></Field>
+    <Field label="New password"><PasswordInput autoComplete="new-password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} /></Field>
+    <Field label="Confirm new password"><PasswordInput autoComplete="new-password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} /></Field>
     <div style={{ display: "flex", justifyContent: "flex-end" }}><Button type="submit" variant="primary" busy={busy} leading={<KeyRound size={15} />}>Change password</Button></div>
   </form></Panel></div></>;
 }

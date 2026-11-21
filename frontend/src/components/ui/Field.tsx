@@ -1,13 +1,43 @@
+import { Eye, EyeOff } from "lucide-react";
 import {
   cloneElement,
   isValidElement,
   useId,
+  useState,
   type InputHTMLAttributes,
   type ReactElement,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
+
+export function PasswordInput(props: InputHTMLAttributes<HTMLInputElement>) {
+  const [visible, setVisible] = useState(false);
+  const { className, disabled, ...inputProps } = props;
+
+  return (
+    <span className="password-input-shell">
+      <input
+        {...inputProps}
+        disabled={disabled}
+        type={visible ? "text" : "password"}
+        className={`text-input password-input-control ${className ?? ""}`}
+      />
+      <button
+        type="button"
+        className="password-input-toggle"
+        disabled={disabled}
+        aria-label={visible ? "Hide password" : "Show password"}
+        aria-pressed={visible}
+        title={visible ? "Hide password" : "Show password"}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => setVisible((current) => !current)}
+      >
+        {visible ? <EyeOff size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}
+      </button>
+    </span>
+  );
+}
 
 export function Field({
   label,
@@ -25,6 +55,7 @@ export function Field({
     ((typeof children.type === "string" &&
       ["input", "select", "textarea"].includes(children.type)) ||
       children.type === TextInput ||
+      children.type === PasswordInput ||
       children.type === SelectInput ||
       children.type === TextArea);
 
