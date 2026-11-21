@@ -2770,3 +2770,49 @@ body {
   .mobile-bottom-nav a { font-size: 10.5px; }
   .topbar { padding-inline: 10px; }
 }
+
+
+/* Detail-card and specialist-workspace readability refinements. */
+.workforce-status-intro p,
+.workforce-status-member-copy span,
+.workforce-status-transition > div > span,
+.workforce-status-impact p { font-size: 12px; line-height: 1.6; }
+.workforce-status-impact strong { font-size: 13px; line-height: 1.4; }
+
+.team-slip-member-name > span,
+.team-slip-member-meta > div > span,
+.team-slip-member-name > small,
+.team-slip-section-heading > span { font-size: 12px; line-height: 1.5; }
+.team-slip-member-meta > div > strong,
+.team-slip-section-heading > strong { font-size: 13px; line-height: 1.45; }
+
+.department-status-summary-heading > div > span,
+.department-status-summary-meta > div > span { font-size: 12px; line-height: 1.5; }
+
+.report-section-eyebrow,
+.license-status-head .eyebrow { font-size: 12px; line-height: 1.4; }
+.report-limit-pill,
+.report-presets-label,
+.report-selected-person-label { font-size: 12px; line-height: 1.4; }
+.report-date-presets .button { min-height: 38px; font-size: 12px; }
+.organization-monthly-summary span,
+.organization-monthly-summary span b,
+.organization-monthly-summary span small { font-size: 12px; line-height: 1.5; }
+.license-facts > div > span,
+.payment-proof-history-cell > span,
+.payment-proof-viewer-summary > div > span,
+.payment-proof-image-footer > span,
+.request-review-person-copy > span,
+.request-review-facts > div > span,
+.payment-confirmation-amount > span,
+.payment-confirmation-facts > div > span { font-size: 12px; line-height: 1.5; }
+.payment-confirmation-facts > div > strong { font-size: 13px; }
+.payment-confirmation-preview-heading strong { font-size: 13px; }
+.payment-confirmation-preview-heading > span { font-size: 11px; }
+
+@media (max-width: 680px) {
+  .team-slip-member-meta,
+  .payment-proof-viewer-summary,
+  .request-review-facts { grid-template-columns: minmax(0, 1fr); }
+  .request-review-facts > .request-review-fact-wide { grid-column: auto; }
+}
