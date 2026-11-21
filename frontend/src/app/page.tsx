@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, ArrowLeft, ArrowRight, Eye, EyeOff, Fingerprint, LockKeyhole, Mail, ShieldCheck, Users, Zap } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { PasswordInput } from "@/components/ui/Field";
 import { apiRequest, ApiError } from "@/lib/api-client";
 
 interface LoginResponse {
@@ -147,8 +148,8 @@ export default function LoginPage() {
           </form> : null}
 
           {view === "reset" ? <form className="login-form" onSubmit={completeReset}>
-            <label className="field"><span className="field-label">New password</span><input className="text-input" type="password" autoComplete="new-password" required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 15 characters" /></label>
-            <label className="field"><span className="field-label">Confirm new password</span><input className="text-input" type="password" autoComplete="new-password" required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Enter the same password again" /></label>
+            <label className="field"><span className="field-label">New password</span><PasswordInput autoComplete="new-password" required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 15 characters" /></label>
+            <label className="field"><span className="field-label">Confirm new password</span><PasswordInput autoComplete="new-password" required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Enter the same password again" /></label>
             <p className="field-hint">At least 15 characters, no more than 72 UTF-8 bytes. The server also checks against common weak passwords.</p>
             {error ? <div className="login-error" role="alert">{error}</div> : null}
             <Button type="submit" size="lg" busy={busy} className="login-submit">Update password <ArrowRight size={16} /></Button>
