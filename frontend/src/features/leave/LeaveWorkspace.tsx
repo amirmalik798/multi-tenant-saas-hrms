@@ -142,7 +142,21 @@ export function LeaveWorkspace() {
     </Drawer>
 
     <Drawer open={Boolean(decisionTarget)} title={`${decision === "APPROVED" ? "Approve" : decision === "REJECTED" ? "Reject" : "Cancel"} leave request`} description="Check the request details before recording this decision." onClose={() => { if (!saving) setDecisionTarget(null); }} footer={<><Button variant="secondary" disabled={saving} onClick={() => setDecisionTarget(null)}>Back</Button><Button variant={decision === "REJECTED" ? "danger" : "primary"} busy={saving} onClick={() => document.querySelector<HTMLFormElement>("#leave-decision-form")?.requestSubmit()}>{decision === "APPROVED" ? "Approve" : decision === "REJECTED" ? "Reject request" : "Cancel request"}</Button></>}>
-      {decisionTarget ? <form id="leave-decision-form" onSubmit={submitDecision}>{error ? <div role="alert" className="form-error" style={{ marginBottom: 12 }}>{error}</div> : null}<div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}><ProfilePhoto name={`${decisionTarget.firstName ?? "Employee"} ${decisionTarget.lastName ?? ""}`.trim()} employeeId={decisionTarget.employeeId} currentUser={Boolean(decisionTarget.isOwnRequest) || decisionTarget.employeeId === user.employeeId} /><strong style={{ color: "var(--text-strong)", fontSize: 13 }}>{`${decisionTarget.firstName ?? "Employee"} ${decisionTarget.lastName ?? ""}`.trim()}</strong></div><div className="detail-list" style={{ marginBottom:15 }}><div><span>Leave type</span><strong>{humanize(decisionTarget.leaveType)}</strong></div><div><span>Dates</span><strong>{formatDate(decisionTarget.startDate, timeZone)} – {formatDate(decisionTarget.endDate, timeZone)}</strong></div><div><span>Paid</span><strong>{decisionTarget.isPaid ? "Yes" : "No"}</strong></div></div><Field label={decision === "REJECTED" ? "Reason for rejection" : "Reviewer note (optional)"}><TextArea maxLength={1000} required={decision === "REJECTED"} value={reviewerNote} onChange={(event) => setReviewerNote(event.target.value)} /></Field></form> : null}
+      {decisionTarget ? <form id="leave-decision-form" onSubmit={submitDecision}>{error ? <div role="alert" className="form-error" style={{ marginBottom: 12 }}>{error}</div> : null}<section className="request-review-summary" aria-label="Leave request details">
+          <div className="request-review-person">
+            <ProfilePhoto name={`${decisionTarget.firstName ?? "Employee"} ${decisionTarget.lastName ?? ""}`} employeeId={decisionTarget.employeeId} currentUser={Boolean(decisionTarget.isOwnRequest) || decisionTarget.employeeId === user.employeeId} />
+            <div className="request-review-person-copy">
+              <strong>{`${decisionTarget.firstName ?? "Employee"} ${decisionTarget.lastName ?? ""}</strong>
+              {decisionTarget.employeeCode || decisionTarget.departmentName ? <span>{decisionTarget.employeeCode || decisionTarget.departmentName}</span> : null}
+            </div>
+          </div>
+          <div className="request-review-facts">
+            <div><span>Leave type</span><strong>{humanize(decisionTarget.leaveType)}</strong></div>
+            <div><span>Dates</span><strong>{formatDate(decisionTarget.startDate, timeZone)} – {formatDate(decisionTarget.endDate, timeZone)}</strong></div>
+            <div><span>Paid</span><strong>{decisionTarget.isPaid ? "Yes" : "No"}</strong></div>
+            {decisionTarget.reason ? <div className="request-review-fact-wide"><span>Reason</span><strong>{decisionTarget.reason}</strong></div> : null}
+          </div>
+        </section><Field label={decision === "REJECTED" ? "Reason for rejection" : "Reviewer note (optional)"}><TextArea maxLength={1000} required={decision === "REJECTED"} value={reviewerNote} onChange={(event) => setReviewerNote(event.target.value)} /></Field></form> : null}
     </Drawer>
   </>;
 }
