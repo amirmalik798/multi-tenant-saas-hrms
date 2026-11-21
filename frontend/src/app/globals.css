@@ -3898,3 +3898,157 @@ body {
   color: #f4f8ff;
   background: rgba(148,163,184,.12);
 }
+
+/* Workspace clock — make the next attendance action unmistakable. */
+.workspace-clock-actionable {
+  min-height: 48px;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 13px;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, .07);
+  transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+.workspace-clock-actionable.is-clock-in {
+  border-color: color-mix(in srgb, #10a875 48%, var(--border));
+  background: linear-gradient(135deg, color-mix(in srgb, #10a875 12%, var(--surface)), color-mix(in srgb, #10a875 4%, var(--surface)));
+}
+.workspace-clock-actionable.is-clock-out {
+  border-color: color-mix(in srgb, #e34d65 48%, var(--border));
+  background: linear-gradient(135deg, color-mix(in srgb, #e34d65 12%, var(--surface)), color-mix(in srgb, #e34d65 4%, var(--surface)));
+}
+.workspace-clock-actionable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 7px 19px rgba(15, 23, 42, .12);
+}
+.workspace-clock-actionable:active {
+  transform: translateY(0);
+}
+.workspace-clock-actionable:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: 3px;
+}
+.workspace-clock-action-pill {
+  min-height: 32px;
+  justify-content: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .025em;
+  box-shadow: 0 2px 7px rgba(15, 23, 42, .10);
+}
+.workspace-clock-action-pill.is-clock-in {
+  color: #f1fff8;
+  border-color: rgba(52, 211, 153, .55);
+  background: linear-gradient(135deg, #0d9567, #08734f);
+}
+.workspace-clock-action-pill.is-clock-out {
+  color: #fff5f6;
+  border-color: rgba(251, 113, 133, .58);
+  background: linear-gradient(135deg, #e65369, #bd304d);
+}
+.workspace-clock-action-pill.is-clock-unknown {
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, .35);
+  background: #475569;
+}
+.workspace-clock-dialog-footer {
+  align-items: center;
+  gap: 12px;
+  padding: 17px 22px 21px;
+}
+.workspace-clock-primary {
+  position: relative;
+  min-width: 184px;
+  min-height: 56px;
+  gap: 11px;
+  padding: 0 23px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 820;
+  letter-spacing: .01em;
+  line-height: 1;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .22), inset 0 1px 0 rgba(255, 255, 255, .18);
+  transition: transform .16s ease, box-shadow .16s ease, filter .16s ease, background .16s ease;
+}
+.workspace-clock-primary span {
+  display: inline-block;
+}
+.workspace-clock-primary.is-clock-in {
+  color: #ffffff;
+  border-color: #35d9a2;
+  background: linear-gradient(135deg, #13ad79 0%, #08744f 100%);
+  box-shadow: 0 8px 22px rgba(16, 185, 129, .30), inset 0 1px 0 rgba(255, 255, 255, .23);
+}
+.workspace-clock-primary.is-clock-out {
+  color: #ffffff;
+  border-color: #ff91a0;
+  background: linear-gradient(135deg, #f06478 0%, #c83250 100%);
+  box-shadow: 0 8px 22px rgba(225, 75, 98, .30), inset 0 1px 0 rgba(255, 255, 255, .23);
+}
+.workspace-clock-primary.is-clock-unknown {
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, .35);
+  background: linear-gradient(135deg, #64748b, #475569);
+  box-shadow: none;
+}
+.workspace-clock-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+}
+.workspace-clock-primary.is-clock-in:hover:not(:disabled) {
+  box-shadow: 0 12px 27px rgba(16, 185, 129, .36), inset 0 1px 0 rgba(255, 255, 255, .24);
+}
+.workspace-clock-primary.is-clock-out:hover:not(:disabled) {
+  box-shadow: 0 12px 27px rgba(225, 75, 98, .36), inset 0 1px 0 rgba(255, 255, 255, .24);
+}
+.workspace-clock-primary:active:not(:disabled) {
+  transform: translateY(0) scale(.985);
+}
+.workspace-clock-primary:focus-visible,
+.workspace-clock-secondary:focus-visible {
+  outline: 3px solid rgba(117, 199, 255, .85);
+  outline-offset: 3px;
+}
+.workspace-clock-primary:disabled {
+  transform: none;
+  filter: none;
+  opacity: .48;
+  box-shadow: none;
+}
+@media (max-width: 520px) {
+  .workspace-clock-actionable {
+    min-height: 44px;
+    gap: 6px;
+    padding: 5px 7px;
+  }
+  .workspace-clock-action-pill {
+    min-height: 29px;
+    gap: 5px;
+    padding: 5px 8px;
+    font-size: 9px;
+  }
+  .workspace-clock-action-pill svg {
+    width: 13px;
+    height: 13px;
+  }
+  .workspace-clock-dialog-footer {
+    padding: 14px 16px calc(17px + env(safe-area-inset-bottom));
+  }
+  .workspace-clock-primary {
+    min-width: 0;
+    min-height: 54px;
+    flex: 1 1 0;
+    padding-inline: 16px;
+    font-size: 14px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-clock-actionable,
+  .workspace-clock-primary {
+    transition: none;
+  }
+}
