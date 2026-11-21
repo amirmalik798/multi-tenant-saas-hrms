@@ -176,7 +176,7 @@ export function ReviewQueueWorkspace() {
           <div className="request-review-person">
             <ProfilePhoto employeeId={typeof selected.employeeId === "string" ? selected.employeeId : null} name={`${stringValue(selected, "firstName", "employeeName", "employee_name")} ${stringValue(selected, "lastName")}`} />
             <div className="request-review-person-copy">
-              <strong>{`${stringValue(selected, "firstName", "employeeName", "employee_name")} ${stringValue(selected, "lastName")}</strong>
+              <strong>{`${stringValue(selected, "firstName", "employeeName", "employee_name")} ${stringValue(selected, "lastName")}`.trim() || "Employee"}</strong>
               {stringValue(selected, "employeeCode", "employee_code") ? <span>{stringValue(selected, "employeeCode", "employee_code")}</span> : null}
             </div>
           </div>
