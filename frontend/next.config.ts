@@ -16,25 +16,18 @@ const nextConfig: NextConfig = {
   },
   poweredByHeader: false,
   async rewrites() {
-    return [
-      {
-        source: "/api/backend/:path*",
-        destination: backendOrigin + "/api/:path*",
-      },
-    ];
+    return [{ source: "/api/backend/:path*", destination: `${backendOrigin}/api/:path*` }];
   },
   async headers() {
-    return [
-      {
-        source: "/:path*",
-        headers: [
-          { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "X-Frame-Options", value: "DENY" },
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
-        ],
-      },
-    ];
+    return [{
+      source: "/:path*",
+      headers: [
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "X-Frame-Options", value: "DENY" },
+        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+      ],
+    }];
   },
 };
 
