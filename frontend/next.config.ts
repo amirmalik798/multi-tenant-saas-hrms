@@ -1,27 +1,18 @@
 import type { NextConfig } from "next";
 
-const backendOrigin = (process.env.BACKEND_ORIGIN ?? "http://localhost:3000").replace(/\/$/, "");
+const backendUrl = (process.env.BACKEND_URL ?? "http://localhost:3000").replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
-  experimental: {
-    // Next.js 16.4.0's CLI checker can include stale .next/dev route validators.
-    // The TypeScript API checker filters development-only route types during builds.
-    useTypeScriptCli: false,
-  },
-  poweredByHeader: false,
+  // Permit the current ngrok hostname while running `next dev`.
+  // This affects development only. Update it if ngrok changes the hostname.
+  allowedDevOrigins: ["vagrancy-untrained-tactless.ngrok-free.dev"],
   async rewrites() {
-    return [{ source: "/api/backend/:path*", destination: `${backendOrigin}/api/:path*` }];
-  },
-  async headers() {
-    return [{
-      source: "/:path*",
-      headers: [
-        { key: "X-Content-Type-Options", value: "nosniff" },
-        { key: "X-Frame-Options", value: "DENY" },
-        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-        { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
-      ],
-    }];
+    return [
+      {
+        source: "/api/backend/:path*",
+        destination: `${backendUrl}/api/:path*`,
+      },
+    ];
   },
 };
 
