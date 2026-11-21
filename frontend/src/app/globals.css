@@ -2825,3 +2825,33 @@ body {
 .schedule-day-row input[type="checkbox"] { width: 18px; height: 18px; }
 .schedule-day-fields .text-input { min-height: 44px; }
 .payment-proof-history-cell .button { min-height: 36px; font-size: 12px; }
+
+/* Salary, payment and account-onboarding detail text. */
+.team-slip-note p { font-size: 12px; line-height: 1.6; }
+.payment-review-employee-copy > span,
+.salary-slip-person-name > span,
+.payment-review-grid > div > span,
+.salary-slip-person-meta > div > span,
+.payment-review-employee-copy > small,
+.salary-slip-person-name > small,
+.salary-slip-period-heading > span { font-size: 12px; line-height: 1.5; }
+
+.org-invitation-brand small,
+.org-invitation-aside-copy,
+.org-invitation-trust-list small,
+.org-invitation-aside-footer,
+.org-invitation-step,
+.org-invitation-card .invitation-summary span,
+.org-invitation-card .invitation-summary strong,
+.org-invitation-section-title small,
+.org-invitation-form .field-label,
+.org-invitation-form .text-input,
+.org-invitation-submit,
+.org-invitation-legal {
+  font-size: 12px;
+  line-height: 1.55;
+}
+.org-invitation-kicker,
+.org-invitation-overline,
+.org-invitation-section-title strong { font-size: 13px; }
+.org-invitation-card .invitation-summary strong { font-size: 13px; }
