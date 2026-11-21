@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Activity, CheckCircle2, LockKeyhole, ShieldCheck } from "lucide-react";
+import { Activity, CheckCircle2, LockKeyhole, ShieldCheck, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Field, TextInput } from "@/components/ui/Field";
 import { Panel } from "@/components/ui/Panel";
@@ -87,7 +87,7 @@ export function InvitationAcceptanceWorkspace({ token, type }: { token: string; 
     finally { setSaving(false); }
   }
 
-  return <main className={isAdmin ? "auth-page org-invitation-page" : "auth-page"}>
+  return <main className={isAdmin ? "auth-page org-invitation-page" : "auth-page workforce-invitation-page"}>
     <div className={isAdmin ? "auth-brand org-invitation-brand" : "auth-brand"}><span className="brand-mark"><Activity size={19} /></span><span><strong>HRMS</strong><small>Workforce platform</small></span></div>
     {isAdmin ? <>
       <div className="org-invitation-layout">
@@ -137,21 +137,53 @@ export function InvitationAcceptanceWorkspace({ token, type }: { token: string; 
         </section>
       </div>
     </> : <>
-      <Panel className="auth-card panel-pad">
-        {loading ? <div className="loading-state">Verifying your invitation…</div> : accepted ? <div className="auth-success">
-          <span className="state-icon"><CheckCircle2 size={22} /></span><p className="eyebrow">Invitation accepted</p><h1>Your account is ready</h1><p>Your workforce account has been activated. You can now sign in using the invited email address and the password you created.</p><Link className="button button-primary" href="/">Continue to sign in</Link>
-        </div> : error && !preview ? <div className="auth-error-state"><span className="state-icon"><ShieldCheck size={20} /></span><h1>Invitation unavailable</h1><p>{error}</p><Link className="button button-secondary" href="/">Return to sign in</Link></div> : preview ? <>
-          <p className="eyebrow">Secure account setup</p><h1>Activate your workforce account</h1><p className="auth-intro">You have been invited to {preview.organizationName}. Review the details before activating access.</p>
-          <div className="invitation-summary"><div><span>Organization</span><strong>{preview.organizationName}</strong></div><div><span>Email address</span><strong>{preview.email}</strong></div><div><span>Workforce member</span><strong>{preview.employeeName || preview.employeeCode || "Employee"}</strong></div><div><span>Assigned role</span><strong>{(preview.role || "EMPLOYEE").replaceAll("_", " ")}</strong></div></div>
-          <form className="auth-form" onSubmit={submit}>
-            <Field label="Create password" hint="At least 15 characters and no more than 72 UTF-8 bytes."><TextInput type="password" required autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></Field>
-            {passwordError ? <p className="field-error">{passwordError}</p> : null}
-            {error ? <div className="form-error" role="alert">{error}</div> : null}
-            <Button type="submit" size="lg" busy={saving} className="auth-submit">Activate workforce account</Button>
-          </form>
-        </> : null}
-      </Panel>
-      <p className="auth-footnote"><LockKeyhole size={13} /> Your invitation is verified by the HRMS backend. Account creation and invitation consumption happen atomically.</p>
+      <div className="workforce-invitation-layout">
+        <aside className="workforce-invitation-aside">
+          <div className="workforce-invitation-aside-inner">
+            <span className="workforce-invitation-kicker"><Users size={14} /> WORKFORCE ACCESS</span>
+            <div className="workforce-invitation-emblem"><ShieldCheck size={28} strokeWidth={1.7} /></div>
+            <p className="workforce-invitation-overline">Your next chapter starts here</p>
+            <h2>One team. One place to do great work.</h2>
+            <p className="workforce-invitation-aside-copy">Your organization has invited you to its HRMS workspace. Activate your account to connect with your team and access the tools for your role.</p>
+            <div className="workforce-invitation-trust">
+              <div><CheckCircle2 size={16} /><span><strong>Verified invitation</strong><small>Your access is linked to your organization.</small></span></div>
+              <div><LockKeyhole size={16} /><span><strong>Private account</strong><small>Your password protects your personal workspace.</small></span></div>
+              <div><Activity size={16} /><span><strong>Role-based workspace</strong><small>See the tools and information assigned to you.</small></span></div>
+            </div>
+          </div>
+          <p className="workforce-invitation-aside-footer">PEOPLE OPERATIONS <span>·</span> HRMS</p>
+        </aside>
+        <section className="workforce-invitation-main">
+          <div className="workforce-invitation-main-inner">
+            <Panel className="auth-card workforce-invitation-card panel-pad">
+              {loading ? <div className="loading-state">Verifying your invitation…</div> : accepted ? <div className="auth-success">
+                <span className="state-icon"><CheckCircle2 size={22} /></span><p className="eyebrow">Invitation accepted</p><h1>Your account is ready</h1><p>Your workforce account has been activated. You can now sign in using the invited email address and the password you created.</p><Link className="button button-primary" href="/">Continue to sign in</Link>
+              </div> : error && !preview ? <div className="auth-error-state"><span className="state-icon"><ShieldCheck size={20} /></span><h1>Invitation unavailable</h1><p>{error}</p><Link className="button button-secondary" href="/">Return to sign in</Link></div> : preview ? <>
+                <div className="workforce-invitation-heading">
+                  <span className="workforce-invitation-step">ACCOUNT ACTIVATION <span>01 / 01</span></span>
+                  <p className="eyebrow">Secure account setup</p>
+                  <h1>Activate your workforce account</h1>
+                  <p className="auth-intro">Your organization has invited you to join its workforce workspace. Review your details and create your password to activate access.</p>
+                </div>
+                <div className="invitation-summary workforce-invitation-summary">
+                  <div><span>Organization</span><strong>{preview.organizationName}</strong></div>
+                  <div><span>Email address</span><strong>{preview.email}</strong></div>
+                  <div><span>Workforce member</span><strong>{preview.employeeName || preview.employeeCode || "Employee"}</strong></div>
+                  <div><span>Assigned role</span><strong>{(preview.role || "EMPLOYEE").replaceAll("_", " ")}</strong></div>
+                </div>
+                <form className="auth-form workforce-invitation-form" onSubmit={submit}>
+                  <div className="workforce-invitation-password-heading"><span className="workforce-invitation-password-icon"><LockKeyhole size={15} /></span><span><strong>Secure your account</strong><small>Choose a strong, private password.</small></span></div>
+                  <Field label="Create password" hint="At least 15 characters and no more than 72 UTF-8 bytes."><TextInput type="password" required autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></Field>
+                  {passwordError ? <p className="field-error">{passwordError}</p> : null}
+                  {error ? <div className="form-error" role="alert">{error}</div> : null}
+                  <Button type="submit" size="lg" busy={saving} className="auth-submit">Activate workforce account <ShieldCheck size={16} /></Button>
+                </form>
+              </> : null}
+            </Panel>
+            <p className="auth-footnote workforce-invitation-footnote"><LockKeyhole size={13} /> Your invitation is verified by the HRMS backend. Account creation and invitation consumption happen atomically.</p>
+          </div>
+        </section>
+      </div>
     </>}
   </main>;
 }
