@@ -1736,3 +1736,79 @@ body {
     justify-content: center;
   }
 }
+
+
+/* Approval drawers: keep employee identity and request facts visually distinct. */
+.request-review-summary {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+.request-review-person {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--border);
+}
+.request-review-person-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.request-review-person-copy > strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 740;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.request-review-person-copy > span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.request-review-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+.request-review-facts > div {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.request-review-facts > div > span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.request-review-facts > div > strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.request-review-facts > .request-review-fact-wide {
+  grid-column: 1 / -1;
+}
+.request-review-fact-wide > strong {
+  white-space: pre-wrap;
+}
+@media (max-width: 420px) {
+  .request-review-summary { padding: 12px; }
+  .request-review-facts { grid-template-columns: minmax(0, 1fr); }
+  .request-review-facts > .request-review-fact-wide { grid-column: auto; }
+}
