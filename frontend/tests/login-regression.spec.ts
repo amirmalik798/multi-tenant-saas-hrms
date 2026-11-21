@@ -1112,12 +1112,39 @@ test.describe("Login outcomes — successful roles, then 35 negative cases", () 
 
   test.beforeEach(async ({ page }) => openLogin(page));
 
-  // Successful login coverage is deliberately first.
-  test("LOGIN-SUCCESS-001: Super Admin authenticates and receives its platform session", async ({ page }) => {
+  // The platform login remains available through the backend and the dedicated
+  // platform frontend. This tenant frontend must not host or retain that session.
+  test("LOGIN-PLATFORM-001: Super Admin signs out of the tenant frontend and is directed to the platform frontend", async ({ page }) => {
     const email = process.env.PW_SUPER_ADMIN_EMAIL?.trim();
     const password = process.env.PW_SUPER_ADMIN_PASSWORD;
     test.skip(!email || !password, "Set PW_SUPER_ADMIN_EMAIL and PW_SUPER_ADMIN_PASSWORD in frontend/.env.playwright.");
-    await successfulRoleLogin(page, "SUPER_ADMIN", email!, password!, "/dashboard", "/api/backend/auth/me", "crm_admin_session");
+
+    const logoutResponsePromise = page.waitForResponse(
+      (candidate) =>
+        new URL(candidate.url()).pathname === "/api/backend/auth/logout" &&
+        candidate.request().method() === "POST",
+      { timeout: 20_000 },
+    );
+
+    const response = await submitLogin(page, email!, password!);
+    expect(response.status()).toBe(200);
+    const body = await response.json();
+    expect(body.user?.role).toBe("SUPER_ADMIN");
+    expect(body.destination).toBe("/dashboard");
+
+    const logoutResponse = await logoutResponsePromise;
+    expect(logoutResponse.status()).toBe(200);
+    await expect(
+      appAlert(page, "Super Admin accounts must sign in through the dedicated platform frontend."),
+    ).toBeVisible();
+    await expect(page).toHaveURL(/\\/$/);
+
+    const cookies = await page.context().cookies();
+    expect(
+      cookies.filter((cookie) =>
+        ["crm_admin_session", "crm_org_session", "crm_employee_session"].includes(cookie.name),
+      ),
+    ).toHaveLength(0);
   });
 
   test("LOGIN-SUCCESS-002: Organization Admin authenticates and receives its organization session", async ({ page }) => {
@@ -2056,7 +2083,7 @@ test.describe("Login and password recovery — complete regression suite", () =>
 
   test("LOGIN-047: the sign-in footer explains that workspace access depends on the account", async ({ page }) => {
     await expect(page.getByText(
-      "Super Admin, Organization Admin, and employee access are determined by your account.",
+      "Super Admin accounts use the dedicated platform frontend. Organizational workspace access is determined by your account.",
       { exact: false },
     )).toBeVisible();
   });
