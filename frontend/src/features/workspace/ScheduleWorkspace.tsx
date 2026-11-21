@@ -24,6 +24,12 @@ const defaultDays = (): ScheduleDay[] => weekdays.slice(0, 5).map((day) => ({ da
 
 function SearchIcon() { return <span aria-hidden="true">⌕</span>; }
 
+function normalizeWorkforceRole(value: unknown) {
+  return typeof value === "string"
+    ? value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "")
+    : "";
+}
+
 function formatShiftTime(value: string) {
   const match = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(value || "");
   if (!match) return value || "—";
@@ -78,7 +84,7 @@ export function ScheduleWorkspace() {
       setAssignments(Array.isArray(assignmentResult.assignments) ? assignmentResult.assignments : []);
       setSchedules(Array.isArray(scheduleResult.schedules) ? scheduleResult.schedules : []);
       const eligible = peopleResult.people.filter((person) => {
-        const role = (person.workforce_role || "EMPLOYEE").replaceAll("-", "_").toUpperCase();
+        const role = normalizeWorkforceRole(person.workforce_role) || "EMPLOYEE";
         if (user.role === "HR_MANAGER") return ["EMPLOYEE", "DEPARTMENT_MANAGER"].includes(role);
         return ["EMPLOYEE", "DEPARTMENT_MANAGER", "HR_MANAGER"].includes(role);
       });
@@ -150,7 +156,7 @@ export function ScheduleWorkspace() {
   }
 
   return <>
-    <PageHeader eyebrow="Time & work" title={user.role === "EMPLOYEE" ? "My schedule" : user.role === "DEPARTMENT_MANAGER" ? "Team schedule" : "Schedules"} description={user.role === "EMPLOYEE" ? "See the shifts assigned to you and the dates they apply." : user.role === "DEPARTMENT_MANAGER" ? "Review shift coverage for your assigned departments." : "Define working patterns and assign them to eligible workforce members."} action={canManage ? <div style={{ display: "flex", gap: 8 }}><Button variant="secondary" leading={<Plus size={14} />} onClick={() => { setError(""); setAssignmentDrawer(true); }}>Assign schedule</Button><Button variant="primary" leading={<Plus size={14} />} onClick={() => { setError(""); setScheduleDrawer(true); }}>Create schedule</Button></div> : undefined} />
+    <PageHeader eyebrow="Time & work" title={user.role === "EMPLOYEE" ? "My schedule" : user.role === "DEPARTMENT_MANAGER" ? "Team schedule" : "Schedules"} description={user.role === "EMPLOYEE" ? "See the shifts assigned to you and the dates they apply." : user.role === "DEPARTMENT_MANAGER" ? "Review shift coverage for your assigned departments." : "Define working patterns and assign them to eligible workforce members."} action={canManage ? <div style={{ display: "flex", gap: 8 }}><Button variant="secondary" leading={<Plus size={14} />} onClick={() => { setError(""); setAssignmentDrawer(true); void load(); }}>Assign schedule</Button><Button variant="primary" leading={<Plus size={14} />} onClick={() => { setError(""); setScheduleDrawer(true); }}>Create schedule</Button></div> : undefined} />
     {notice ? <div className="success-callout" role="status" style={{ marginBottom: 12 }}>{notice}</div> : null}
     {error && !scheduleDrawer && !assignmentDrawer ? <div className="form-error" role="alert" style={{ marginBottom: 12 }}>{error}</div> : null}
     <Panel>
@@ -169,7 +175,7 @@ export function ScheduleWorkspace() {
     <Drawer open={assignmentDrawer} title="Assign a schedule" description="Choose an active workforce member, an active schedule, and the effective period. Existing overlapping assignments are rejected by the backend." onClose={() => { if (!saving) setAssignmentDrawer(false); }} footer={<><Button variant="secondary" disabled={saving} onClick={() => setAssignmentDrawer(false)}>Cancel</Button><Button variant="primary" busy={saving} onClick={() => document.querySelector<HTMLFormElement>("#schedule-assignment-form")?.requestSubmit()}>Assign schedule</Button></>}>
       <form id="schedule-assignment-form" onSubmit={assignSchedule}>
         {error ? <div role="alert" className="form-error">{error}</div> : null}
-        <div className="form-section"><Field label="Workforce member"><SelectInput required value={personId} onChange={(e) => setPersonId(e.target.value)}><option value="">Select a person</option>{people.map((person) => <option value={person.id} key={person.id}>{person.first_name} {person.last_name} · {person.employee_code} · {humanize(person.workforce_role)}</option>)}</SelectInput></Field><Field label="Schedule"><SelectInput required value={scheduleId} onChange={(e) => setScheduleId(e.target.value)}><option value="">Select a schedule</option>{activeSchedules.map((schedule) => <option value={schedule.id} key={schedule.id}>{schedule.name}</option>)}</SelectInput></Field><div className="form-grid"><Field label="Effective from"><TextInput required type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} /></Field><Field label="Effective until (optional)"><TextInput type="date" min={effectiveFrom} value={effectiveTo} onChange={(e) => setEffectiveTo(e.target.value)} /></Field></div></div>
+        <div className="form-section"><Field label="Workforce member"><SelectInput required value={personId} onChange={(e) => setPersonId(e.target.value)}><option value="">{loading ? "Loading eligible workforce…" : people.length ? "Select a person" : "No eligible workforce members found"}</option>{people.map((person) => <option value={person.id} key={person.id}>{person.first_name} {person.last_name} · {person.employee_code} · {humanize(person.workforce_role)}</option>)}</SelectInput></Field>{!loading && people.length === 0 ? <p className="field-hint">No active Employees or Department Managers are currently eligible for schedule assignment. Check employment status and try refreshing the list.</p> : null}<Field label="Schedule"><SelectInput required value={scheduleId} onChange={(e) => setScheduleId(e.target.value)}><option value="">Select a schedule</option>{activeSchedules.map((schedule) => <option value={schedule.id} key={schedule.id}>{schedule.name}</option>)}</SelectInput></Field><div className="form-grid"><Field label="Effective from"><TextInput required type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} /></Field><Field label="Effective until (optional)"><TextInput type="date" min={effectiveFrom} value={effectiveTo} onChange={(e) => setEffectiveTo(e.target.value)} /></Field></div></div>
         <div className="form-note"><Users size={14} /> Schedule changes affect expected attendance from the effective date. Historical recorded attendance cannot be silently reinterpreted by changing an assigned schedule's pattern.</div>
       </form>
     </Drawer>
