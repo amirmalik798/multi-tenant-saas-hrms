@@ -284,7 +284,7 @@ export function InvitationAcceptanceWorkspace({ token, type }: { token: string; 
                 </div>
                 <form className="auth-form workforce-invitation-form" onSubmit={submit}>
                   <div className="workforce-invitation-password-heading"><span className="workforce-invitation-password-icon"><LockKeyhole size={15} /></span><span><strong>Secure your account</strong><small>Choose a strong, private password.</small></span></div>
-                  <Field label="Create password" hint="At least 15 characters and no more than 72 UTF-8 bytes."><TextInput type="password" required autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></Field>
+                  <Field label="Create password" hint="At least 15 characters and no more than 72 UTF-8 bytes."><PasswordInput required autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></Field>
                   {passwordError ? <p className="field-error">{passwordError}</p> : null}
                   {error ? <div className="form-error" role="alert">{error}</div> : null}
                   <Button type="submit" size="lg" busy={saving} className="auth-submit">Activate workforce account <ShieldCheck size={16} /></Button>
