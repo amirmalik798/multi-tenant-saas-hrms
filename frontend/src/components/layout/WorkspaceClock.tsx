@@ -115,7 +115,7 @@ export function WorkspaceClock({ timeZone, timeZoneStatus, showAttendanceStatus 
   }, [open, submitting]);
 
   async function performAction() {
-    if (!showAttendanceStatus || submitting || timeZoneStatus !== "ready") return;
+    if (!showAttendanceStatus || submitting) return;
     setSubmitting(true); setActionError(""); setActionNotice("");
     const current = statusRef.current;
     const action: ClockAction = current === "CLOCKED_IN" ? "CLOCK_OUT" : "CLOCK_IN";
@@ -183,7 +183,7 @@ export function WorkspaceClock({ timeZone, timeZoneStatus, showAttendanceStatus 
         {actionError ? <div className="workspace-clock-alert" role="alert"><AlertCircle size={15} /><span>{actionError}</span></div> : null}
         {actionNotice ? <div className="workspace-clock-success" role="status"><CheckCircle2 size={15} /><span>{actionNotice}</span></div> : null}
         <div className="workspace-clock-guidance">Your assigned shift and organization attendance rules are checked by the server. Clock-in may be restricted outside your permitted shift window; clock-out remains available to close an open session.</div>
-        <footer className="workspace-clock-dialog-footer"><button type="button" className="workspace-clock-secondary" disabled={submitting} onClick={() => setOpen(false)}>Close</button><button type="button" className={`workspace-clock-primary ${status === "CLOCKED_IN" ? "is-clock-out" : status === "CLOCKED_OUT" ? "is-clock-in" : "is-clock-unknown"}`} disabled={submitting || status === "loading" || status === "unavailable" || timeZoneStatus !== "ready"} onClick={() => void performAction()}>{submitting ? <LoaderCircle size={16} className="spin" /> : status === "CLOCKED_IN" ? <LogOut size={16} /> : <LogIn size={16} />}{submitting ? "Recording…" : status === "CLOCKED_IN" ? "Clock out" : "Clock in"}</button></footer>
+        <footer className="workspace-clock-dialog-footer"><button type="button" className="workspace-clock-secondary" disabled={submitting} onClick={() => setOpen(false)}>Close</button><button type="button" className={`workspace-clock-primary ${status === "CLOCKED_IN" ? "is-clock-out" : status === "CLOCKED_OUT" ? "is-clock-in" : "is-clock-unknown"}`} disabled={submitting || status === "loading" || status === "unavailable"} onClick={() => void performAction()}>{submitting ? <LoaderCircle size={16} className="spin" /> : status === "CLOCKED_IN" ? <LogOut size={16} /> : <LogIn size={16} />}{submitting ? "Recording…" : status === "CLOCKED_IN" ? "Clock out" : "Clock in"}</button></footer>
       </section>
     </div>, document.body,
   ) : null;
