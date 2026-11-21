@@ -156,7 +156,7 @@ export default function LoginPage() {
 
           {view === "reset-complete" ? <div className="login-form"><div className="success-callout" role="status">Your password was updated successfully. All previous sessions have been invalidated.</div><Button size="lg" className="login-submit" onClick={() => { setView("login"); setResetToken(""); window.history.replaceState({}, "", "/"); }}>Continue to sign in</Button></div> : null}
 
-          {view !== "login" && view !== "reset-complete" ? <div className="login-helper"><button type="button" onClick={() => { setView("login"); setError(""); setNotice(""); }} className="auth-text-button">Return to sign in</button></div> : null}
+          {view === "reset" ? <div className="login-helper"><button type="button" onClick={() => { setView("login"); setError(""); setNotice(""); }} className="auth-text-button">Return to sign in</button></div> : null}
           {view === "login" ? <div className="login-helper">Your workspace is selected automatically based on your verified account role. If you cannot access your account, contact your administrator.</div> : null}
         </div>
       </section>
