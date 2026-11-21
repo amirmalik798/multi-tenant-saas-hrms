@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { isIP } from "node:net";
+import type { PoolClient } from "pg";
 import { NextResponse } from "next/server";
 
 import { pool } from "../../../../lib/db";
@@ -8,6 +8,7 @@ import {
   hashNewPassword,
 } from "../../../../lib/password";
 import { consumeRateLimit } from "../../../../lib/rate-limit";
+import { getTrustedClientIp } from "../../../../lib/trusted-client-ip";
 import {
   parseJsonRequestBody,
   validateSameOriginRequest,
@@ -66,48 +67,6 @@ function rateLimitedResponse(
   );
 }
 
-/**
- * Read an IP address only from a configured trusted proxy header.
- *
- * The proxy must overwrite the header on incoming requests.
- * Never configure this to a header clients can freely control.
- *
- * During local development, the IP limit is skipped when no
- * trusted header is configured. The token-based limit still applies.
- */
-function getClientIp(request: Request): string | null {
-  const trustedHeaderName =
-    process.env.RATE_LIMIT_TRUSTED_IP_HEADER
-      ?.trim()
-      .toLowerCase();
-
-  if (!trustedHeaderName) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error(
-        "RATE_LIMIT_TRUSTED_IP_HEADER must be configured in production.",
-      );
-    }
-
-    return null;
-  }
-
-  if (!/^[a-z0-9-]+$/.test(trustedHeaderName)) {
-    throw new Error(
-      "RATE_LIMIT_TRUSTED_IP_HEADER has an invalid header name.",
-    );
-  }
-
-  const candidate =
-    request.headers.get(trustedHeaderName)?.trim();
-
-  // Accept exactly one IP, not a forwarding chain.
-  if (!candidate || candidate.includes(",")) {
-    return null;
-  }
-
-  return isIP(candidate) !== 0 ? candidate : null;
-}
-
 export async function POST(request: Request) {
   // 1. Reject untrusted requests before rate limiting, parsing the body,
   // validating tokens, or accessing the database.
@@ -120,7 +79,7 @@ export async function POST(request: Request) {
   // 2. Apply IP-based protection before parsing the body, where a
   // trusted client-IP source is available.
   try {
-    const clientIp = getClientIp(request);
+    const clientIp = getTrustedClientIp(request);
 
     if (clientIp) {
       const ipLimit = await consumeRateLimit({
@@ -136,9 +95,10 @@ export async function POST(request: Request) {
         );
       }
     }
-  } catch {
+  } catch (error) {
     console.error(
       "Password reset completion IP rate limiting failed.",
+      error,
     );
 
     return NextResponse.json(
@@ -213,9 +173,10 @@ export async function POST(request: Request) {
         tokenLimit.retryAfterSeconds,
       );
     }
-  } catch {
+  } catch (error) {
     console.error(
       "Password reset completion token rate limiting failed.",
+      error,
     );
 
     return NextResponse.json(
@@ -266,10 +227,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const client = await pool.connect();
+  let client: PoolClient | null = null;
   let transactionStarted = false;
 
   try {
+    client = await pool.connect();
     await client.query("BEGIN");
     transactionStarted = true;
 
@@ -403,8 +365,8 @@ export async function POST(request: Request) {
         },
       },
     );
-  } catch {
-    if (transactionStarted) {
+  } catch (error) {
+    if (transactionStarted && client) {
       try {
         await client.query("ROLLBACK");
       } catch {
@@ -414,7 +376,7 @@ export async function POST(request: Request) {
       }
     }
 
-    console.error("Password reset completion failed.");
+    console.error("Password reset completion failed:", error);
 
     return NextResponse.json(
       {
@@ -430,6 +392,6 @@ export async function POST(request: Request) {
       },
     );
   } finally {
-    client.release();
+    client?.release();
   }
 }
