@@ -158,18 +158,14 @@ export function WorkspaceClock({ timeZone, timeZoneStatus, showAttendanceStatus 
     : status === "CLOCKED_OUT"
       ? "CLOCK_IN"
       : null;
-  const headerActionLabel = timeZoneStatus === "loading"
-    ? "LOADING"
-    : timeZoneStatus === "unavailable"
-      ? "TIME UNAVAILABLE"
-      : status === "loading"
-        ? "CHECKING"
-        : status === "unavailable"
-          ? "UNAVAILABLE"
+  const headerActionLabel = status === "loading"
+    ? "CHECKING"
+    : status === "unavailable"
+      ? "UNAVAILABLE"
       : currentClockAction === "CLOCK_IN"
         ? "CLOCK-IN"
         : "CLOCK-OUT";
-  const headerTone = timeZoneStatus !== "ready" || currentClockAction === null
+  const headerTone = currentClockAction === null
     ? "is-clock-unknown"
     : currentClockAction === "CLOCK_IN"
       ? "is-clock-in"
