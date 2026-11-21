@@ -146,7 +146,7 @@ export function LeaveWorkspace() {
           <div className="request-review-person">
             <ProfilePhoto name={`${decisionTarget.firstName ?? "Employee"} ${decisionTarget.lastName ?? ""}`} employeeId={decisionTarget.employeeId} currentUser={Boolean(decisionTarget.isOwnRequest) || decisionTarget.employeeId === user.employeeId} />
             <div className="request-review-person-copy">
-              <strong>{`${decisionTarget.firstName ?? "Employee"} ${decisionTarget.lastName ?? ""}</strong>
+              <strong>{`${decisionTarget.firstName ?? "Employee"} ${decisionTarget.lastName ?? ""}`.trim()}</strong>
               {decisionTarget.employeeCode || decisionTarget.departmentName ? <span>{decisionTarget.employeeCode || decisionTarget.departmentName}</span> : null}
             </div>
           </div>
