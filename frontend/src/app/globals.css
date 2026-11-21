@@ -2819,3 +2819,9 @@ body {
 
 /* Prefer installed native UI fonts; no external font download is required. */
 .user-avatar { font-size: 13px; }
+
+/* Keep compact schedule and table actions usable without sacrificing legibility. */
+.schedule-day-row > label { min-height: 44px; }
+.schedule-day-row input[type="checkbox"] { width: 18px; height: 18px; }
+.schedule-day-fields .text-input { min-height: 44px; }
+.payment-proof-history-cell .button { min-height: 36px; font-size: 12px; }
