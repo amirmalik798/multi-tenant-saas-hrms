@@ -31,7 +31,6 @@ type PasswordResetResponse = {
 type AuthView = "login" | "forgot-password" | "reset-password";
 
 const ROLE_DESTINATIONS: Record<string, string> = {
-  SUPER_ADMIN: "/dashboard",
   ORGANIZATION_ADMIN: "/org/dashboard",
   HR_MANAGER: "/employee/welcome",
   DEPARTMENT_MANAGER: "/employee/welcome",
@@ -612,6 +611,24 @@ export default function HomePage() {
       }
 
       const role = data?.user?.role;
+      if (role === "SUPER_ADMIN") {
+        const logoutResponse = await fetch("/api/backend/auth/logout", {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+
+        if (!logoutResponse.ok) {
+          throw new Error(
+            "This frontend does not host the Super Admin workspace, and the platform session could not be cleared. Please sign out before continuing in the dedicated platform frontend.",
+          );
+        }
+
+        throw new Error(
+          "Super Admin accounts must sign in through the dedicated platform frontend.",
+        );
+      }
+
       const destination = role ? ROLE_DESTINATIONS[role] : undefined;
 
       if (!destination || data?.destination !== destination) {
@@ -622,25 +639,7 @@ export default function HomePage() {
 
       setAuthSuccess(true);
 
-      if (role === "SUPER_ADMIN") {
-        const sessionResponse = await fetch("/api/backend/auth/me", {
-          method: "GET",
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-
-        const sessionData = await sessionResponse.json().catch(() => null);
-
-        if (
-          !sessionResponse.ok ||
-          sessionData?.authenticated !== true ||
-          sessionData?.user?.role !== "SUPER_ADMIN"
-        ) {
-          throw new Error(
-            "Session verification failed. Please sign in again.",
-          );
-        }
-      } else if (role === "ORGANIZATION_ADMIN") {
+      if (role === "ORGANIZATION_ADMIN") {
         const sessionResponse = await fetch("/api/backend/org/auth/me", {
           method: "GET",
           credentials: "same-origin",
@@ -1201,8 +1200,8 @@ export default function HomePage() {
 
                   <footer className="mt-6 pt-1">
                     <p className="text-center text-xs leading-5 text-slate-400">
-                      Super Admin, Organization Admin, and employee access are
-                      determined by your account.
+                      Super Admin accounts use the dedicated platform frontend.
+                      Organizational workspace access is determined by your account.
                     </p>
                   </footer>
                 </>
