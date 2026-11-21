@@ -31,10 +31,6 @@ function detectCountryFromPhone(phone: string, preferredCountry?: string): Count
 
 function detectCountryFromBrowser(): CountryOption | null {
   if (typeof navigator === "undefined") return null;
-  const localeRegion = navigator.language.match(/[-_]([A-Za-z]{2})(?:-|$)/)?.[1];
-  const localeCountry = countryOption(localeRegion);
-  if (localeCountry) return localeCountry;
-
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const timeZoneCountries: Record<string, string> = {
     "Africa/Kigali": "RW",
@@ -72,7 +68,11 @@ function detectCountryFromBrowser(): CountryOption | null {
     "Australia/Sydney": "AU",
     "Pacific/Auckland": "NZ",
   };
-  return countryOption(timeZoneCountries[timeZone] ?? "");
+  const timeZoneCountry = countryOption(timeZoneCountries[timeZone] ?? "");
+  if (timeZoneCountry) return timeZoneCountry;
+
+  const localeRegion = navigator.language.match(/[-_]([A-Za-z]{2})(?:-|$)/)?.[1];
+  return countryOption(localeRegion);
 }
 
 export function InvitationAcceptanceWorkspace({ token, type }: { token: string; type: "organization-admin" | "workforce" }) {
