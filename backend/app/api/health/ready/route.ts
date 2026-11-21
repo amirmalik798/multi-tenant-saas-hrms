@@ -44,7 +44,12 @@ export async function GET() {
     checks: {
       database: database ? "ok" : "failed",
       emailDelivery: emailConfigured ? "configured" : "not_configured",
-      passwordReset: passwordResetConfigured ? "configured" : "not_configured",
+      passwordReset: {
+        status: passwordResetConfigured ? "configured" : "not_configured",
+        storage: passwordResetTables ? "ok" : "missing_tables",
+        rateLimitSecret: rateLimitSecretConfigured ? "configured" : "missing_or_too_short",
+        linkOrigin: resetOriginConfigured ? "configured" : "missing",
+      },
     },
     checkedAt: new Date().toISOString(),
   }, { status: ready ? 200 : 503, headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache", "X-Content-Type-Options": "nosniff" } });
