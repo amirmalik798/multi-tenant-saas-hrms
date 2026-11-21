@@ -18,6 +18,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [tabletCompactSidebar, setTabletCompactSidebar] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const commandPanelRef = useRef<HTMLElement | null>(null);
@@ -69,6 +70,14 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 761px) and (max-width: 1100px)");
+    const syncCompactSidebar = () => setTabletCompactSidebar(media.matches);
+    syncCompactSidebar();
+    media.addEventListener("change", syncCompactSidebar);
+    return () => media.removeEventListener("change", syncCompactSidebar);
+  }, []);
 
   useEffect(() => {
     if (!commandOpen) return;
@@ -131,7 +140,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             {group.items.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href || (item.href.length > 1 && pathname.startsWith(`${item.href}/`));
-              return <Link key={item.href} href={item.href} className={`nav-link ${active ? "nav-link-active" : ""}`} aria-current={active ? "page" : undefined} title={collapsed ? item.label : undefined}>
+              return <Link key={item.href} href={item.href} className={`nav-link ${active ? "nav-link-active" : ""}`} aria-current={active ? "page" : undefined} title={collapsed || tabletCompactSidebar ? item.label : undefined}>
                 <span className="nav-icon"><Icon size={17} strokeWidth={1.85} /></span><span className="nav-label">{item.label}</span>
               </Link>;
             })}
