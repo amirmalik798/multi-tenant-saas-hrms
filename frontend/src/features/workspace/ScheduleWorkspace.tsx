@@ -72,11 +72,11 @@ export function ScheduleWorkspace() {
       const schedulePromise = canManage ? apiRequest<{ schedules?: Schedule[] }>("/schedules?includeInactive=true") : Promise.resolve({ schedules: [] as Schedule[] });
       const peoplePromise = canManage
         ? loadAllPages<Person>(async (page) => {
-            const result = await apiRequest<{ employees?: Person[]; pagination?: { totalPages?: number } }>(`/employees?page=${page}&limit=100&status=ACTIVE&sortBy=name&sortOrder=asc`);
+            const result = await apiRequest<{ employees?: Person[]; pagination?: { totalPages?: number } }>(`/schedule-assignments/eligible-employees?page=${page}&limit=100`);
             return { items: result.employees ?? [], totalPages: result.pagination?.totalPages };
           }).then((people) => ({ people, error: "" })).catch((caught) => ({
             people: [] as Person[],
-            error: caught instanceof Error ? `The eligible workforce list could not be fully loaded: ${caught.message}` : "The eligible workforce list could not be fully loaded.",
+            error: caught instanceof Error ? `The schedule-eligible workforce list could not be fully loaded: ${caught.message}` : "The eligible workforce list could not be fully loaded.",
           }))
         : Promise.resolve({ people: [] as Person[], error: "" });
       const [assignmentResult, scheduleResult, peopleResult] = await Promise.all([assignmentsPromise, schedulePromise, peoplePromise]);
