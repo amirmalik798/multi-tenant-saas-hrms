@@ -196,7 +196,7 @@ export function WorkspaceClock({ timeZone, timeZoneStatus, showAttendanceStatus 
         className={`workspace-clock workspace-clock-actionable ${headerTone}`}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`Workspace time ${clock.time}. ${statusLabel}. Next action: ${headerActionLabel.toLowerCase()}. Open attendance clock.`}
+        aria-label={`${timeZoneStatus === "ready" ? `Workspace time ${clock.time}` : organizationTimeLabel}. ${statusLabel}. Next action: ${headerActionLabel.toLowerCase()}. Open attendance clock.`}
         onClick={() => { setActionError(""); setActionNotice(""); setOpen(true); }}
       >
         <span className="workspace-clock-icon"><Clock3 size={15} /></span>
