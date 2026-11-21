@@ -179,7 +179,19 @@ export function WorkspaceClock({ timeZone, timeZoneStatus, showAttendanceStatus 
         {actionError ? <div className="workspace-clock-alert" role="alert"><AlertCircle size={15} /><span>{actionError}</span></div> : null}
         {actionNotice ? <div className="workspace-clock-success" role="status"><CheckCircle2 size={15} /><span>{actionNotice}</span></div> : null}
         <div className="workspace-clock-guidance">Your assigned shift and organization attendance rules are checked by the server. Clock-in may be restricted outside your permitted shift window; clock-out remains available to close an open session.</div>
-        <footer className="workspace-clock-dialog-footer"><button type="button" className="workspace-clock-secondary" disabled={submitting} onClick={() => setOpen(false)}>Close</button><button type="button" className={`workspace-clock-primary ${status === "CLOCKED_IN" ? "is-clock-out" : status === "CLOCKED_OUT" ? "is-clock-in" : "is-clock-unknown"}`} disabled={submitting || status === "loading" || status === "unavailable"} onClick={() => void performAction()}>{submitting ? <LoaderCircle size={16} className="spin" /> : status === "CLOCKED_IN" ? <LogOut size={16} /> : <LogIn size={16} />}{submitting ? "Recording…" : status === "CLOCKED_IN" ? "Clock out" : "Clock in"}</button></footer>
+        <footer className="workspace-clock-dialog-footer">
+          <button type="button" className="workspace-clock-secondary" disabled={submitting} onClick={() => setOpen(false)}>Close</button>
+          <button
+            type="button"
+            className={`workspace-clock-primary ${status === "CLOCKED_IN" ? "is-clock-out" : status === "CLOCKED_OUT" ? "is-clock-in" : "is-clock-unknown"}`}
+            aria-label={submitting ? "Recording attendance" : status === "CLOCKED_IN" ? "Clock out" : "Clock in"}
+            disabled={submitting || status === "loading" || status === "unavailable"}
+            onClick={() => void performAction()}
+          >
+            {submitting ? <LoaderCircle size={19} className="spin" aria-hidden="true" /> : status === "CLOCKED_IN" ? <LogOut size={19} aria-hidden="true" /> : <LogIn size={19} aria-hidden="true" />}
+            <span>{submitting ? "Recording attendance…" : status === "CLOCKED_IN" ? "Clock Out" : "Clock In"}</span>
+          </button>
+        </footer>
       </section>
     </div>, document.body,
   ) : null;
@@ -197,7 +209,10 @@ export function WorkspaceClock({ timeZone, timeZoneStatus, showAttendanceStatus 
       >
         <span className="workspace-clock-icon"><Clock3 size={15} /></span>
         <span className="workspace-clock-readout"><strong>{timeZoneStatus === "ready" ? clock.time : "--:--:--"}</strong><span>{organizationTimeLabel}</span></span>
-        <span className={`workspace-clock-action-pill ${headerTone}`}><span className="workspace-clock-dot" />{headerActionLabel}</span>
+        <span className={`workspace-clock-action-pill ${headerTone}`}>
+          {currentClockAction === "CLOCK_IN" ? <LogIn size={15} aria-hidden="true" /> : currentClockAction === "CLOCK_OUT" ? <LogOut size={15} aria-hidden="true" /> : <Clock3 size={14} aria-hidden="true" />}
+          <span>{headerActionLabel === "CLOCK-IN" ? "Clock In" : headerActionLabel === "CLOCK-OUT" ? "Clock Out" : headerActionLabel}</span>
+        </span>
       </button>
     ) : (
       <div className="workspace-clock workspace-clock-admin">
