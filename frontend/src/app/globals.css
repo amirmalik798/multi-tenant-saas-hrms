@@ -2481,3 +2481,292 @@ body {
     max-height: 210px;
   }
 }
+
+
+/* --------------------------------------------------------------------------
+   Workspace readability and interaction quality
+   Shared by Organization Admin, HR Manager, Department Manager and Employee.
+   Keep essential interface text at a comfortable reading size and preserve
+   compact layouts through wrapping rather than shrinking type.
+   -------------------------------------------------------------------------- */
+:root {
+  --muted: #5b687a;
+  --subtle: #65748a;
+}
+:root[data-theme="dark"] {
+  --muted: #a7b5c7;
+  --subtle: #91a3b9;
+}
+
+body {
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.brand-caption,
+.nav-group-label,
+.eyebrow {
+  font-size: 12px;
+}
+.nav-link {
+  min-height: 44px;
+  font-size: 14px;
+  line-height: 1.35;
+}
+.sidebar-workspace-name { font-size: 14px; }
+.sidebar-workspace-role,
+.topbar-org span,
+.user-menu-copy span { font-size: 12px; }
+.topbar-org strong,
+.user-menu-copy strong { font-size: 14px; }
+.search-trigger { min-height: 40px; font-size: 13px; }
+.icon-button { width: 40px; height: 40px; }
+
+.page-header h1 {
+  line-height: 1.18;
+  letter-spacing: -.035em;
+}
+.page-description {
+  font-size: 14px;
+  line-height: 1.7;
+}
+.panel-heading h2 { font-size: 16px; }
+.panel-heading p { font-size: 13px; line-height: 1.55; }
+.metric-label,
+.metric-card .metric-label { font-size: 13px; line-height: 1.45; }
+.metric-foot { font-size: 12px; line-height: 1.5; }
+
+.button {
+  min-height: 42px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.button-sm {
+  min-height: 36px;
+  padding-inline: 11px;
+  font-size: 12px;
+}
+.button-lg { min-height: 46px; font-size: 14px; }
+
+.toolbar { font-size: 13px; }
+.search-field { min-height: 42px; }
+.search-field input,
+.filter-select { font-size: 14px; }
+.filter-select { min-height: 42px; }
+
+.data-table {
+  font-size: 13px;
+  line-height: 1.45;
+}
+.data-table thead th,
+.data-table th {
+  height: 46px;
+  padding-block: 9px;
+  font-size: 12px;
+  letter-spacing: .035em;
+}
+.data-table tbody td,
+.data-table td {
+  min-height: 60px;
+  padding-block: 11px;
+  font-size: 13px;
+}
+.table-primary { font-size: 13.5px; line-height: 1.4; }
+.table-secondary { font-size: 12px; line-height: 1.45; }
+.table-footer { font-size: 12px; line-height: 1.5; }
+
+.status-badge {
+  min-height: 25px;
+  padding: 4px 9px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+.date-chip { min-height: 34px; font-size: 12px; }
+.segment-tab { min-height: 38px; padding: 8px 13px; font-size: 13px; }
+.day-picker-item { min-height: 42px; font-size: 13px; }
+
+.drawer-header { padding-block: 24px 19px; }
+.drawer-header h2 { font-size: 20px; line-height: 1.25; }
+.drawer-header p { font-size: 13px; line-height: 1.65; }
+.drawer-body { padding-block: 24px; }
+.drawer-footer { min-height: 68px; align-items: center; }
+.form-section { margin-bottom: 26px; }
+.form-section-title { font-size: 14px; line-height: 1.4; }
+.form-section-description { font-size: 12px; line-height: 1.55; }
+.field-label { font-size: 13px; line-height: 1.4; }
+.text-input {
+  min-height: 44px;
+  padding: 9px 12px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.text-area { min-height: 104px; }
+.text-input::placeholder { color: var(--muted); opacity: .86; }
+.field-hint,
+.field-error { font-size: 12px; line-height: 1.55; }
+.form-note,
+.form-error,
+.info-callout,
+.success-callout,
+.notice {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.empty-state h3,
+.error-state h3 { font-size: 16px; line-height: 1.35; }
+.empty-state p,
+.error-state p,
+.loading-state p { font-size: 13px; line-height: 1.65; }
+.detail-list > div > span { font-size: 12px; }
+.detail-list > div > strong { font-size: 14px; }
+
+.task-row span,
+.activity-row span { font-size: 12px; line-height: 1.5; }
+.activity-row strong { font-size: 13px; }
+.history-event strong,
+.request-item-main strong { font-size: 13px; }
+.history-event p,
+.request-item-main p { font-size: 12px; line-height: 1.55; }
+.history-event small,
+.request-item-main small,
+.request-item-side small { font-size: 12px; line-height: 1.45; }
+.request-summary > span:last-child,
+.request-section-heading span { font-size: 12px; }
+.report-selected-person small,
+.organization-monthly-heading p,
+.organization-monthly-summary span,
+.organization-monthly-footer p,
+.report-filter-footer p,
+.report-placeholder p { font-size: 12px; line-height: 1.55; }
+.profile-identity > p,
+.profile-identity-foot { font-size: 12px; line-height: 1.55; }
+.profile-item p { font-size: 12px; line-height: 1.45; }
+.profile-item strong { font-size: 13px; line-height: 1.45; }
+.hierarchy-person-copy strong { font-size: 13px; }
+.hierarchy-person-copy span,
+.hierarchy-person-copy small { font-size: 12px; line-height: 1.45; }
+.primary-hr-flag { font-size: 11px; }
+.invitation-summary span { font-size: 11px; line-height: 1.4; }
+.invitation-summary strong { font-size: 13px; line-height: 1.4; }
+.auth-footnote,
+.auth-brand small,
+.auth-text-button,
+.login-helper { font-size: 12px; line-height: 1.55; }
+
+.schedule-assignment-person strong,
+.schedule-assignment-pattern strong { font-size: 13px; line-height: 1.4; }
+.schedule-assignment-person span,
+.schedule-assignment-pattern span,
+.schedule-assignment-dates span { font-size: 12px; line-height: 1.45; }
+.schedule-definition > p { font-size: 12px; line-height: 1.5; }
+.schedule-weekdays span,
+.schedule-weekdays strong,
+.schedule-weekdays small { font-size: 11px; line-height: 1.3; }
+.schedule-weekdays strong {
+  font-size: 10px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.schedule-definition-footer { font-size: 12px; }
+.schedule-day-row > label { font-size: 13px; }
+.schedule-day-fields .field-label { font-size: 11px; }
+.schedule-day-fields .text-input { min-height: 40px; font-size: 13px; }
+.schedule-day-off { font-size: 12px; }
+
+.workspace-clock-readout strong { font-size: 13px; }
+.workspace-clock-readout > span { font-size: 11px; }
+.workspace-clock-action-pill {
+  min-height: 25px;
+  padding: 4px 8px;
+  font-size: 10px;
+}
+.workspace-clock-eyebrow { font-size: 11px; }
+.workspace-clock-current span { font-size: 12px; line-height: 1.5; }
+.workspace-clock-status-line,
+.workspace-clock-status-line strong { font-size: 12px; }
+.workspace-clock-guidance { font-size: 12px; line-height: 1.65; }
+.workspace-clock-alert,
+.workspace-clock-success { font-size: 12px; line-height: 1.55; }
+.workspace-clock-secondary,
+.workspace-clock-primary { min-height: 44px; font-size: 13px; }
+
+.payment-confirmation-preview-empty,
+.payment-confirmation-filename { font-size: 12px; line-height: 1.5; }
+
+.app-shell small {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.table-wrap {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.table-wrap::-webkit-scrollbar { height: 9px; }
+.table-wrap::-webkit-scrollbar-thumb {
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+.table-wrap::-webkit-scrollbar-track { background: var(--surface-muted); }
+
+@media (max-width: 1100px) {
+  .page-content { padding-inline: 24px; }
+}
+@media (max-width: 900px) {
+  .workspace-clock-readout strong { font-size: 12px; }
+  .workspace-clock-action-pill { font-size: 10px; }
+}
+@media (max-width: 760px) {
+  .page-content { padding: 22px 18px 48px; }
+  .page-header { gap: 14px; }
+  .page-header-actions { gap: 8px; flex-wrap: wrap; }
+  .page-header-actions .button {
+    flex: 1 1 auto;
+    min-width: min(100%, 150px);
+    white-space: normal;
+  }
+  .toolbar { gap: 13px; }
+  .table-footer { font-size: 12px; line-height: 1.55; }
+  .mobile-bottom-nav a {
+    min-height: 48px;
+    font-size: 11px;
+    line-height: 1.25;
+  }
+  .drawer-header,
+  .drawer-body { padding-inline: 18px; }
+  .drawer-footer {
+    gap: 8px;
+    padding-inline: 18px;
+  }
+  .drawer-footer > .button { min-height: 44px; }
+}
+@media (max-width: 560px) {
+  .page-content { padding: 20px 14px 46px; }
+  .page-header h1 { font-size: clamp(25px, 7vw, 29px); }
+  .page-description { font-size: 14px; }
+  .page-header-actions .button {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+  }
+  .toolbar-left,
+  .toolbar-right { align-items: stretch; }
+  .toolbar-left > *,
+  .toolbar-right > * { max-width: 100%; }
+  .toolbar .search-field { width: 100%; }
+  .segment-tab { min-height: 42px; }
+  .data-table thead th,
+  .data-table tbody td { padding-inline: 12px; }
+  .drawer-header,
+  .drawer-body { padding-inline: 16px; }
+  .drawer-footer { padding-inline: 16px; }
+  .form-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 380px) {
+  .mobile-bottom-nav { gap: 0; padding-inline: 3px; }
+  .mobile-bottom-nav a { font-size: 10.5px; }
+  .topbar { padding-inline: 10px; }
+}
