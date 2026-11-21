@@ -105,16 +105,16 @@ export default function LoginPage() {
   const current = titles[view];
 
   return (
-    <main className="login-shell">
+    <main className={`login-shell ${view !== "login" ? "login-shell-recovery" : ""}`}>
       <section className="login-story" aria-label="HRMS platform">
         <div className="brand" style={{ padding: 0, border: 0, height: "auto" }}>
           <span className="brand-mark"><Activity size={19} /></span>
           <span><span className="brand-name" style={{ color: "#fff" }}>HRMS</span><span className="brand-caption" style={{ color: "#91a5c2" }}>Workforce platform</span></span>
         </div>
         <div className="login-story-content">
-          <p className="eyebrow" style={{ color: "#9fc0ff", marginBottom: 15 }}>PEOPLE. OPERATIONS. CLARITY.</p>
-          <h1>Good work starts with <em>clarity.</em></h1>
-          <p>One connected workspace for the people, schedules, time, and decisions that keep your organization moving.</p>
+          <p className="eyebrow" style={{ color: "#9fc0ff", marginBottom: 15 }}>{view === "forgot" || view === "reset" || view === "reset-complete" ? "SECURE ACCOUNT RECOVERY" : "PEOPLE. OPERATIONS. CLARITY."}</p>
+          <h1>{view === "reset" ? <>A stronger password. <em>A safer account.</em></> : view === "reset-complete" ? <>Your account is secure. <em>Welcome back.</em></> : view === "forgot" ? <>A secure way back to <em>your workspace.</em></> : <>Good work starts with <em>clarity.</em></>}</h1>
+          <p>{view === "reset" || view === "forgot" || view === "reset-complete" ? "Protect your identity with a private recovery process built around verified links, strong credentials and secure sessions." : "One connected workspace for the people, schedules, time, and decisions that keep your organization moving."}</p>
           <div className="login-points">
             <div className="login-point"><ShieldCheck size={17} /> Secure role-based access</div>
             <div className="login-point"><Users size={17} /> Connected workforce</div>
@@ -156,7 +156,7 @@ export default function LoginPage() {
 
           {view === "reset-complete" ? <div className="login-form"><div className="success-callout" role="status">Your password was updated successfully. All previous sessions have been invalidated.</div><Button size="lg" className="login-submit" onClick={() => { setView("login"); setResetToken(""); window.history.replaceState({}, "", "/"); }}>Continue to sign in</Button></div> : null}
 
-          {view !== "login" && view !== "reset-complete" ? <div className="login-helper"><button type="button" onClick={() => { setView("login"); setError(""); setNotice(""); }} className="auth-text-button">Return to sign in</button></div> : null}
+          {view === "reset" ? <div className="login-helper"><button type="button" onClick={() => { setView("login"); setError(""); setNotice(""); }} className="auth-text-button">Return to sign in</button></div> : null}
           {view === "login" ? <div className="login-helper">Your workspace is selected automatically based on your verified account role. If you cannot access your account, contact your administrator.</div> : null}
         </div>
       </section>

@@ -115,7 +115,7 @@ export function InvitationsWorkspace() {
         <div className="toolbar-left"><label className="search-field"><Search size={14} /><input aria-label="Search invitations" placeholder="Search by person, code, or email…" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} /></label>
           <select className="filter-select" aria-label="Filter invitation status" value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setPage(1); }}>{statusFilters.map((value) => <option key={value} value={value}>{value === "ALL" ? "All statuses" : humanize(value)}</option>)}</select>
         </div>
-        <div className="toolbar-right"><span style={{ fontSize: 11, color: "var(--muted)" }}>{loading ? "Loading…" : `${items.length} shown`}</span></div>
+        <div className="toolbar-right"><span style={{ fontSize: 12, color: "var(--muted)" }}>{loading ? "Loading…" : `${items.length} shown`}</span></div>
       </div>
       {loading && !items.length ? <div className="loading-state">Loading invitation records…</div> : null}
       {!loading && !error && !items.length ? <div className="empty-state"><div className="state-icon"><Mail size={18} /></div><h3>{query || status !== "ALL" ? "No matching invitations" : "No invitations yet"}</h3><p>{query || status !== "ALL" ? "Try a different search or status." : "When workforce profiles are invited, their status and history will appear here."}</p></div> : null}

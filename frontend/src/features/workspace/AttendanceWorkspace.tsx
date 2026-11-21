@@ -299,7 +299,7 @@ export function AttendanceWorkspace({ pageKey }: { pageKey: string }) {
         </div>
         <div className="toolbar-right" style={{ flexWrap: "wrap" }}>
           {!selfOnly ? <label className="search-field attendance-employee-search"><Search size={14} /><input type="search" aria-label="Search attendance records" placeholder="Search employee, code, department or shift…" value={employeeSearch} onChange={(event) => setEmployeeSearch(event.target.value)} /></label> : null}
-          <span style={{ color: "var(--muted)", fontSize: 11 }}>{loading ? "Loading…" : employeeSearch.trim() && !selfOnly ? `${filteredEntries.length} of ${entries.length} records` : `${entries.length} records`}</span>
+          <span style={{ color: "var(--muted)", fontSize: 12 }}>{loading ? "Loading…" : employeeSearch.trim() && !selfOnly ? `${filteredEntries.length} of ${entries.length} records` : `${entries.length} records`}</span>
         </div>
       </div>
       {loading && !entries.length ? <div style={{ padding: 20, display: "grid", gap: 12 }}>{[1,2,3,4,5].map((n) => <div key={n} className="skeleton" style={{ height: 44 }} />)}</div> : null}

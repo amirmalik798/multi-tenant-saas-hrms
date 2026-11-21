@@ -65,6 +65,7 @@ export function LicenseWorkspace() {
   const [paymentCurrency, setPaymentCurrency] = useState(currencyCode || "USD");
   const [reference, setReference] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofPreviewUrl, setProofPreviewUrl] = useState("");
   const [proofTarget, setProofTarget] = useState<PaymentRecord | null>(null);
   const [proofUrl, setProofUrl] = useState("");
   const [proofLoading, setProofLoading] = useState(false);
@@ -90,6 +91,16 @@ export function LicenseWorkspace() {
     if (!proofUrl) return;
     return () => URL.revokeObjectURL(proofUrl);
   }, [proofUrl]);
+
+  useEffect(() => {
+    if (!proofFile) {
+      setProofPreviewUrl("");
+      return;
+    }
+    const previewUrl = URL.createObjectURL(proofFile);
+    setProofPreviewUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [proofFile]);
 
   useEffect(() => { void load(); }, [load]);
   useSmartRefresh(() => load(true), !formOpen && !confirmOpen && !proofTarget && !submitting);
@@ -220,8 +231,37 @@ export function LicenseWorkspace() {
     </Drawer>
 
     <Drawer open={confirmOpen} title="Confirm payment submission" description="Check the payment details before sending this proof for review." onClose={() => { if (!submitting) setConfirmOpen(false); }} width="standard" footer={<><Button variant="secondary" disabled={submitting} onClick={() => setConfirmOpen(false)}>Go back</Button><Button variant="primary" busy={submitting} onClick={() => void submitProof()}>Submit proof</Button></>}>
-      <div className="detail-list"><div><span>Amount</span><strong>{amount(paymentAmount, paymentCurrency)}</strong></div><div><span>Transaction reference</span><strong>{reference.trim() || "Not provided"}</strong></div><div><span>Receipt file</span><strong>{proofFile?.name || "No image selected"}</strong></div><div><span>File size</span><strong>{proofFile ? `${(proofFile.size / 1024 / 1024).toFixed(2)} MB` : "—"}</strong></div></div>
-      <p className="field-hint" style={{ marginTop: 14 }}>The submission will be marked Pending review. Your license remains unchanged until an authorized reviewer approves it.</p>
+      <div className="payment-confirmation-content">
+        <section className="payment-confirmation-summary" aria-label="Payment submission details">
+          <div className="payment-confirmation-amount">
+            <span>Amount to verify</span>
+            <strong>{amount(paymentAmount, paymentCurrency)}</strong>
+          </div>
+          <div className="payment-confirmation-facts">
+            <div><span>Transaction reference</span><strong>{reference.trim() || "Not provided"}</strong></div>
+            <div><span>Receipt file</span><strong title={proofFile?.name || undefined}>{proofFile?.name || "No file selected"}</strong></div>
+            <div><span>File size</span><strong>{proofFile ? `${(proofFile.size / 1024 / 1024).toFixed(2)} MB` : "—"}</strong></div>
+          </div>
+        </section>
+        <section className="payment-confirmation-preview" aria-label="Payment receipt preview">
+          <div className="payment-confirmation-preview-heading">
+            <div><FileImage size={16} /><strong>Payment proof preview</strong></div>
+            <span>{proofFile?.type?.replace("image/", "").toUpperCase() || "IMAGE"}</span>
+          </div>
+          {proofPreviewUrl && proofFile ? (
+            <div className="payment-confirmation-preview-frame">
+              <img src={proofPreviewUrl} alt={`Preview of payment receipt ${proofFile.name}`} />
+            </div>
+          ) : (
+            <div className="payment-confirmation-preview-empty">
+              <FileImage size={22} />
+              <span>Select a payment receipt image to preview it here.</span>
+            </div>
+          )}
+          {proofFile ? <p className="payment-confirmation-filename">{proofFile.name}</p> : null}
+        </section>
+        <div className="form-note payment-confirmation-note"><AlertCircle size={15} /> The submission will be marked Pending review. Your license remains unchanged until an authorized reviewer approves it.</div>
+      </div>
     </Drawer>
   </>;
 }
