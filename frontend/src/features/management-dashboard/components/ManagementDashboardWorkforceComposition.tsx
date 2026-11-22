@@ -107,13 +107,16 @@ function isManagementRole(value: unknown): value is ManagementRole {
 function isWorkforceCounts(value: unknown): value is WorkforceCounts {
   if (!isRecord(value)) return false;
 
-  return [
-    "totalEmployees",
-    "activeEmployees",
-    "inactiveEmployees",
-    "formerEmployees",
-  ].every((field) => isCount(value[field])) &&
-    value.activeEmployees + value.inactiveEmployees + value.formerEmployees === value.totalEmployees;
+  const totalEmployees = value.totalEmployees;
+  const activeEmployees = value.activeEmployees;
+  const inactiveEmployees = value.inactiveEmployees;
+  const formerEmployees = value.formerEmployees;
+
+  return isCount(totalEmployees) &&
+    isCount(activeEmployees) &&
+    isCount(inactiveEmployees) &&
+    isCount(formerEmployees) &&
+    activeEmployees + inactiveEmployees + formerEmployees === totalEmployees;
 }
 
 function isDepartmentComposition(value: unknown): value is DepartmentComposition {
