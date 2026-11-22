@@ -4,7 +4,7 @@
 **Repository:** amirmalik798/multi-tenant-saas-hrms  
 **Active branch:** main  
 **Roadmap:** 14 steps  
-**Current status:** Step 8 complete; Steps 1–8 complete; Steps 9–14 remain
+**Current status:** Step 9 complete; Steps 1–9 complete; Steps 10–14 remain
 
 ## 1. Objective
 
@@ -271,7 +271,7 @@ Do not replace these data sources until the replacement has been verified agains
 
 ## 7. Remaining implementation roadmap
 
-### Step 9 of 14 — Leave and workforce availability
+### Step 9 of 14 — Leave and workforce availability (implemented)
 
 **Goal:** Present approved leave and availability consistently.
 
@@ -371,15 +371,20 @@ Do not replace these data sources until the replacement has been verified agains
 
 ## 9. Verification status at this handoff
 
-- GitHub confirms Steps 2–6 implementation commits are on `main`; Step 7 is implemented in the current working change and will be recorded after commit verification.
+- GitHub confirms Steps 2–9 are committed on `main`. The verified Step 9 handoff head is `ddf3339275cb9c6090247b189d5ce6a0aba60971`.
 - Step 6's shared workforce-summary source and component remain exported but not mounted in the existing dashboards.
 - Step 7 adds a role-scoped, snapshot-consistent attendance summary endpoint and a reusable attendance analytics component. The new UI remains opt-in and is not mounted into `WorkspaceDashboard.tsx`.
 - Step 8 adds a workforce-composition endpoint and opt-in component using the exact Step 6 workforce population. Status, department, unassigned and role totals are reconciled to the shared workforce KPI source before returning.
 - Step 8 audited employee-history event writers. Because `effective_at` semantics and authoritative rehire/separation dates could not be verified, joiner/departure/reactivation/turnover metrics are explicitly deferred.
+
+- Step 9 adds `GET /api/management-dashboard/leave-availability` and the snapshot-backed `loadManagementDashboardLeaveAvailabilitySummary` service. It separates approved requests, distinct people, inclusive calendar days, upcoming approved leave (including leave already in progress today), and current-day values.
+- Actionable pending-review counts use a separate reviewable population matching the existing leave decision route across employment statuses. They exclude the actor's own requests and the HR-target roles excluded for HR Managers and Department Managers; Department Managers remain restricted to their assigned departments.
+- Availability includes only active workforce members with an effective assignment to an ACTIVE schedule and a matching weekday. Approved leave reduces available scheduled employee-days; public-holiday scheduled employee-days are shown separately and excluded from the availability-rate denominator. Employees without a qualifying schedule are not assumed available.
+- `ManagementDashboardLeaveAvailability` is exported with the shared component system but remains unmounted until Step 12. No live dashboard composition or personal My Day file was changed.
 - Department Manager scope is derived from the authenticated manager employee ID and assigned-department relationship; optional department filters are validated within that existing scope.
 - Step 7 reuses `calculateDailyAttendance`, handles effective approved attendance corrections, approved missing punches, approved preauthorization overtime, active shift schedules, approved leave and public holidays.
-- Steps 7–8 have source-level checks only. No frontend/backend build, runtime/API verification, browser testing or full regression suite has been run. Do not describe the work as runtime-certified.
-- No database migration or new dependency was introduced for Steps 6–8.
+- Steps 7–9 have source-level checks only. Step 9 passed 25/25 targeted source checks. No frontend/backend build, database/API runtime verification, browser testing or full regression suite has been run; do not describe these changes as runtime-certified.
+- Step 9 adds no database migration or dependency. Steps 6–9 remain additive; existing leave APIs, approval actions, dashboards and personal My Day are unchanged.
 - Full regression testing remains gated until the user says **"lets test now"**.
 
 ## 10. Relevant commits
@@ -392,4 +397,7 @@ Do not replace these data sources until the replacement has been verified agains
 
 - Step 7 — role-scoped attendance and working-hours analytics: [b11f1e29cdd3943cc60ecf680b7905fee73e5b8c](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/b11f1e29cdd3943cc60ecf680b7905fee73e5b8c)
 - Step 8 — workforce composition and movement-readiness audit: [5c9a0c3ba8229720a5808b48a8eaa2747434de8a](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/5c9a0c3ba8229720a5808b48a8eaa2747434de8a)
+- Step 9 — leave and workforce availability: [5a886962f08b6f49dcec1502e1f63c529dffab54](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/5a886962f08b6f49dcec1502e1f63c529dffab54)
+- Step 9 — include ongoing approved leave in upcoming availability: [f96a27d17611a15882f9eb8514626951866929d9](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/f96a27d17611a15882f9eb8514626951866929d9)
+- Step 9 — align actionable review counts with the existing approval scope: [ddf3339275cb9c6090247b189d5ce6a0aba60971](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/ddf3339275cb9c6090247b189d5ce6a0aba60971)
 Step 1 was completed as source audit and UX blueprint work and did not create a repository commit.
