@@ -76,22 +76,23 @@ export async function GET(request: Request) {
       `, [search, status, searchPattern, pageSize, offset]),
       pool.query(`
         SELECT
-          (SELECT COUNT(*) FILTER (WHERE status <> 'ARCHIVED')::integer FROM organizations) AS total,
-          (SELECT COUNT(*) FILTER (WHERE status = 'ACTIVE')::integer FROM organizations) AS active,
-          (SELECT COUNT(*) FILTER (WHERE status = 'PENDING_SETUP')::integer FROM organizations) AS pending,
-          (SELECT COUNT(*) FILTER (WHERE status = 'SUSPENDED')::integer FROM organizations) AS suspended,
-          (SELECT COUNT(*) FILTER (WHERE status = 'ARCHIVED')::integer FROM organizations) AS archived,
-          (SELECT COUNT(*)::integer FROM organizations o
-           WHERE ($2::text = 'ALL' OR ($2::text = 'NON_ARCHIVED' AND o.status <> 'ARCHIVED') OR o.status = $2::text)
-             AND ($1::text = '' OR o.name ILIKE $3 OR o.slug ILIKE $3
-               OR COALESCE(o.contact_email, '') ILIKE $3
-               OR COALESCE(o.contact_phone, '') ILIKE $3
-               OR COALESCE(o.address, '') ILIKE $3
-               OR EXISTS (SELECT 1 FROM users su JOIN roles sr ON sr.id = su.role_id
-                 WHERE su.organization_id = o.id AND su.account_scope = 'ORGANIZATION'
-                   AND sr.name = 'ORGANIZATION_ADMIN' AND sr.scope = 'ORGANIZATION'
-                   AND sr.organization_id = o.id AND su.email ILIKE $3))
-          ) AS matching_total
+          COUNT(*) FILTER (WHERE o.status <> 'ARCHIVED')::integer AS total,
+          COUNT(*) FILTER (WHERE o.status = 'ACTIVE')::integer AS active,
+          COUNT(*) FILTER (WHERE o.status = 'PENDING_SETUP')::integer AS pending,
+          COUNT(*) FILTER (WHERE o.status = 'SUSPENDED')::integer AS suspended,
+          COUNT(*) FILTER (WHERE o.status = 'ARCHIVED')::integer AS archived,
+          COUNT(*) FILTER (
+            WHERE ($2::text = 'ALL' OR ($2::text = 'NON_ARCHIVED' AND o.status <> 'ARCHIVED') OR o.status = $2::text)
+              AND ($1::text = '' OR o.name ILIKE $3 OR o.slug ILIKE $3
+                OR COALESCE(o.contact_email, '') ILIKE $3
+                OR COALESCE(o.contact_phone, '') ILIKE $3
+                OR COALESCE(o.address, '') ILIKE $3
+                OR EXISTS (SELECT 1 FROM users su JOIN roles sr ON sr.id = su.role_id
+                  WHERE su.organization_id = o.id AND su.account_scope = 'ORGANIZATION'
+                    AND sr.name = 'ORGANIZATION_ADMIN' AND sr.scope = 'ORGANIZATION'
+                    AND sr.organization_id = o.id AND su.email ILIKE $3)
+          )::integer AS matching_total
+        FROM organizations AS o
       `, [search, status, searchPattern]),
     ]);
     const summary = totalsResult.rows[0] || {};
