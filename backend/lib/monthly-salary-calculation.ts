@@ -1,4 +1,4 @@
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { calculateDailyAttendance, type AttendanceCalculationEvent } from "./attendance-calculations";
 
 type DayRow = {
@@ -45,11 +45,13 @@ function validRate(value: string | number | null): number | null {
  * does not create or mark a payment paid.
  */
 export async function calculateOrganizationMonthlyPay(
-  pool: Pool,
+  pool: Pool | PoolClient,
   organizationId: string,
   month: string,
   employeeId?: string,
+  employeeIds?: string[],
 ) {
+  if (employeeIds && employeeIds.length === 0) return new Map();
   const [year, monthNumber] = month.split("-").map(Number);
   const fromDate = `${month}-01`;
   const toDate = new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10);
@@ -64,6 +66,7 @@ export async function calculateOrganizationMonthlyPay(
        LEFT JOIN public.organization_settings os ON os.organization_id = e.organization_id
        WHERE e.organization_id = $1::uuid
          AND ($4::uuid IS NULL OR e.id = $4::uuid)
+         AND ($5::uuid[] IS NULL OR e.id = ANY($5::uuid[]))
      ),
      scheduled_days AS (
        SELECT DISTINCT ON (ec.id, cd.work_date)
@@ -143,7 +146,7 @@ export async function calculateOrganizationMonthlyPay(
        ORDER BY pr.effective_from DESC, pr.created_at DESC LIMIT 1
      ) rate ON TRUE
      ORDER BY ec.id, cd.work_date`,
-    [organizationId, fromDate, toDate, employeeId ?? null],
+    [organizationId, fromDate, toDate, employeeId ?? null, employeeIds ?? null],
   );
 
   const totals = new Map<string, { workedMinutes: number; regularMinutes: number; overtimeMinutes: number; paidLeaveMinutes: number; paidHolidayMinutes: number; payableMinutes: number; amount: number | null; regularAmount: number; overtimeAmount: number; paidAbsenceAmount: number; currencyCode: string | null; hasRate: boolean; currencyMismatch: boolean }>();

@@ -209,3 +209,36 @@ The additive endpoint is GET /api/management-dashboard/leave-availability. It us
 - No confirmed absence, staffing gap, leave entitlement, paid leave amount or employee-level leave detail is inferred or exposed.
 
 The 100,000 scheduled employee-day and pending-review row limits return an explicit error rather than a partial summary. The ManagementDashboardLeaveAvailability component is exported but remains unmounted until Step 12. No database migration or new dependency was introduced, and existing leave APIs, approval actions, dashboards and personal My Day remain unchanged.
+
+
+## 12. Step 10 overtime and payroll intelligence
+
+The additive endpoint is GET /api/management-dashboard/payroll-overtime?month=YYYY-MM. It validates one payroll month, rejects future payroll months using the organization's local work date, and executes its reads in the shared REPEATABLE READ READ ONLY snapshot.
+
+### Salary-payment population and amount semantics
+
+The payroll population mirrors the existing GET /api/payroll/payments authorization and target filters:
+- Organization Admin: eligible Employee, Department Manager and HR Manager records.
+- HR Manager: eligible Employee and Department Manager records, excluding their own employee record and HR Manager targets.
+- Department Manager: eligible Employee-role records in assigned departments only.
+
+The existing salary-payment filter includes active employees and inactive/former records with a payment row, attendance event, overlapping pay-rate period or approved leave in the selected month. This population is intentionally not the Step 6 active-workforce KPI population. The dashboard passes only those authorized employee IDs to the existing calculateOrganizationMonthlyPay helper. The existing payslip permissions remain unchanged: Department Managers do not gain access to team payslips.
+
+- **Estimated payable:** calculated monthly earnings using effective hourly/overtime rates, approved attendance corrections, approved paid leave, paid public holidays and advance-approved payable overtime. Only complete estimates with no currency mismatch contribute to displayed totals.
+- **Missing-rate employees:** payable earnings exist but the existing monthly calculation cannot produce a complete amount because a required rate is unavailable.
+- **Currency mismatches:** conflicting currencies for one employee/month; those estimates are not included in currency totals.
+- **Recorded paid:** amount and currency stored in monthly_salary_payments with status PAID.
+- **Recorded unpaid:** amount and currency stored with status UNPAID.
+- **No payment record:** no row exists for the eligible employee and month.
+
+Estimated, recorded-paid and recorded-unpaid values remain separate and grouped by currency. The PAID value means the HRMS ledger status is PAID; it is not independent bank-transfer verification. Estimated values are never labelled paid or finalized.
+
+### Overtime populations and measures
+
+The dashboard intentionally does not reuse the salary-payment population for every overtime metric:
+
+- **Advance PREAUTHORIZATION requests:** Organization Admin and HR Manager see the tenant-wide set. Department Manager sees their own requests plus requests for employees in managed departments, matching GET /api/attendance/overtime. PENDING, APPROVED and REJECTED requests are separate; approved future work dates remain included in the selected calendar month.
+- **Actual, payable and unapproved worked overtime:** calculated through loadManagementDashboardAttendanceSummary in the same snapshot. This uses the active, scheduled workforce in the authenticated management-dashboard scope and the existing calculateDailyAttendance logic, through the organization's current local work date. Actual overtime means worked minutes beyond scheduled end; payable overtime is capped by approved advance minutes; unapproved excess is the difference.
+- **Persisted excess-time review cases:** Organization Admin and HR Manager see tenant-wide cases; Department Manager sees cases in assigned departments only, matching GET /api/attendance/excess-overtime. The dashboard reads the existing review table without triggering the source endpoint's materialization/upsert operation. These cases are discovery-dependent and do not represent every instance of unapproved excess overtime.
+
+The monthly payroll roster is capped at 500 authorized employees and over-limit results fail explicitly rather than return a partial aggregate. The attendance source retains its existing 100,000 scheduled employee-day safety cap. The component returns aggregate-only data: no employee identities, individual rates, payment references or payslip detail. It remains unmounted until Step 12. No migration, new permission or payroll write is introduced.

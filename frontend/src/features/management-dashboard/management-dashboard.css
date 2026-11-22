@@ -1462,3 +1462,226 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+
+/* Step 10 — overtime and payroll intelligence. */
+.md-payroll-section {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  min-width: 0;
+}
+
+.md-payroll-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: -7px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.md-payroll-meta span:last-child {
+  color: var(--subtle);
+  text-align: right;
+}
+
+.md-payroll-money-grid,
+.md-payroll-overtime-grid {
+  align-items: stretch;
+}
+
+.md-payroll-money-panel,
+.md-payroll-overtime-grid > .md-panel {
+  min-width: 0;
+}
+
+.md-payroll-money-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.md-payroll-money-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-muted);
+}
+
+.md-payroll-money-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.md-payroll-money-copy strong {
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -.025em;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.md-payroll-money-copy span {
+  color: var(--subtle);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.md-payroll-currency {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .05em;
+}
+
+.md-payroll-empty {
+  margin: 0;
+  padding: 20px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  background: var(--surface-muted);
+  font-size: 10px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.md-payroll-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.md-payroll-stat {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-muted);
+}
+
+.md-payroll-stat > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.md-payroll-stat > strong {
+  color: var(--text-strong);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.md-payroll-stat > small {
+  color: var(--subtle);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.md-payroll-stat-success {
+  border-color: color-mix(in srgb, var(--success) 28%, var(--border));
+}
+
+.md-payroll-stat-success > strong {
+  color: var(--success);
+}
+
+.md-payroll-stat-warning {
+  border-color: color-mix(in srgb, var(--warning) 30%, var(--border));
+}
+
+.md-payroll-stat-warning > strong {
+  color: var(--warning);
+}
+
+.md-payroll-review-panel {
+  min-width: 0;
+}
+
+.md-payroll-review-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.md-payroll-review-stat {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+
+.md-payroll-review-stat > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.md-payroll-review-stat > strong {
+  color: var(--text-strong);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.md-payroll-definition {
+  margin: 0;
+  color: var(--subtle);
+  font-size: 9px;
+  line-height: 1.65;
+}
+
+@media (max-width: 900px) {
+  .md-payroll-money-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .md-payroll-review-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .md-payroll-meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .md-payroll-meta span:last-child {
+    text-align: left;
+  }
+
+  .md-payroll-stats-grid,
+  .md-payroll-review-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

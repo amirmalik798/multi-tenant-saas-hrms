@@ -51,3 +51,9 @@ export { ManagementDashboardLeaveAvailability } from "./ManagementDashboardLeave
 export type {
   ManagementDashboardLeaveAvailabilityProps,
 } from "./ManagementDashboardLeaveAvailability";
+
+export { ManagementDashboardPayrollOvertime } from "./ManagementDashboardPayrollOvertime";
+
+export type {
+  ManagementDashboardPayrollOvertimeProps,
+} from "./ManagementDashboardPayrollOvertime";

@@ -95,3 +95,12 @@ ManagementDashboardLeaveAvailability reuses the shared section heading, metric c
 The section distinguishes actionable pending reviews, approved requests, distinct people with approved leave, inclusive approved calendar days, upcoming approved leave and scheduled availability. It includes a daily stacked availability trend and a current-day summary that separates people on leave from the employees who have an active scheduled shift today.
 
 The trend separates available scheduled employee-days, approved-leave scheduled employee-days and public-holiday scheduled employee-days. Its rate denominator excludes public holidays. All chart values retain text labels and N/A states; no chart dependency is added. The component is exported but intentionally unmounted until Step 12. Personal My Day and the existing leave workflows are untouched.
+
+
+## 10. Overtime and payroll composite section (Step 10)
+
+ManagementDashboardPayrollOvertime reads one monthly period from GET /api/management-dashboard/payroll-overtime. The component consumes aggregate-only data and reuses the shared section heading, metric cards, responsive grids, panels, skeletons and error/retry primitives.
+
+The section displays payroll-population and calculation-readiness counts; separate currency breakdowns for estimated payable, ledger-recorded PAID and ledger-recorded UNPAID values; counts of records without a payment status; advance PREAUTHORIZATION request counts/minutes; actual, payable and unapproved overtime; and persisted excess-review cases separately from calculated unapproved excess.
+
+The backend preserves distinct access scopes for salary-payment records, overtime requests, actual worked overtime and excess-review cases. The UI exposes no employee-level pay, individual rates, payment references or payslip detail. It is exported but deliberately unmounted until Step 12. No live dashboard, personal My Day or existing payroll/approval workflow changes in this step.

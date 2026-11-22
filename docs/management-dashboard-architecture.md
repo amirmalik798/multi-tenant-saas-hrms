@@ -149,3 +149,25 @@ The selected period is inclusive and limited to 31 calendar days. Approved reque
 Availability is computed only for active employees with an effective assignment to an ACTIVE schedule and a matching weekday. A scheduled employee-day with approved leave is unavailable. A scheduled employee-day on a public holiday is counted separately and removed from the availability-rate denominator. Availability rate is available scheduled employee-days divided by scheduled employee-days excluding public holidays. Employees without an applicable schedule are not assumed available. No absence or staffing-gap metric is inferred.
 
 The frontend ManagementDashboardLeaveAvailability composite section is exported but remains unmounted until Step 12. The endpoint and component add no migration, dependency, write operation, or new permission.
+
+
+## 10. Overtime and payroll intelligence (Step 10)
+
+GET /api/management-dashboard/payroll-overtime?month=YYYY-MM adds a role-aware monthly aggregate backed by the existing salary and overtime sources. All reads run in one REPEATABLE READ READ ONLY dashboard snapshot.
+
+**Payroll amounts use the existing salary-payment population.** The service mirrors GET /api/payroll/payments:
+- Organization Admin: eligible Employee, Department Manager and HR Manager payroll records in the authenticated organization.
+- HR Manager: eligible Employee and Department Manager payroll records, excluding the HR Manager's own employee record and HR Manager targets.
+- Department Manager: eligible Employee-role payroll records in departments whose manager_id matches the authenticated manager employee ID. This does not grant team payslip access; the existing workforce payslip endpoint continues to allow Department Managers only their own payslip.
+
+Only these authorized employee IDs are passed to calculateOrganizationMonthlyPay, using the same snapshot client. The helper additively accepts a PoolClient and optional employee-ID list; its existing callers and response contracts remain unchanged.
+
+**Overtime requests use the existing overtime-request list scope, not the payroll population.** Organization Admin and HR Manager see tenant-wide PREAUTHORIZATION requests. Department Manager sees their own requests plus requests for employees in managed departments, matching GET /api/attendance/overtime.
+
+**Actual worked overtime uses the existing attendance summary scope.** It calls loadManagementDashboardAttendanceSummary in the same snapshot, which calculates actual/potential overtime, payable overtime and unapproved excess from effective attendance events, approved corrections, assigned active schedules and advance-approved overtime. It uses the active scheduled workforce authorized by the shared management-dashboard scope, not the payroll employee ID list. Worked overtime is limited through the organization's current local work date; future preauthorization requests remain included for the full selected month.
+
+**Persisted excess-time review cases use the existing excess-review scope.** Organization Admin and HR Manager see tenant-wide persisted cases; Department Manager sees only cases for employees in assigned departments, matching GET /api/attendance/excess-overtime. The service only reads the review table and never triggers that endpoint's discovery/upsert side effect. Persisted cases are not a complete source for all unapproved overtime, so they remain separate from calculated unapproved excess minutes.
+
+Payroll output separates estimated payable values, monthly salary-ledger PAID values, monthly salary-ledger UNPAID values, employees without a payment record, employees without payable hours, missing-rate cases and currency mismatches. Amounts are grouped by currency code; no currency conversion or cross-currency summation occurs. PAID is the stored HRMS ledger status, not independent bank-transfer verification. Estimates are not labelled paid or finalized.
+
+The endpoint returns aggregate counts and currency totals only. It exposes no employee identities, individual hourly rates, payment references or payslips. It rejects future payroll months, caps the authorized payroll roster at 500 employees and returns an explicit error instead of a partial amount. No migration, new permission, write operation or dashboard mount is added. ManagementDashboardPayrollOvertime is exported but remains unmounted until Step 12.

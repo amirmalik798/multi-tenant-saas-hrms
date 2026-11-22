@@ -26,6 +26,7 @@ export type ManagementDashboardAttendancePeriod = {
   regularWorkedMinutes: number;
   potentialOvertimeMinutes: number;
   payableOvertimeMinutes: number;
+  excessUnapprovedOvertimeMinutes: number;
   completedShiftDays: number;
 };
 
@@ -81,6 +82,7 @@ type AttendanceDayAccumulator = {
   regularWorkedMinutes: number;
   potentialOvertimeMinutes: number;
   payableOvertimeMinutes: number;
+  excessUnapprovedOvertimeMinutes: number;
   completedShiftDays: number;
 };
 
@@ -168,6 +170,7 @@ function createDayAccumulator(): AttendanceDayAccumulator {
     regularWorkedMinutes: 0,
     potentialOvertimeMinutes: 0,
     payableOvertimeMinutes: 0,
+    excessUnapprovedOvertimeMinutes: 0,
     completedShiftDays: 0,
   };
 }
@@ -574,6 +577,7 @@ export async function loadManagementDashboardAttendanceSummary(
       day.regularWorkedMinutes += calculation.regularWorkedMinutes;
       day.potentialOvertimeMinutes += calculation.potentialOvertimeMinutes;
       day.payableOvertimeMinutes += calculation.payableOvertimeMinutes;
+      day.excessUnapprovedOvertimeMinutes += calculation.excessUnapprovedOvertimeMinutes;
       if (events.length > 0 && calculation.calculationStatus === "COMPLETE") {
         day.completedShiftDays += 1;
       }
@@ -663,6 +667,9 @@ export async function loadManagementDashboardAttendanceSummary(
           total.potentialOvertimeMinutes + day.potentialOvertimeMinutes,
         payableOvertimeMinutes:
           total.payableOvertimeMinutes + day.payableOvertimeMinutes,
+        excessUnapprovedOvertimeMinutes:
+          total.excessUnapprovedOvertimeMinutes +
+          (accumulator?.excessUnapprovedOvertimeMinutes ?? 0),
         completedShiftDays: total.completedShiftDays +
           (accumulator?.completedShiftDays ?? 0),
       };
@@ -678,6 +685,7 @@ export async function loadManagementDashboardAttendanceSummary(
       regularWorkedMinutes: 0,
       potentialOvertimeMinutes: 0,
       payableOvertimeMinutes: 0,
+      excessUnapprovedOvertimeMinutes: 0,
       completedShiftDays: 0,
     },
   );
