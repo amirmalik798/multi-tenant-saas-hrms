@@ -322,24 +322,20 @@ export function EmployeeMyDayWorkspace() {
     .filter((day) => day.workDate.slice(0, 7) === today.slice(0, 7) && day.workDate <= today)
     .sort((a, b) => a.workDate.localeCompare(b.workDate)),
   [snapshot.earnings, today]);
-  const monthTotalWorked = typeof earnings?.totalWorkedMinutes === "number"
-    ? earnings.totalWorkedMinutes
-    : monthlyDays.reduce((sum, day) => sum + Number(day.workedMinutes ?? 0), 0);
-  const monthDaysWorked = typeof earnings?.daysWorked === "number"
-    ? earnings.daysWorked
-    : monthlyDays.filter((day) => Number(day.workedMinutes ?? 0) > 0).length;
-  const monthRegularWorked = typeof earnings?.regularMinutes === "number"
-    ? earnings.regularMinutes
-    : monthlyDays.reduce((sum, day) => sum + Number(day.regularWorkedMinutes ?? 0), 0);
-  const monthPayableOvertime = typeof earnings?.payableOvertimeMinutes === "number"
-    ? earnings.payableOvertimeMinutes
-    : monthlyDays.reduce((sum, day) => sum + Number(day.payableOvertimeMinutes ?? 0), 0);
-  const monthPaidTimeOff = Number(earnings?.paidLeaveMinutes ?? 0) + Number(earnings?.paidHolidayMinutes ?? 0);
-  const monthUnapprovedOvertime = Number(earnings?.excessUnapprovedOvertimeMinutes ??
-    monthlyDays.reduce((sum, day) => sum + Number(day.excessUnapprovedOvertimeMinutes ?? 0), 0));
+  const monthTotalWorked = monthlyDays.reduce((sum, day) => sum + Number(day.workedMinutes ?? 0), 0);
+  const monthDaysWorked = monthlyDays.filter((day) => Number(day.workedMinutes ?? 0) > 0).length;
+  const monthRegularWorked = monthlyDays.reduce((sum, day) => sum + Number(day.regularWorkedMinutes ?? 0), 0);
+  const monthPayableOvertime = monthlyDays.reduce((sum, day) => sum + Number(day.payableOvertimeMinutes ?? 0), 0);
+  const monthPaidTimeOff = monthlyDays.reduce((sum, day) =>
+    sum + Number(day.paidLeaveMinutes ?? 0) + Number(day.paidHolidayMinutes ?? 0), 0,
+  );
+  const monthUnapprovedOvertime = monthlyDays.reduce((sum, day) =>
+    sum + Number(day.excessUnapprovedOvertimeMinutes ?? 0), 0,
+  );
   const monthMaxWorked = Math.max(60, ...monthlyDays.map((day) => Number(day.workedMinutes ?? 0)));
   const hasMonthlyAttendance = monthlyDays.some((day) =>
-    Number(day.workedMinutes ?? 0) > 0 || Number(day.paidLeaveMinutes ?? 0) > 0 || Number(day.paidHolidayMinutes ?? 0) > 0,
+    Boolean(day.scheduleName) || Number(day.workedMinutes ?? 0) > 0 ||
+    Number(day.paidLeaveMinutes ?? 0) > 0 || Number(day.paidHolidayMinutes ?? 0) > 0,
   );
   const firstName = user.firstName?.trim() || user.displayName?.trim().split(/\s+/)[0] || "there";
   let greeting = "Welcome";
