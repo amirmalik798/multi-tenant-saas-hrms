@@ -200,7 +200,6 @@ function buildScopedReviewWorkforce(
   input: {
     fromDate: string;
     toDate: string;
-    organizationToday: string;
     departmentId?: string | null;
   },
 ): { sql: string; values: unknown[] } {
@@ -208,7 +207,6 @@ function buildScopedReviewWorkforce(
     scope.organizationId,
     input.fromDate,
     input.toDate,
-    input.organizationToday,
   ];
 
   let managerFilter = "";
