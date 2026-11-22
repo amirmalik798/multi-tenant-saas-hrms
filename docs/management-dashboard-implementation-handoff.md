@@ -443,5 +443,5 @@ Do not replace these data sources until the replacement has been verified agains
 - Step 10 — overtime and payroll intelligence: [5fa195a6f6158e0d1d70aa32d8f34d61ab79b954](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/5fa195a6f6158e0d1d70aa32d8f34d61ab79b954)
 - Step 11 — Management Action Center: [7d11a2b0ef0b1909acd283c2bb2cdfcd36e8f508](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/7d11a2b0ef0b1909acd283c2bb2cdfcd36e8f508)
 - Step 12 — role-specific management dashboard integration: [c47f7651548a2e86b880b23cab72c7773746370a](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/c47f7651548a2e86b880b23cab72c7773746370a)
-- Step 13 — interactive drill-downs and reporting: `<STEP13_COMMIT_SHA>`
+- Step 13 — interactive drill-downs and reporting: `[310d448c7a0bdf46c971581b247202ac42e3eba1](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/310d448c7a0bdf46c971581b247202ac42e3eba1)`
 Step 1 was completed as source audit and UX blueprint work and did not create a repository commit.
