@@ -29,10 +29,43 @@ interface AttendanceDay {
 interface CalendarPayload { today?: string; timeZone?: string; entries?: AttendanceDay[] }
 interface PunchPayload { clockStatus?: string; events?: AttendanceEvent[]; personalEvents?: AttendanceEvent[] }
 interface EarningsSummary {
-  estimatedSalary?: number | null; regularMinutes?: number; payableOvertimeMinutes?: number;
-  daysWithMissingRates?: number; currencyMismatch?: boolean;
+  estimatedSalary?: number | null;
+  totalWorkedMinutes?: number;
+  regularMinutes?: number;
+  payableOvertimeMinutes?: number;
+  potentialOvertimeMinutes?: number;
+  excessUnapprovedOvertimeMinutes?: number;
+  paidLeaveMinutes?: number;
+  paidHolidayMinutes?: number;
+  daysWorked?: number;
+  daysWithMissingRates?: number;
+  currencyMismatch?: boolean;
 }
-interface EarningsPayload { month?: string; currencyCode?: string | null; hasRates?: boolean; summary?: EarningsSummary }
+interface EarningsDay {
+  workDate: string;
+  scheduleName?: string | null;
+  isPaidLeave?: boolean;
+  isPaidHoliday?: boolean;
+  paidLeaveMinutes?: number;
+  paidHolidayMinutes?: number;
+  workedMinutes?: number;
+  regularWorkedMinutes?: number;
+  potentialOvertimeMinutes?: number;
+  payableOvertimeMinutes?: number;
+  excessUnapprovedOvertimeMinutes?: number;
+  calculationStatus?: string;
+  clockIn?: string | null;
+  clockOut?: string | null;
+  estimatedPay?: number | null;
+  currencyCode?: string | null;
+}
+interface EarningsPayload {
+  month?: string;
+  currencyCode?: string | null;
+  hasRates?: boolean;
+  summary?: EarningsSummary;
+  days?: EarningsDay[];
+}
 interface RequestItem extends Record<string, unknown> {
   id?: string; status?: string; createdAt?: string; requestedAt?: string; workDate?: string;
   startDate?: string; endDate?: string; leaveType?: string; eventType?: string; requestedMinutes?: number;
@@ -163,6 +196,7 @@ export function EmployeeMyDayWorkspace() {
   const [punchError, setPunchError] = useState("");
   const [selectedShift, setSelectedShift] = useState<SelectedShift | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<HomeRequest | null>(null);
+  const [selectedMonthDay, setSelectedMonthDay] = useState<EarningsDay | null>(null);
   const [clockNow, setClockNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -279,6 +313,34 @@ export function EmployeeMyDayWorkspace() {
       : snapshot.earnings?.hasRates === false
         ? "Pay rates not set"
         : "Estimate unavailable";
+  const monthLabel = useMemo(() => {
+    if (!today) return "This month";
+    const firstDay = new Date(today.slice(0, 7) + "-01T12:00:00.000Z");
+    return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(firstDay);
+  }, [today]);
+  const monthlyDays = useMemo(() => (snapshot.earnings?.days ?? [])
+    .filter((day) => day.workDate.slice(0, 7) === today.slice(0, 7) && day.workDate <= today)
+    .sort((a, b) => a.workDate.localeCompare(b.workDate)),
+  [snapshot.earnings, today]);
+  const monthTotalWorked = typeof earnings?.totalWorkedMinutes === "number"
+    ? earnings.totalWorkedMinutes
+    : monthlyDays.reduce((sum, day) => sum + Number(day.workedMinutes ?? 0), 0);
+  const monthDaysWorked = typeof earnings?.daysWorked === "number"
+    ? earnings.daysWorked
+    : monthlyDays.filter((day) => Number(day.workedMinutes ?? 0) > 0).length;
+  const monthRegularWorked = typeof earnings?.regularMinutes === "number"
+    ? earnings.regularMinutes
+    : monthlyDays.reduce((sum, day) => sum + Number(day.regularWorkedMinutes ?? 0), 0);
+  const monthPayableOvertime = typeof earnings?.payableOvertimeMinutes === "number"
+    ? earnings.payableOvertimeMinutes
+    : monthlyDays.reduce((sum, day) => sum + Number(day.payableOvertimeMinutes ?? 0), 0);
+  const monthPaidTimeOff = Number(earnings?.paidLeaveMinutes ?? 0) + Number(earnings?.paidHolidayMinutes ?? 0);
+  const monthUnapprovedOvertime = Number(earnings?.excessUnapprovedOvertimeMinutes ??
+    monthlyDays.reduce((sum, day) => sum + Number(day.excessUnapprovedOvertimeMinutes ?? 0), 0));
+  const monthMaxWorked = Math.max(60, ...monthlyDays.map((day) => Number(day.workedMinutes ?? 0)));
+  const hasMonthlyAttendance = monthlyDays.some((day) =>
+    Number(day.workedMinutes ?? 0) > 0 || Number(day.paidLeaveMinutes ?? 0) > 0 || Number(day.paidHolidayMinutes ?? 0) > 0,
+  );
   const firstName = user.firstName?.trim() || user.displayName?.trim().split(/\s+/)[0] || "there";
   let greeting = "Welcome";
   try {
@@ -501,6 +563,118 @@ export function EmployeeMyDayWorkspace() {
         </div>
       </section>
 
+      <section className="myday-panel myday-monthly-panel">
+        <div className="myday-panel-heading">
+          <div>
+            <span className="myday-section-kicker">YOUR MONTH</span>
+            <h2>Monthly attendance insights</h2>
+            <p>{monthLabel} · Your recorded work and approved paid time, month to date.</p>
+          </div>
+          <Link href="/employee/reports" className="myday-text-link">Attendance reports <ArrowRight size={14} /></Link>
+        </div>
+
+        {loading && !snapshot.earnings ? (
+          <div className="myday-monthly-loading" role="status" aria-label="Loading monthly attendance insights">
+            {Array.from({ length: 5 }, (_, index) => <div className="myday-month-metric-skeleton" key={index}><MyDaySkeleton className="myday-skeleton-row-detail" /><MyDaySkeleton className="myday-skeleton-stat" /></div>)}
+          </div>
+        ) : !snapshot.earnings ? (
+          <div className="myday-empty-state">
+            <span><AlertCircle size={21} /></span>
+            <strong>Monthly attendance insights unavailable</strong>
+            <small>Your monthly attendance breakdown could not be retrieved. It will retry automatically.</small>
+          </div>
+        ) : (
+          <>
+            <div className="myday-month-metrics">
+              <div className="myday-month-metric">
+                <span className="myday-month-metric-icon myday-stat-blue"><Clock3 size={17} /></span>
+                <span className="myday-month-metric-label">Total worked</span>
+                <strong>{minutesLabel(monthTotalWorked)}</strong>
+                <small>Actual recorded work</small>
+              </div>
+              <div className="myday-month-metric">
+                <span className="myday-month-metric-icon myday-stat-violet"><CalendarCheck size={17} /></span>
+                <span className="myday-month-metric-label">Days worked</span>
+                <strong>{String(monthDaysWorked)}</strong>
+                <small>Days with attendance</small>
+              </div>
+              <div className="myday-month-metric">
+                <span className="myday-month-metric-icon myday-stat-blue"><CalendarClock size={17} /></span>
+                <span className="myday-month-metric-label">Regular time</span>
+                <strong>{minutesLabel(monthRegularWorked)}</strong>
+                <small>Calculated regular hours</small>
+              </div>
+              <div className="myday-month-metric">
+                <span className="myday-month-metric-icon myday-stat-amber"><FileClock size={17} /></span>
+                <span className="myday-month-metric-label">Payable overtime</span>
+                <strong>{minutesLabel(monthPayableOvertime)}</strong>
+                <small>Approved and payable</small>
+              </div>
+              <div className="myday-month-metric">
+                <span className="myday-month-metric-icon myday-stat-green"><CalendarDays size={17} /></span>
+                <span className="myday-month-metric-label">Paid time off</span>
+                <strong>{minutesLabel(monthPaidTimeOff)}</strong>
+                <small>Paid leave and holidays</small>
+              </div>
+            </div>
+
+            <div className="myday-month-chart-heading">
+              <div><strong>Daily recorded work</strong><span>Actual worked hours for each day of the month</span></div>
+              <span className="myday-month-chart-unit">Hours · month to date</span>
+            </div>
+            {!hasMonthlyAttendance ? (
+              <div className="myday-empty-state myday-month-chart-empty">
+                <span><CalendarDays size={21} /></span>
+                <strong>No recorded work yet this month</strong>
+                <small>Daily attendance bars will appear as work is recorded.</small>
+              </div>
+            ) : (
+              <>
+                <div className="myday-month-chart-scroll">
+                  <div className="myday-month-chart">
+                    {monthlyDays.map((day) => {
+                      const worked = Number(day.workedMinutes ?? 0);
+                      const barHeight = worked > 0 ? Math.max(3, Math.round((worked / monthMaxWorked) * 100)) : 0;
+                      const dayNumber = Number(day.workDate.slice(8, 10));
+                      const dayMarker = day.paidLeaveMinutes ? "L" : day.paidHolidayMinutes ? "H" : day.scheduleName && worked === 0 ? "S" : "";
+                      const title = dayLabel(day.workDate) + " · " + minutesLabel(worked) + " recorded" +
+                        (day.paidLeaveMinutes ? " · " + minutesLabel(day.paidLeaveMinutes) + " paid leave" : "") +
+                        (day.paidHolidayMinutes ? " · " + minutesLabel(day.paidHolidayMinutes) + " paid holiday" : "");
+                      return (
+                        <button
+                          type="button"
+                          className={"myday-month-day-button" + (worked > 0 ? " has-work" : "") + (day.paidLeaveMinutes ? " is-leave" : "") + (day.paidHolidayMinutes ? " is-holiday" : "")}
+                          key={day.workDate}
+                          title={title}
+                          aria-label={"View " + title}
+                          onClick={() => setSelectedMonthDay(day)}
+                        >
+                          <span className="myday-month-bar-track">
+                            <span className="myday-month-bar" style={{ height: barHeight + "%" }} />
+                          </span>
+                          <strong>{dayNumber}</strong>
+                          <small>{dayMarker || " "}</small>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="myday-month-chart-legend">
+                  <span><i className="is-work" /> Recorded work</span>
+                  <span><i className="is-leave" /> Paid leave</span>
+                  <span><i className="is-holiday" /> Paid holiday</span>
+                  <span><i className="is-scheduled" /> Scheduled day with no recorded work</span>
+                </div>
+                <p className="myday-month-chart-hint">Select any day to inspect its attendance, overtime and estimated pay details.</p>
+              </>
+            )}
+            {monthUnapprovedOvertime > 0 ? (
+              <div className="myday-month-overtime-note"><AlertCircle size={15} /><span>{minutesLabel(monthUnapprovedOvertime)} of additional overtime is awaiting approval and is not included in payable overtime.</span></div>
+            ) : null}
+          </>
+        )}
+      </section>
+
       <section className="myday-bottom-grid">
         <div className="myday-panel">
           <div className="myday-panel-heading"><div><span className="myday-section-kicker">STAY ON TOP</span><h2>My requests</h2><p>Your latest leave, attendance and overtime requests.</p></div><Link href="/employee/requests" className="myday-text-link">View all <ArrowRight size={14} /></Link></div>
@@ -608,6 +782,63 @@ export function EmployeeMyDayWorkspace() {
             </div>
           );
         })() : null}
+      </Drawer>
+
+      <Drawer
+        open={Boolean(selectedMonthDay)}
+        title="Daily attendance details"
+        description={selectedMonthDay ? formatDate(selectedMonthDay.workDate) : undefined}
+        onClose={() => setSelectedMonthDay(null)}
+        width="standard"
+        footer={<div className="myday-drawer-footer"><Link href="/employee/attendance" className="myday-drawer-link" onClick={() => setSelectedMonthDay(null)}>Open attendance history <ArrowRight size={15} /></Link></div>}
+      >
+        {selectedMonthDay ? (
+          <div className="myday-detail-stack">
+            <div className="myday-detail-status">
+              <div><span className="myday-detail-eyebrow">WORK DATE</span><strong>{formatDate(selectedMonthDay.workDate)}</strong></div>
+              {selectedMonthDay.calculationStatus ? <StatusBadge value={selectedMonthDay.calculationStatus} /> : <StatusBadge value="RECORDED" />}
+            </div>
+            <div className="myday-detail-card">
+              <span className="myday-detail-eyebrow">DAILY SUMMARY</span>
+              <h3>{selectedMonthDay.scheduleName || (selectedMonthDay.isPaidLeave ? "Paid leave" : selectedMonthDay.isPaidHoliday ? "Paid public holiday" : "Attendance record")}</h3>
+              <p>{Number(selectedMonthDay.workedMinutes ?? 0) > 0
+                ? "This is the attendance time calculated from your recorded and approved punch events."
+                : selectedMonthDay.isPaidLeave
+                  ? "No attendance work is recorded for this day. Paid leave time is included in payable time."
+                  : selectedMonthDay.isPaidHoliday
+                    ? "No attendance work is recorded for this day. Paid public holiday time is included in payable time."
+                    : "There is no recorded work time for this date."}</p>
+            </div>
+            <div className="myday-detail-metrics">
+              <div className="myday-detail-metric"><span>Actual worked</span><strong>{minutesLabel(selectedMonthDay.workedMinutes)}</strong></div>
+              <div className="myday-detail-metric"><span>Regular time</span><strong>{minutesLabel(selectedMonthDay.regularWorkedMinutes)}</strong></div>
+              <div className="myday-detail-metric"><span>Payable overtime</span><strong>{minutesLabel(selectedMonthDay.payableOvertimeMinutes)}</strong></div>
+              <div className="myday-detail-metric"><span>Potential overtime</span><strong>{minutesLabel(selectedMonthDay.potentialOvertimeMinutes)}</strong></div>
+            </div>
+            {(Number(selectedMonthDay.paidLeaveMinutes ?? 0) > 0 || Number(selectedMonthDay.paidHolidayMinutes ?? 0) > 0) ? (
+              <div className="myday-detail-section">
+                <h4>Paid time</h4>
+                {Number(selectedMonthDay.paidLeaveMinutes ?? 0) > 0 ? <div className="myday-detail-row"><span>Paid leave</span><strong>{minutesLabel(selectedMonthDay.paidLeaveMinutes)}</strong></div> : null}
+                {Number(selectedMonthDay.paidHolidayMinutes ?? 0) > 0 ? <div className="myday-detail-row"><span>Paid holiday</span><strong>{minutesLabel(selectedMonthDay.paidHolidayMinutes)}</strong></div> : null}
+              </div>
+            ) : null}
+            <div className="myday-detail-section">
+              <h4>Punch records</h4>
+              <div className="myday-detail-row"><span>Clock in</span><strong>{dateTimeLabel(selectedMonthDay.clockIn, timeZone)}</strong></div>
+              <div className="myday-detail-row"><span>Clock out</span><strong>{dateTimeLabel(selectedMonthDay.clockOut, timeZone)}</strong></div>
+            </div>
+            {Number(selectedMonthDay.excessUnapprovedOvertimeMinutes ?? 0) > 0 ? (
+              <div className="myday-detail-note">
+                {minutesLabel(selectedMonthDay.excessUnapprovedOvertimeMinutes)} of additional overtime is not currently payable because it is awaiting the required approval or review.
+              </div>
+            ) : null}
+            <div className="myday-detail-section">
+              <h4>Estimated daily pay</h4>
+              <div className="myday-detail-row"><span>Estimate</span><strong>{typeof selectedMonthDay.estimatedPay === "number" ? formatMoney(selectedMonthDay.estimatedPay, selectedMonthDay.currencyCode || earningsCurrency) : "Not available"}</strong></div>
+              <p className="myday-detail-prose">This is an estimate based on recorded attendance, applicable rates and approved overtime. It is not a payslip or payment confirmation.</p>
+            </div>
+          </div>
+        ) : null}
       </Drawer>
 
       <Drawer
