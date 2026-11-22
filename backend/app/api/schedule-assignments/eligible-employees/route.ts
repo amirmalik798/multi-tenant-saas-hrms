@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { pool } from "../../../../lib/db";
 import { getTenantPermissionActor } from "../../../../lib/permissions";
 import {
@@ -10,6 +11,11 @@ const MAX_PAGE_SIZE = 100;
 const MAX_OFFSET = 1_000_000;
 
 export async function GET(request: Request) {
+  // This authenticated endpoint must run with a live request context.
+  // Do not let Cache Components attempt to evaluate session-cookie access
+  // while producing the build-time static shell.
+  await connection();
+
   try {
     const actor = await getTenantPermissionActor();
 

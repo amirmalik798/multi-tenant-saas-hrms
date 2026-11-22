@@ -366,6 +366,7 @@ export function ManagementDashboardWorkforceComposition() {
           {(() => {
             const links = managementDashboardLinks(state.data.scope.roleName);
             return (
+              <>
           <div className="md-composition-meta">
             <span>{formatNumber(state.data.summary.totalEmployees)} distinct workforce members</span>
             <span>{roleScopeLabel(state.data.scope.roleName)}</span>
@@ -493,6 +494,7 @@ export function ManagementDashboardWorkforceComposition() {
           <p className="md-composition-definition">
             Composition uses the same population key as the shared workforce KPI cards. Status and department links open the role-authorized directory with the same filter; role distribution remains a summary because the existing directory has no workforce-role filter.
           </p>
+              </>
             );
           })()}
         </>
