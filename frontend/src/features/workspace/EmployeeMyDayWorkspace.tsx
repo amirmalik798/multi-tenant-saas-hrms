@@ -351,10 +351,6 @@ export function EmployeeMyDayWorkspace() {
   const upcomingApprovedLeave = leaveRequests
     .filter((item) => item.status.toUpperCase() === "APPROVED" && Boolean(item.endDate && today && item.endDate >= today))
     .sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""));
-  const recentLeaveDecisions = leaveRequests
-    .filter((item) => ["APPROVED", "REJECTED"].includes(item.status.toUpperCase()))
-    .sort((a, b) => (Date.parse(b.decisionAt ?? b.createdAt) || 0) - (Date.parse(a.decisionAt ?? a.createdAt) || 0))
-    .slice(0, 2);
   const unreadMessages = snapshot.notifications?.unreadMessages;
   const earnings = snapshot.earnings?.summary;
   const earningsAmount = typeof earnings?.estimatedSalary === "number" ? earnings.estimatedSalary : null;
