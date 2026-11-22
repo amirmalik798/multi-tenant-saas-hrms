@@ -215,9 +215,7 @@ export function EmployeeMyDayWorkspace() {
   }>({ month: "", payload: null, loading: false, error: "" });
   const currentMonth = today ? today.slice(0, 7) : "";
   const activeInsightsMonth = selectedInsightsMonth || currentMonth;
-  const clockNowState = useState(() => Date.now());
-  const clockNow = clockNowState[0];
-  const setClockNow = clockNowState[1];
+  const [clockNow, setClockNow] = useState(() => Date.now());
 
   useEffect(() => {
     const timer = window.setInterval(() => setClockNow(Date.now()), 15000);
@@ -225,7 +223,7 @@ export function EmployeeMyDayWorkspace() {
   }, []);
 
   useEffect(() => {
-    if (!activeInsightsMonth || timeZoneStatus !== "ready") return;
+    if (!activeInsightsMonth || activeInsightsMonth === currentMonth || timeZoneStatus !== "ready") return;
     let active = true;
     setMonthlyEarningsState({ month: activeInsightsMonth, payload: null, loading: true, error: "" });
     apiRequest<EarningsPayload>("/employee/earnings?month=" + activeInsightsMonth)
@@ -242,7 +240,7 @@ export function EmployeeMyDayWorkspace() {
         });
       });
     return () => { active = false; };
-  }, [activeInsightsMonth, timeZoneStatus]);
+  }, [activeInsightsMonth, currentMonth, timeZoneStatus]);
 
   const load = useCallback(async (silent = false) => {
     if (!today || timeZoneStatus !== "ready") {
@@ -353,12 +351,18 @@ export function EmployeeMyDayWorkspace() {
       : snapshot.earnings?.hasRates === false
         ? "Pay rates not set"
         : "Estimate unavailable";
-  const monthlyEarnings = monthlyEarningsState.month === activeInsightsMonth
-    ? monthlyEarningsState.payload
-    : null;
-  const monthlyEarningsLoading = !activeInsightsMonth || monthlyEarningsState.month !== activeInsightsMonth || monthlyEarningsState.loading;
-  const monthlyEarningsError = monthlyEarningsState.month === activeInsightsMonth ? monthlyEarningsState.error : "";
   const isCurrentInsightsMonth = Boolean(activeInsightsMonth && activeInsightsMonth === currentMonth);
+  const monthlyEarnings = isCurrentInsightsMonth
+    ? snapshot.earnings
+    : monthlyEarningsState.month === activeInsightsMonth
+      ? monthlyEarningsState.payload
+      : null;
+  const monthlyEarningsLoading = isCurrentInsightsMonth
+    ? loading && !snapshot.earnings
+    : !activeInsightsMonth || monthlyEarningsState.month !== activeInsightsMonth || monthlyEarningsState.loading;
+  const monthlyEarningsError = isCurrentInsightsMonth
+    ? !loading && !snapshot.earnings ? "Current-month attendance data could not be retrieved. It will retry automatically." : ""
+    : monthlyEarningsState.month === activeInsightsMonth ? monthlyEarningsState.error : "";
   const insightsMonthEnd = activeInsightsMonth
     ? isCurrentInsightsMonth ? today : lastDateOfMonth(activeInsightsMonth)
     : "";
@@ -637,7 +641,7 @@ export function EmployeeMyDayWorkspace() {
                 onClick={() => setSelectedInsightsMonth(addCalendarMonths(activeInsightsMonth, 1))}
               ><ChevronRight size={16} /></button>
               {!isCurrentInsightsMonth ? (
-                <button type="button" className="myday-month-current-button" onClick={() => setSelectedInsightsMonth(currentMonth)}>
+                <button type="button" className="myday-month-current-button" onClick={() => setSelectedInsightsMonth(null)}>
                   <CalendarDays size={14} /> Current
                 </button>
               ) : null}
