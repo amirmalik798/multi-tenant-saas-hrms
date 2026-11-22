@@ -4722,3 +4722,108 @@ body {
     animation-iteration-count: 1 !important;
   }
 }
+
+
+/* Salary payments toolbar: align the month, search and report controls as one unit. */
+.salary-payments-toolbar {
+  align-items: flex-end;
+  gap: 18px;
+  padding: 16px 18px;
+}
+.salary-payments-controls {
+  display: grid;
+  grid-template-columns: minmax(160px, 172px) minmax(240px, 1fr) max-content;
+  align-items: end;
+  gap: 12px;
+  flex: 1 1 650px;
+  min-width: 0;
+}
+.salary-payments-month {
+  width: 100%;
+  min-width: 0;
+  gap: 7px;
+}
+.salary-payments-month .text-input {
+  height: 44px;
+  min-height: 44px;
+  border-radius: 10px;
+  padding-inline: 12px;
+  font-size: 13px;
+}
+.salary-payments-search {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  height: 44px;
+  min-height: 44px;
+  border-radius: 10px;
+  padding-inline: 13px;
+}
+.salary-payments-search input {
+  min-width: 0;
+  font-size: 13px;
+}
+.salary-payments-bulk-toggle {
+  min-height: 44px;
+  padding-inline: 15px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.salary-payments-bulk-toggle.is-open {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+.salary-payments-toolbar .toolbar-right {
+  align-self: flex-end;
+  flex: 0 1 auto;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-bottom: 1px;
+}
+@media (max-width: 1100px) {
+  .salary-payments-toolbar {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .salary-payments-controls {
+    flex-basis: 100%;
+  }
+  .salary-payments-toolbar .toolbar-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 720px) {
+  .salary-payments-controls {
+    grid-template-columns: minmax(0, 172px) minmax(0, 1fr);
+    flex-basis: 100%;
+  }
+  .salary-payments-bulk-toggle {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  .salary-payments-toolbar .toolbar-right {
+    align-self: stretch;
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 480px) {
+  .salary-payments-controls {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 11px;
+  }
+  .salary-payments-month,
+  .salary-payments-search,
+  .salary-payments-bulk-toggle {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+  .salary-payments-bulk-toggle {
+    justify-content: center;
+  }
+  .salary-payments-toolbar .toolbar-right {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}
