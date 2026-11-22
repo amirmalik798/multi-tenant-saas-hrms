@@ -169,7 +169,7 @@ export async function GET(request: Request) {
         populationStatus: "ACTIVE",
         approvedLeave: "Approved leave requests from active workforce members whose inclusive calendar-date interval overlaps the selected period.",
         approvedCalendarDays: "Inclusive calendar days of approved leave within the selected period; this is not scheduled-work-day entitlement or paid-leave calculation.",
-        upcomingLeave: "Approved leave days within the selected period that begin after the organization's current local work date.",
+        upcomingLeave: "Approved leave requests with at least one overlapping day in the selected period after the organization's current local work date, including leave already in progress today.",
         actionablePendingRequests: "Pending requests overlapping the selected period that the authenticated role can decide; own requests and HR-target roles are excluded for HR Managers and Department Managers.",
         availability: "Available scheduled employee-days divided by scheduled employee-days excluding public holidays. Approved leave and public holidays are counted separately.",
         scheduleEligibility: "Only active workforce members with an effective assignment to an active schedule and a matching schedule weekday are included. Employees without an applicable schedule are not assumed available.",
