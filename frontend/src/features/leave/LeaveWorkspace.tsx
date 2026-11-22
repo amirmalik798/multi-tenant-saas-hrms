@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { CalendarDays, CheckCircle2, Clock3, Plus, Trash2, XCircle } from "lucide-react";
 import { useWorkspace } from "@/components/layout/WorkspaceGate";
 import { Button } from "@/components/ui/Button";
@@ -39,20 +39,23 @@ export function LeaveWorkspace() {
   const [dashboardFilter, setDashboardFilter] = useState<LeaveDashboardFilter>({ fromDate: "", toDate: "", status: "", excludeOwn: false, activeWorkforceOnly: false });
   const [leaveStartDate, setLeaveStartDate] = useState("");
   const [leaveEndDate, setLeaveEndDate] = useState("");
+  const loadSequenceRef = useRef(0);
 
   const load = useCallback(async (silent = false) => {
+    const requestId = ++loadSequenceRef.current;
     if (!silent) setLoading(true); setError("");
     const [requestResult, holidayResult] = await Promise.allSettled([
       apiRequest<{ requests?: LeaveRequest[] }>("/leave/requests"),
       apiRequest<{ holidays?: Holiday[]; canManage?: boolean }>("/leave/holidays"),
     ]);
+    if (requestId !== loadSequenceRef.current) return;
     const errors: string[] = [];
     if (requestResult.status === "fulfilled") setRequests(requestResult.value.requests ?? []);
     else errors.push(requestResult.reason instanceof Error ? requestResult.reason.message : "Unable to load leave requests.");
     if (holidayResult.status === "fulfilled") { setHolidays(holidayResult.value.holidays ?? []); setCanManageHolidays(Boolean(holidayResult.value.canManage)); }
     else errors.push(holidayResult.reason instanceof Error ? holidayResult.reason.message : "Unable to load public holidays.");
     setError(errors.join(" · "));
-    if (!silent) setLoading(false);
+    if (!silent && requestId === loadSequenceRef.current) setLoading(false);
   }, []);
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
@@ -74,7 +77,10 @@ export function LeaveWorkspace() {
     });
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => { loadSequenceRef.current += 1; };
+  }, [load]);
   useSmartRefresh(() => load(true), !requestOpen && !holidayOpen && !decisionTarget && !holidayToRemove && !saving);
 
   const visibleRequests = useMemo(() => requests.filter((item) => {
