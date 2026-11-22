@@ -10,6 +10,7 @@ import { Panel, PanelHeading } from "@/components/ui/Panel";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ProfilePhoto } from "@/components/ui/ProfilePhoto";
+import { PdfPreparationIndicator } from "@/components/ui/PdfPreparationIndicator";
 import { apiRequest } from "@/lib/api-client";
 import { formatDate, formatMoney, getISODateInTimeZone, humanize } from "@/lib/format";
 import { buildSalarySlipDocument, type SalarySlipPayload } from "@/features/payroll/salary-slip-document";
@@ -191,7 +192,7 @@ export function PayrollWorkspace() {
       return;
     }
     printWindow.document.open();
-    printWindow.document.write(buildPdfPreparationDocument());
+    printWindow.document.write(buildPdfPreparationDocument("payslip", document.documentElement.dataset.theme === "dark" ? "dark" : "light"));
     printWindow.document.close();
 
     setTeamSlipBusy(true);
@@ -323,7 +324,7 @@ export function PayrollWorkspace() {
     const printWindow = window.open("", "_blank");
     if (!printWindow) { setSlipError("Your browser blocked the salary-slip window. Allow pop-ups for this site and try again."); return; }
     printWindow.document.open();
-    printWindow.document.write(buildPdfPreparationDocument());
+    printWindow.document.write(buildPdfPreparationDocument("payslip", document.documentElement.dataset.theme === "dark" ? "dark" : "light"));
     printWindow.document.close();
     setSlipPrinting(true); setSlipError("");
     try {
@@ -353,7 +354,7 @@ export function PayrollWorkspace() {
     const printWindow = window.open("", "_blank");
     if (!printWindow) { setBulkError("Your browser blocked the combined salary-slip window. Allow pop-ups for this site and try again."); return; }
     printWindow.document.open();
-    printWindow.document.write(buildPdfPreparationDocument());
+    printWindow.document.write(buildPdfPreparationDocument("payslip", document.documentElement.dataset.theme === "dark" ? "dark" : "light"));
     printWindow.document.close();
     setBulkBusy(true); setBulkError("");
     try {
@@ -441,7 +442,7 @@ export function PayrollWorkspace() {
           </div>
           <Button className="bulk-payslip-generate" variant="primary" leading={<FileDown size={15} />} busy={bulkBusy} disabled={!bulkStartMonth || !bulkEndMonth} onClick={() => void generateMultiMonthPayslips()}>Generate combined payslips</Button>
         </div>
-        {bulkBusy ? <PdfPreparationIndicator className="pdf-preparation-indicator-workspace" /> : null}
+        {bulkBusy ? <PdfPreparationIndicator label="Generating payslip(s)" className="pdf-preparation-indicator-workspace" /> : null}
         {bulkError ? <div className="form-error" role="alert" style={{ marginTop: 12 }}>{bulkError}</div> : null}
       </section> : null}
       {loading && !payments.length ? <div className="loading-state">Calculating monthly salary records…</div> : null}
@@ -510,7 +511,7 @@ export function PayrollWorkspace() {
         </section>
         <div className="team-slip-note"><span className="team-slip-note-icon"><AlertCircle size={16} /></span><p>This manager statement includes backend-calculated monthly hours, payable time, calculated pay and payment status. The detailed daily payslip remains available to HR Managers and Organization Admins. You can include up to 24 months.</p></div>
         {teamSlipTarget.currencyMismatch || !paymentUsesOrganizationCurrency(teamSlipTarget.currencyCode, organizationCurrencyCode, teamSlipTarget.currencyMismatch) ? <div role="alert" className="form-error">This employee currently has a pay-rate currency mismatch ({normalizeCurrencyCode(teamSlipTarget.currencyCode) || "unavailable"} vs {organizationCurrencyCode || "organization currency unavailable"}). The statement cannot include a misleading amount until HR resolves the underlying rate history.</div> : null}
-        {teamSlipBusy ? <PdfPreparationIndicator /> : null}{teamSlipError ? <div role="alert" className="form-error">{teamSlipError}</div> : null}
+        {teamSlipBusy ? <PdfPreparationIndicator label="Generating payslip(s)" /> : null}{teamSlipError ? <div role="alert" className="form-error">{teamSlipError}</div> : null}
       </div> : null}
     </Drawer>
     <Drawer open={Boolean(slipTarget)} title="Generate individual salary slip" description="Choose the statement period. The latest payroll details load automatically whenever either selected month changes and are refreshed again before printing." onClose={() => { if (!slipLoading && !slipPrinting) { setSlipTarget(null); setSlipPayload(null); setSlipError(""); } }} width="standard" footer={<><Button variant="secondary" disabled={slipLoading || slipPrinting} onClick={() => { setSlipTarget(null); setSlipPayload(null); }}>Cancel</Button><Button variant="primary" leading={<FileDown size={14} />} busy={slipPrinting} disabled={!slipPayload || slipLoading} onClick={() => void printIndividualSlip()}>Generate & print</Button></>}>
@@ -540,13 +541,10 @@ export function PayrollWorkspace() {
           </div>
         </section>
         {slipError ? <div className="form-error" role="alert">{slipError}</div> : null}
-        {slipLoading || slipPrinting ? <PdfPreparationIndicator /> : slipPayload ? <div className="success-callout"><CheckCircle2 size={15} /> Loaded {slipPayload.months.length} monthly statement(s) for {slipPayload.employee.firstName} {slipPayload.employee.lastName}. The print action refreshes the latest payroll data.</div> : !slipError ? <div className="form-note"><AlertCircle size={15} /> Each selected month is printed as a separate monthly statement. Up to 24 months can be included.</div> : null}
+        {slipPrinting ? <PdfPreparationIndicator label="Generating payslip(s)" /> : slipLoading ? <PdfPreparationIndicator label="Loading payslip details" /> : slipPayload ? <div className="success-callout"><CheckCircle2 size={15} /> Loaded {slipPayload.months.length} monthly statement(s) for {slipPayload.employee.firstName} {slipPayload.employee.lastName}. The print action refreshes the latest payroll data.</div> : !slipError ? <div className="form-note"><AlertCircle size={15} /> Each selected month is printed as a separate monthly statement. Up to 24 months can be included.</div> : null}
       </div> : null}
     </Drawer>
   </>;
-}
-function PdfPreparationIndicator({ className = "" }: { className?: string }) {
-  return <div className={`pdf-preparation-indicator ${className}`.trim()} role="status" aria-label="Preparing PDF"><span className="pdf-preparation-spinner" aria-hidden="true"><span className="pdf-preparation-spinner-core" /></span></div>;
 }
 
 function SearchIcon() { return <span aria-hidden="true">⌕</span>; }
