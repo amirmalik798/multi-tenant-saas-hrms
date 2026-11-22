@@ -277,7 +277,7 @@ export function PersonalMyDayWorkspace() {
       apiRequest<RequestPayload>("/leave/requests" + personalScopeQuery),
       apiRequest<RequestPayload>("/attendance/corrections" + personalScopeQuery),
       apiRequest<RequestPayload>("/attendance/overtime" + personalScopeQuery),
-      apiRequest<NotificationPayload>("/notifications/summary"),
+      apiRequest<NotificationPayload>("/notifications/summary?scope=self"),
     ] as const);
     const next: MyDaySnapshot = {
       calendar: results[0].status === "fulfilled" ? results[0].value : null,
