@@ -71,7 +71,7 @@ async function readStatus(): Promise<ConfirmedStatus> {
 
 async function readShiftData(employeeId: string, role: WorkspaceRole, timeZone: string): Promise<ShiftData> {
   const requestedToday = getISODateInTimeZone(timeZone);
-  const scope = role === "HR_MANAGER" ? "&scope=self" : "";
+  const scope = role === "HR_MANAGER" || role === "DEPARTMENT_MANAGER" ? "&scope=self" : "";
   const response = await apiRequest<CalendarPayload>(
     "/attendance/calendar?fromDate=" + requestedToday + "&toDate=" + requestedToday + scope,
   );

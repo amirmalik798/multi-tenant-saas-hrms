@@ -15,6 +15,7 @@ import { apiRequest } from "@/lib/api-client";
 import { getAttendanceClockEligibility } from "@/lib/attendance-clock-eligibility";
 import { formatDate, formatMoney, getISODateInTimeZone, humanize } from "@/lib/format";
 import { useAttendanceRefresh, notifyAttendanceStatusChanged } from "@/lib/attendance-events";
+import type { WorkspaceRole } from "@/types/workspace";
 import { useSmartRefresh } from "@/lib/smart-refresh";
 
 interface AttendanceEvent { id?: string; eventType?: string; recordedAt?: string; source?: string }
@@ -80,6 +81,16 @@ interface MyDaySnapshot {
   notifications: NotificationPayload | null;
 }
 type HomeRequestKind = "leave" | "correction" | "overtime";
+interface PersonalWorkspacePaths {
+  attendance: string; schedule: string; reports: string; leave: string;
+  requests: string; earnings: string; messages: string;
+}
+const PERSONAL_WORKSPACE_PATHS: Record<WorkspaceRole, PersonalWorkspacePaths> = {
+  EMPLOYEE: { attendance: "/employee/attendance", schedule: "/employee/schedule", reports: "/employee/reports", leave: "/employee/leave", requests: "/employee/requests", earnings: "/employee/payroll", messages: "/employee/communications" },
+  HR_MANAGER: { attendance: "/hr/my-attendance", schedule: "/hr/modules/time-schedules", reports: "/hr/reports", leave: "/hr/modules/leave", requests: "/hr/requests", earnings: "/hr/my-earnings", messages: "/hr/communications" },
+  DEPARTMENT_MANAGER: { attendance: "/dm/my-attendance", schedule: "/dm/schedule", reports: "/dm/reports", leave: "/dm/leave", requests: "/dm/requests", earnings: "/dm/earnings", messages: "/dm/communications" },
+  ORGANIZATION_ADMIN: { attendance: "/org/attendance", schedule: "/org/schedules", reports: "/org/reports", leave: "/org/leave", requests: "/org/attendance", earnings: "/org/payroll", messages: "/org/communications" },
+};
 interface HomeRequest {
   id: string; recordId: string; kind: HomeRequestKind; title: string; detail: string;
   status: string; href: string; createdAt: string; reason?: string; reviewerNote?: string | null;
@@ -157,7 +168,7 @@ function scheduledWorkMinutes(entry: AttendanceDay | undefined): number {
 function createdAt(item: RequestItem): string {
   return typeof item.createdAt === "string" ? item.createdAt : typeof item.requestedAt === "string" ? item.requestedAt : "";
 }
-function buildRequests(snapshot: MyDaySnapshot): HomeRequest[] {
+function buildRequests(snapshot: MyDaySnapshot, paths: PersonalWorkspacePaths): HomeRequest[] {
   const leave = (snapshot.leave?.requests ?? []).map((item, index): HomeRequest => ({
     id: "leave-" + String(item.id ?? index), recordId: String(item.id ?? ""),
     kind: "leave",
@@ -165,7 +176,7 @@ function buildRequests(snapshot: MyDaySnapshot): HomeRequest[] {
     detail: item.startDate && item.endDate
       ? formatDate(String(item.startDate)) + (item.startDate === item.endDate ? "" : " – " + formatDate(String(item.endDate)))
       : "Leave request",
-    status: String(item.status ?? "UNKNOWN"), href: "/employee/leave", createdAt: createdAt(item),
+    status: String(item.status ?? "UNKNOWN"), href: paths.leave, createdAt: createdAt(item),
     reason: item.reason, reviewerNote: item.reviewerNote, decisionAt: item.decisionAt,
     startDate: item.startDate, endDate: item.endDate, leaveType: item.leaveType, isPaid: item.isPaid,
   }));
@@ -173,7 +184,7 @@ function buildRequests(snapshot: MyDaySnapshot): HomeRequest[] {
     id: "correction-" + String(item.id ?? index), recordId: String(item.id ?? ""),
     kind: "correction", title: humanize(item.eventType) + " correction",
     detail: item.workDate ? formatDate(String(item.workDate)) : "Attendance correction",
-    status: String(item.status ?? "UNKNOWN"), href: "/employee/requests", createdAt: createdAt(item),
+    status: String(item.status ?? "UNKNOWN"), href: paths.requests, createdAt: createdAt(item),
     reason: item.reason, reviewerNote: item.reviewerNote, decisionAt: item.decisionAt,
     workDate: item.workDate, eventType: item.eventType, requestedAt: item.requestedAt,
     originalRecordedAt: item.originalRecordedAt,
@@ -183,7 +194,7 @@ function buildRequests(snapshot: MyDaySnapshot): HomeRequest[] {
     kind: "overtime", title: "Overtime request",
     detail: (item.workDate ? formatDate(String(item.workDate)) : "Scheduled work") +
       (typeof item.requestedMinutes === "number" ? " · " + minutesLabel(item.requestedMinutes) : ""),
-    status: String(item.status ?? "UNKNOWN"), href: "/employee/requests", createdAt: createdAt(item),
+    status: String(item.status ?? "UNKNOWN"), href: paths.requests, createdAt: createdAt(item),
     reason: item.reason, reviewerNote: item.reviewerNote, decisionAt: item.decisionAt,
     workDate: item.workDate, requestedAt: item.requestedAt, requestedMinutes: item.requestedMinutes,
     approvedMinutes: item.approvedMinutes, requestType: item.requestType,
@@ -193,8 +204,11 @@ function buildRequests(snapshot: MyDaySnapshot): HomeRequest[] {
   );
 }
 
-export function EmployeeMyDayWorkspace() {
+export function PersonalMyDayWorkspace() {
   const { user, timeZone, workDate, timeZoneStatus, currencyCode } = useWorkspace();
+  const personalPaths = PERSONAL_WORKSPACE_PATHS[user.role];
+  const personalScopeQuery = user.role === "EMPLOYEE" ? "" : "?scope=self";
+  const personalScopeParam = user.role === "EMPLOYEE" ? "" : "&scope=self";
   const [calendarToday, setCalendarToday] = useState<string | null>(null);
   const today = calendarToday || workDate || (timeZoneStatus === "ready" ? getISODateInTimeZone(timeZone) : "");
   const [snapshot, setSnapshot] = useState<MyDaySnapshot>(EMPTY_SNAPSHOT);
@@ -257,12 +271,12 @@ export function EmployeeMyDayWorkspace() {
     const weekEndDate = addCalendarDays(weekStartDate, 13);
     const month = today.slice(0, 7);
     const results = await Promise.allSettled([
-      apiRequest<CalendarPayload>("/attendance/calendar?fromDate=" + weekStartDate + "&toDate=" + weekEndDate),
-      apiRequest<PunchPayload>("/attendance/events"),
+      apiRequest<CalendarPayload>("/attendance/calendar?fromDate=" + weekStartDate + "&toDate=" + weekEndDate + personalScopeParam),
+      apiRequest<PunchPayload>("/attendance/events" + personalScopeQuery),
       apiRequest<EarningsPayload>("/employee/earnings?month=" + month),
-      apiRequest<RequestPayload>("/leave/requests"),
-      apiRequest<RequestPayload>("/attendance/corrections"),
-      apiRequest<RequestPayload>("/attendance/overtime"),
+      apiRequest<RequestPayload>("/leave/requests" + personalScopeQuery),
+      apiRequest<RequestPayload>("/attendance/corrections" + personalScopeQuery),
+      apiRequest<RequestPayload>("/attendance/overtime" + personalScopeQuery),
       apiRequest<NotificationPayload>("/notifications/summary"),
     ] as const);
     const next: MyDaySnapshot = {
@@ -286,7 +300,7 @@ export function EmployeeMyDayWorkspace() {
       ? "Some personal information is temporarily unavailable. Missing sections will retry automatically."
       : "");
     if (!silent) setLoading(false);
-  }, [today, timeZoneStatus]);
+  }, [today, timeZoneStatus, personalScopeQuery, personalScopeParam]);
 
   useEffect(() => { void load(); }, [load]);
   useSmartRefresh(() => load(true), Boolean(today && timeZoneStatus === "ready"), 30000);
@@ -337,7 +351,7 @@ export function EmployeeMyDayWorkspace() {
   );
   const hasWeeklyActivity = weekDays.some((day) => day.worked > 0 || day.scheduled > 0);
 
-  const allRequests = useMemo(() => buildRequests(snapshot), [snapshot]);
+  const allRequests = useMemo(() => buildRequests(snapshot, personalPaths), [snapshot, personalPaths]);
   const requestSourcesLoaded = Boolean(snapshot.leave && snapshot.corrections && snapshot.overtime);
   const pendingRequests = allRequests.filter((item) => item.status.toUpperCase() === "PENDING");
   const leaveRequests = useMemo(() => allRequests.filter((item) => item.kind === "leave"), [allRequests]);
@@ -435,7 +449,7 @@ export function EmployeeMyDayWorkspace() {
                 : "Day off";
 
   async function refreshClockStatus(): Promise<PunchPayload> {
-    return apiRequest<PunchPayload>("/attendance/events");
+    return apiRequest<PunchPayload>("/attendance/events" + personalScopeQuery);
   }
   async function punch() {
     if (!canPunch) return;
@@ -516,7 +530,7 @@ export function EmployeeMyDayWorkspace() {
   return (
     <main className="myday-root">
       <header className="myday-heading-row">
-        <div className="myday-heading-copy"><p className="eyebrow">EMPLOYEE WORKSPACE</p><h1>{greeting}, {firstName}</h1><p>Your day, your time, and everything that needs your attention.</p></div>
+        <div className="myday-heading-copy"><p className="eyebrow">{user.role === "EMPLOYEE" ? "EMPLOYEE WORKSPACE" : user.role === "HR_MANAGER" ? "HR MANAGER · PERSONAL WORKSPACE" : "DEPARTMENT MANAGER · PERSONAL WORKSPACE"}</p><h1>{greeting}, {firstName}</h1><p>Your day, your time, and everything that needs your attention.</p></div>
         <div className="myday-context"><span className="myday-org-chip"><span className="myday-org-dot" />{user.organizationName}</span><span className="myday-date-chip"><CalendarDays size={15} />{today ? formatDate(today) : "Work date unavailable"}</span></div>
       </header>
 
@@ -544,16 +558,16 @@ export function EmployeeMyDayWorkspace() {
             <span className="myday-clock-hint">{loading ? "Checking your assigned shift and attendance eligibility." : isClockedIn ? "Clock-out remains available so an open attendance session can always be closed." : approvedLeaveToday ? "Clock-in is unavailable during approved leave." : holidayToday ? "Clock-in is unavailable on an organization public holiday." : clockInTooEarly ? "Clock-in opens in " + minutesLabel(minutesUntilShift) + " at " + timestampLabel(todayEntry?.expectedStart, timeZone) + "." : clockInTooLate ? "Clock-in is closed because this shift has ended. Contact your manager if your schedule needs correction." : todayEntry?.expectedStart ? "Your shift and attendance rules are verified by HRMS." : "No active shift is assigned for today."}</span>
           </div>
           {punchError ? <p className="myday-inline-error" role="alert">{punchError}</p> : null}
-          {todayEntry?.calculationStatus === "REVIEW_REQUIRED" ? <Link className="myday-review-link" href="/employee/requests"><AlertCircle size={15} />Your attendance needs review<ChevronRight size={15} /></Link> : null}
+          {todayEntry?.calculationStatus === "REVIEW_REQUIRED" ? <Link className="myday-review-link" href={personalPaths.requests}><AlertCircle size={15} />Your attendance needs review<ChevronRight size={15} /></Link> : null}
         </div>
 
         <aside className="myday-quick-card">
           <div><span className="myday-section-kicker">YOUR SHORTCUTS</span><h2>Get things done</h2><p>Common actions, right where you need them.</p></div>
           <div className="myday-quick-actions">
-            <Link href="/employee/leave" className="myday-quick-action"><span className="myday-quick-icon"><CalendarCheck size={18} /></span><span><strong>Request leave</strong><small>Plan time away</small></span><ChevronRight size={16} /></Link>
-            <Link href="/employee/requests" className="myday-quick-action"><span className="myday-quick-icon"><FileClock size={18} /></span><span><strong>Attendance & overtime</strong><small>Submit or track a request</small></span><ChevronRight size={16} /></Link>
-            <Link href="/employee/payroll" className="myday-quick-action"><span className="myday-quick-icon"><Wallet size={18} /></span><span><strong>My earnings</strong><small>View pay and payslips</small></span><ChevronRight size={16} /></Link>
-            <Link href="/employee/communications" className="myday-quick-action"><span className="myday-quick-icon"><MessageCircle size={18} /></span><span><strong>Messages</strong><small>Talk with your workplace</small></span><ChevronRight size={16} /></Link>
+            <Link href={personalPaths.leave} className="myday-quick-action"><span className="myday-quick-icon"><CalendarCheck size={18} /></span><span><strong>Request leave</strong><small>Plan time away</small></span><ChevronRight size={16} /></Link>
+            <Link href={personalPaths.requests} className="myday-quick-action"><span className="myday-quick-icon"><FileClock size={18} /></span><span><strong>Attendance & overtime</strong><small>Submit or track a request</small></span><ChevronRight size={16} /></Link>
+            <Link href={personalPaths.earnings} className="myday-quick-action"><span className="myday-quick-icon"><Wallet size={18} /></span><span><strong>My earnings</strong><small>View pay and payslips</small></span><ChevronRight size={16} /></Link>
+            <Link href={personalPaths.messages} className="myday-quick-action"><span className="myday-quick-icon"><MessageCircle size={18} /></span><span><strong>Messages</strong><small>Talk with your workplace</small></span><ChevronRight size={16} /></Link>
           </div>
         </aside>
       </section>
@@ -567,7 +581,7 @@ export function EmployeeMyDayWorkspace() {
 
       <section className="myday-content-grid">
         <div className="myday-panel">
-          <div className="myday-panel-heading"><div><span className="myday-section-kicker">YOUR TIME</span><h2>Hours this week</h2><p>Recorded work compared with your assigned shifts.</p></div><Link href="/employee/reports" className="myday-text-link">Attendance report <ArrowRight size={14} /></Link></div>
+          <div className="myday-panel-heading"><div><span className="myday-section-kicker">YOUR TIME</span><h2>Hours this week</h2><p>Recorded work compared with your assigned shifts.</p></div><Link href={personalPaths.reports} className="myday-text-link">Attendance report <ArrowRight size={14} /></Link></div>
           <div className="myday-chart-summary"><div><strong>{loading ? <MyDaySkeleton className="myday-skeleton-stat" /> : minutesLabel(weekWorked)}</strong><span>Worked so far</span></div><div><strong>{loading ? <MyDaySkeleton className="myday-skeleton-stat" /> : minutesLabel(weekScheduled)}</strong><span>Scheduled this week</span></div></div>
           {loading ? (
             <div className="myday-chart-loading" role="status" aria-label="Loading weekly attendance chart">
@@ -595,7 +609,7 @@ export function EmployeeMyDayWorkspace() {
         </div>
 
         <div className="myday-panel">
-          <div className="myday-panel-heading"><div><span className="myday-section-kicker">PLAN AHEAD</span><h2>Coming up</h2><p>Your next seven calendar days.</p></div><Link href="/employee/schedule" className="myday-icon-link" aria-label="Open full schedule"><ArrowRight size={17} /></Link></div>
+          <div className="myday-panel-heading"><div><span className="myday-section-kicker">PLAN AHEAD</span><h2>Coming up</h2><p>Your next seven calendar days.</p></div><Link href={personalPaths.schedule} className="myday-icon-link" aria-label="Open full schedule"><ArrowRight size={17} /></Link></div>
           <div className="myday-upcoming-list">
             {loading ? (
               Array.from({ length: 5 }, (_, index) => <div className="myday-upcoming-skeleton" key={index}><MyDaySkeleton className="myday-skeleton-date" /><div><MyDaySkeleton className="myday-skeleton-row-title" /><MyDaySkeleton className="myday-skeleton-row-detail" /></div><MyDaySkeleton className="myday-skeleton-tag" /></div>)
@@ -657,7 +671,7 @@ export function EmployeeMyDayWorkspace() {
                 </button>
               ) : null}
             </div>
-            <Link href="/employee/reports" className="myday-text-link">Attendance reports <ArrowRight size={14} /></Link>
+            <Link href={personalPaths.reports} className="myday-text-link">Attendance reports <ArrowRight size={14} /></Link>
           </div>
         </div>
 
@@ -770,7 +784,7 @@ export function EmployeeMyDayWorkspace() {
             <h2>My leave overview</h2>
             <p>Your leave requests, review progress and upcoming approved time away.</p>
           </div>
-          <Link href="/employee/leave" className="myday-text-link">Leave & holidays <ArrowRight size={14} /></Link>
+          <Link href={personalPaths.leave} className="myday-text-link">Leave & holidays <ArrowRight size={14} /></Link>
         </div>
 
         {!snapshot.leave && loading ? (
@@ -836,7 +850,7 @@ export function EmployeeMyDayWorkspace() {
 
       <section className="myday-bottom-grid">
         <div className="myday-panel">
-          <div className="myday-panel-heading"><div><span className="myday-section-kicker">STAY ON TOP</span><h2>My requests</h2><p>Your latest leave, attendance and overtime requests.</p></div><Link href="/employee/requests" className="myday-text-link">View all <ArrowRight size={14} /></Link></div>
+          <div className="myday-panel-heading"><div><span className="myday-section-kicker">STAY ON TOP</span><h2>My requests</h2><p>Your latest leave, attendance and overtime requests.</p></div><Link href={personalPaths.requests} className="myday-text-link">View all <ArrowRight size={14} /></Link></div>
           {loading && !requestSourcesLoaded ? (
             <div className="myday-loading-rows" role="status" aria-label="Loading requests">
               {Array.from({ length: 3 }, (_, index) => <div className="myday-request-skeleton" key={index}><MyDaySkeleton className="myday-skeleton-request-icon" /><div><MyDaySkeleton className="myday-skeleton-row-title" /><MyDaySkeleton className="myday-skeleton-row-detail" /></div><MyDaySkeleton className="myday-skeleton-tag" /></div>)}
@@ -858,12 +872,12 @@ export function EmployeeMyDayWorkspace() {
             <div className="myday-earnings-unavailable">We couldn't retrieve your earnings summary. It will retry automatically.</div>
           )}
           {!loading && (earnings?.currencyMismatch || (earnings?.daysWithMissingRates ?? 0) > 0) ? <p className="myday-earnings-warning"><AlertCircle size={14} />Some dates need rate or currency review before the total can be confirmed.</p> : null}
-          <Link href="/employee/payroll" className="myday-earnings-link">View earnings and payslips <ArrowRight size={15} /></Link>
+          <Link href={personalPaths.earnings} className="myday-earnings-link">View earnings and payslips <ArrowRight size={15} /></Link>
         </div>
       </section>
 
       <section className="myday-panel myday-punches-panel">
-        <div className="myday-panel-heading"><div><span className="myday-section-kicker">TODAY'S ACTIVITY</span><h2>Attendance timeline</h2><p>Your recorded punches and scheduled shift boundaries.</p></div><Link href="/employee/attendance" className="myday-text-link">Attendance history <ArrowRight size={14} /></Link></div>
+        <div className="myday-panel-heading"><div><span className="myday-section-kicker">TODAY'S ACTIVITY</span><h2>Attendance timeline</h2><p>Your recorded punches and scheduled shift boundaries.</p></div><Link href={personalPaths.attendance} className="myday-text-link">Attendance history <ArrowRight size={14} /></Link></div>
         <div className="myday-timeline">
           {loading ? (
             <div className="myday-loading-rows" role="status" aria-label="Loading attendance timeline">
@@ -895,7 +909,7 @@ export function EmployeeMyDayWorkspace() {
         description={selectedShift ? dayLabel(selectedShift.date) : undefined}
         onClose={() => setSelectedShift(null)}
         width="standard"
-        footer={<div className="myday-drawer-footer"><Link href="/employee/schedule" className="myday-drawer-link" onClick={() => setSelectedShift(null)}>Open my full schedule <ArrowRight size={15} /></Link></div>}
+        footer={<div className="myday-drawer-footer"><Link href={personalPaths.schedule} className="myday-drawer-link" onClick={() => setSelectedShift(null)}>Open my full schedule <ArrowRight size={15} /></Link></div>}
       >
         {selectedShift ? (() => {
           const entry = selectedShift.entry;
@@ -949,7 +963,7 @@ export function EmployeeMyDayWorkspace() {
         description={selectedMonthDay ? formatDate(selectedMonthDay.workDate) : undefined}
         onClose={() => setSelectedMonthDay(null)}
         width="standard"
-        footer={<div className="myday-drawer-footer"><Link href="/employee/attendance" className="myday-drawer-link" onClick={() => setSelectedMonthDay(null)}>Open attendance history <ArrowRight size={15} /></Link></div>}
+        footer={<div className="myday-drawer-footer"><Link href={personalPaths.attendance} className="myday-drawer-link" onClick={() => setSelectedMonthDay(null)}>Open attendance history <ArrowRight size={15} /></Link></div>}
       >
         {selectedMonthDay ? (
           <div className="myday-detail-stack">
@@ -1006,7 +1020,7 @@ export function EmployeeMyDayWorkspace() {
         description={selectedRequest ? selectedRequest.kind === "leave" ? "Leave request" : selectedRequest.kind === "correction" ? "Attendance correction" : "Overtime pre-authorization" : undefined}
         onClose={() => setSelectedRequest(null)}
         width="standard"
-        footer={<div className="myday-drawer-footer"><Link href={selectedRequest?.href || "/employee/requests"} className="myday-drawer-link" onClick={() => setSelectedRequest(null)}>{selectedRequest?.kind === "leave" ? "Open leave and holidays" : "Open my requests"} <ArrowRight size={15} /></Link></div>}
+        footer={<div className="myday-drawer-footer"><Link href={selectedRequest?.href || personalPaths.requests} className="myday-drawer-link" onClick={() => setSelectedRequest(null)}>{selectedRequest?.kind === "leave" ? "Open leave and holidays" : "Open my requests"} <ArrowRight size={15} /></Link></div>}
       >
         {selectedRequest ? (
           <div className="myday-detail-stack">
@@ -1053,4 +1067,8 @@ export function EmployeeMyDayWorkspace() {
       </Drawer>
     </main>
   );
+}
+
+export function EmployeeMyDayWorkspace() {
+  return <PersonalMyDayWorkspace />;
 }

@@ -48,7 +48,7 @@ export function MyRequestsWorkspace() {
     const requestId = ++loadSequenceRef.current;
     if (!silent) setLoading(true); setError("");
     try {
-      const suffix = user.role === "HR_MANAGER" ? "?scope=self" : "";
+      const suffix = user.role === "HR_MANAGER" || user.role === "DEPARTMENT_MANAGER" ? "?scope=self" : "";
       const [correctionResult, overtimeResult, calendarResult] = await Promise.all([
         apiRequest<{ requests?: CorrectionRequest[] }>(`/attendance/corrections${suffix}`),
         apiRequest<{ requests?: OvertimeRequest[] }>(`/attendance/overtime${suffix}`),
@@ -148,7 +148,7 @@ function makeCalendarUrl(role: string, date: string) {
   const start = new Date(`${date}T00:00:00Z`); start.setUTCDate(start.getUTCDate() - 30);
   const fromDate = start.toISOString().slice(0, 10);
   const params = new URLSearchParams({ fromDate, toDate: date });
-  if (role === "HR_MANAGER") params.set("scope", "self");
+  if (role === "HR_MANAGER" || role === "DEPARTMENT_MANAGER") params.set("scope", "self");
   return `/attendance/calendar?${params.toString()}`;
 }
 function nextDate(value: string) { const date = new Date(`${value}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + 1); return date.toISOString().slice(0, 10); }
