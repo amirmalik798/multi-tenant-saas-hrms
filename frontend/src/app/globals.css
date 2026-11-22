@@ -4827,3 +4827,136 @@ body {
     justify-content: flex-start;
   }
 }
+
+
+/* Combined payslip period: a distinct, connected date-range control group. */
+.bulk-payslip-generator {
+  display: grid;
+  gap: 16px;
+  margin: 12px 0 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: linear-gradient(135deg, var(--surface), color-mix(in srgb, var(--accent-soft) 34%, var(--surface)));
+}
+.bulk-payslip-generator-intro {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 !important;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.bulk-payslip-generator-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: 10px;
+  color: var(--accent-strong);
+  background: var(--surface);
+}
+.bulk-payslip-generator-intro > span:last-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.bulk-payslip-generator-intro strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 740;
+}
+.bulk-payslip-generator-intro small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.bulk-payslip-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: end;
+  gap: 18px;
+}
+.bulk-payslip-date-range {
+  display: grid;
+  grid-template-columns: minmax(170px, 220px) 32px minmax(170px, 220px);
+  align-items: end;
+  gap: 10px;
+  min-width: 0;
+}
+.bulk-payslip-month-field {
+  min-width: 0;
+  gap: 7px;
+}
+.bulk-payslip-month-field .field-label {
+  font-size: 12px;
+  font-weight: 720;
+  color: var(--text-strong);
+}
+.bulk-payslip-month-field .text-input {
+  min-width: 0;
+  min-height: 46px;
+  height: 46px;
+  padding-inline: 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+}
+.bulk-payslip-range-connector {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 46px;
+  color: var(--accent-strong);
+}
+.bulk-payslip-generate {
+  min-height: 46px;
+  padding-inline: 18px;
+  border-radius: 10px;
+  white-space: nowrap;
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.bulk-payslip-generate:disabled {
+  box-shadow: none;
+}
+@media (max-width: 760px) {
+  .bulk-payslip-controls {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .bulk-payslip-date-range {
+    grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr);
+    max-width: none;
+  }
+  .bulk-payslip-generate {
+    justify-self: start;
+  }
+}
+@media (max-width: 520px) {
+  .bulk-payslip-generator {
+    gap: 13px;
+    padding: 12px;
+  }
+  .bulk-payslip-generator-intro {
+    align-items: flex-start;
+    padding: 11px;
+  }
+  .bulk-payslip-date-range {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+  }
+  .bulk-payslip-range-connector {
+    width: 100%;
+    height: 18px;
+    transform: rotate(90deg);
+  }
+  .bulk-payslip-generate {
+    width: 100%;
+    justify-content: center;
+  }
+}
