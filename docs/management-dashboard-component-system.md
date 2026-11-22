@@ -84,7 +84,7 @@ It uses the existing theme tokens and responsive styles and adds no chart depend
 - An explicit unassigned group for Organization Admin/HR Manager and an N/A explanation for Department Manager.
 - A data-readiness panel explaining why joiner, departure, reactivation and turnover metrics are deferred.
 
-The backend reconciles all composition totals against the existing Step 6 workforce-summary service inside the same database snapshot. The section is exported but remains unmounted in the live dashboards until Step 12. It introduces no chart package or database migration.
+The backend reconciles all composition totals against the existing Step 6 workforce-summary service inside the same database snapshot. The section is mounted in the live role dashboards in Step 12. It introduces no chart package or database migration.
 
 
 
@@ -94,7 +94,7 @@ ManagementDashboardLeaveAvailability reuses the shared section heading, metric c
 
 The section distinguishes actionable pending reviews, approved requests, distinct people with approved leave, inclusive approved calendar days, upcoming approved leave and scheduled availability. It includes a daily stacked availability trend and a current-day summary that separates people on leave from the employees who have an active scheduled shift today.
 
-The trend separates available scheduled employee-days, approved-leave scheduled employee-days and public-holiday scheduled employee-days. Its rate denominator excludes public holidays. All chart values retain text labels and N/A states; no chart dependency is added. The component is exported but intentionally unmounted until Step 12. Personal My Day and the existing leave workflows are untouched.
+The trend separates available scheduled employee-days, approved-leave scheduled employee-days and public-holiday scheduled employee-days. Its rate denominator excludes public holidays. All chart values retain text labels and N/A states; no chart dependency is added. The component is mounted in the live role dashboards in Step 12. Personal My Day and the existing leave workflows are untouched.
 
 
 ## 10. Overtime and payroll composite section (Step 10)
@@ -103,7 +103,7 @@ ManagementDashboardPayrollOvertime reads one monthly period from GET /api/manage
 
 The section displays payroll-population and calculation-readiness counts; separate currency breakdowns for estimated payable, ledger-recorded PAID and ledger-recorded UNPAID values; counts of records without a payment status; advance PREAUTHORIZATION request counts/minutes; actual, payable and unapproved overtime; and persisted excess-review cases separately from calculated unapproved excess.
 
-The backend preserves distinct access scopes for salary-payment records, overtime requests, actual worked overtime and excess-review cases. The UI exposes no employee-level pay, individual rates, payment references or payslip detail. It is exported but deliberately unmounted until Step 12. No live dashboard, personal My Day or existing payroll/approval workflow changes in this step.
+The backend preserves distinct access scopes for salary-payment records, overtime requests, actual worked overtime and excess-review cases. The UI exposes no employee-level pay, individual rates, payment references or payslip detail. It is mounted in the live role dashboards in Step 12. No personal My Day or existing payroll/approval workflow changes.
 
 
 ## 11. Management Action Center (Step 11)
@@ -112,4 +112,15 @@ The backend preserves distinct access scopes for salary-payment records, overtim
 
 The four queue cards show invitations, attendance corrections, advance overtime and leave. Each item displays a number only when its source succeeded; N/A is used for a queue outside the role's authority and Unavailable for a source failure. The headline total is withheld when any permitted queue fails. A genuine zero displays as zero, and the all-caught-up state appears only when all applicable source counts are known to be zero.
 
-Every available queue links to an existing role-specific page. The component contains no decision buttons, new approval behavior, SLA labels or request-level private data. It is exported but remains unmounted until Step 12, preserving current dashboards and personal My Day.
+Every available queue links to an existing role-specific page. The component contains no decision buttons, new approval behavior, SLA labels or request-level private data. It is mounted in the live role dashboards in Step 12; personal My Day remains separate and unchanged.
+
+
+## 12. Role-specific dashboard composition (Step 12)
+
+`WorkspaceDashboard` now uses `ManagementDashboardShell` for the three management roles and composes the six shared metric sections: workforce KPIs, workforce composition, attendance analytics, leave/availability, payroll/overtime and Action Center.
+
+The Organization Admin view keeps organization-readiness and licensing destinations plus the existing organization activity feed. The HR Manager view keeps HR operation shortcuts and its department snapshot. The Department Manager view keeps its assigned department list and team workspace destinations. All three use the exact existing server-scoped dashboard APIs; the client role only selects the workspace presentation and never supplies tenant scope.
+
+The reporting shell defaults to the last 30 calendar days and rejects custom ranges longer than 31 days, matching attendance and leave API limits. Payroll/overtime is keyed to the month containing the selected range's end date. It deliberately does not show an incomplete department selector. The current HR overview provides only a limited department list, and not every section currently implements a common department narrowing contract.
+
+The sections refresh every 60 seconds while active. Attendance and payroll/overtime also refresh immediately on the existing attendance-change event. Existing focus/visibility/online refresh behavior is retained. HR/Department Manager personal My Day stays above the management shell, and Employee My Day is unchanged.

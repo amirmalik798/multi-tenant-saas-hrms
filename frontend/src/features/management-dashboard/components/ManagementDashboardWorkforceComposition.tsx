@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { apiRequest, isRecord } from "@/lib/api-client";
 import { formatDate, formatNumber } from "@/lib/format";
+import { useSmartRefresh } from "@/lib/smart-refresh";
 import type { WorkspaceRole } from "@/types/workspace";
 
 import {
@@ -286,8 +287,8 @@ function StatusCountDetails({ counts }: { counts: WorkforceCounts }) {
 export function ManagementDashboardWorkforceComposition() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
-  const load = useCallback(async () => {
-    setState({ status: "loading" });
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setState({ status: "loading" });
 
     try {
       const result = await apiRequest<unknown>(
@@ -312,6 +313,8 @@ export function ManagementDashboardWorkforceComposition() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useSmartRefresh(() => load(true), true, 60_000);
 
   return (
     <section className="md-composition-section">

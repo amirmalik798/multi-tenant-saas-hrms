@@ -15,6 +15,8 @@ import {
 import { Button } from "@/components/ui/Button";
 import { apiRequest, isRecord } from "@/lib/api-client";
 import { formatDate, formatNumber } from "@/lib/format";
+import { useSmartRefresh } from "@/lib/smart-refresh";
+import { useAttendanceRefresh } from "@/lib/attendance-events";
 import type { WorkspaceRole } from "@/types/workspace";
 
 import {
@@ -315,10 +317,10 @@ export function ManagementDashboardPayrollOvertime({
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const requestSequence = useRef(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     const requestId = requestSequence.current + 1;
     requestSequence.current = requestId;
-    setState({ status: "loading" });
+    if (!silent) setState({ status: "loading" });
 
     try {
       if (!isMonth(month)) {
@@ -352,6 +354,9 @@ export function ManagementDashboardPayrollOvertime({
       requestSequence.current += 1;
     };
   }, [load]);
+
+  useSmartRefresh(() => load(true), true, 60_000);
+  useAttendanceRefresh(() => { void load(true); });
 
   return (
     <section className="md-payroll-section">

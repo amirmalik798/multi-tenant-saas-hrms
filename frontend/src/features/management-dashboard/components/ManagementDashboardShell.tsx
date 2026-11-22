@@ -49,6 +49,8 @@ export type ManagementDashboardShellProps = {
   headerAction?: ReactNode;
   children: ReactNode;
   showControls?: boolean;
+  /** Optional maximum inclusive calendar-day span enforced by the parent metrics. */
+  maxRangeDays?: number;
   className?: string;
 };
 
@@ -118,6 +120,12 @@ function rangeForPeriod(
   return { startDate: today, endDate: today };
 }
 
+function inclusiveRangeDays(range: ManagementDashboardDateRange): number {
+  const from = new Date(range.startDate + "T00:00:00.000Z").getTime();
+  const to = new Date(range.endDate + "T00:00:00.000Z").getTime();
+  return Math.floor((to - from) / 86_400_000) + 1;
+}
+
 function formatDateOnly(value: string): string {
   if (!isValidDate(value)) return value;
   const [year, month, day] = value.split("-").map(Number);
@@ -154,6 +162,7 @@ export function ManagementDashboardShell({
   headerAction,
   children,
   showControls = true,
+  maxRangeDays,
   className = "",
 }: ManagementDashboardShellProps) {
   const ids = useId();
@@ -169,11 +178,24 @@ export function ManagementDashboardShell({
     initialDepartmentId ?? "",
   );
 
+  const rangeTooLong = Boolean(
+    maxRangeDays &&
+    Number.isSafeInteger(maxRangeDays) &&
+    maxRangeDays > 0 &&
+    isValidDate(dateRange.startDate) &&
+    isValidDate(dateRange.endDate) &&
+    dateRange.startDate <= dateRange.endDate &&
+    inclusiveRangeDays(dateRange) > maxRangeDays,
+  );
+  const rangeWithinLimit = !maxRangeDays ||
+    (Number.isSafeInteger(maxRangeDays) && maxRangeDays > 0 && !rangeTooLong);
+
   const validRange =
     isValidDate(dateRange.startDate) &&
     isValidDate(dateRange.endDate) &&
     dateRange.startDate <= dateRange.endDate &&
-    dateRange.endDate <= today;
+    dateRange.endDate <= today &&
+    rangeWithinLimit;
 
   function notifyFilterChange(
     nextPeriod: ManagementDashboardPeriod,
@@ -184,7 +206,10 @@ export function ManagementDashboardShell({
       isValidDate(nextRange.startDate) &&
       isValidDate(nextRange.endDate) &&
       nextRange.startDate <= nextRange.endDate &&
-      nextRange.endDate <= today;
+      nextRange.endDate <= today &&
+      (!maxRangeDays ||
+        (Number.isSafeInteger(maxRangeDays) && maxRangeDays > 0 &&
+          inclusiveRangeDays(nextRange) <= maxRangeDays));
 
     if (!valid) return;
 
@@ -263,7 +288,7 @@ export function ManagementDashboardShell({
         <section className="md-reporting-toolbar" aria-label="Reporting period and scope filters">
           <div className="md-reporting-toolbar-heading">
             <span className="md-reporting-kicker">Reporting view</span>
-            <strong>Choose the period and department</strong>
+            <strong>{departmentFilterAvailable ? "Choose the period and department" : "Choose the reporting period"}</strong>
             <span className="md-reporting-summary" aria-live="polite">{rangeSummary}</span>
           </div>
 
@@ -343,7 +368,9 @@ export function ManagementDashboardShell({
 
           {!validRange ? (
             <p className="md-reporting-validation" role="alert">
-              The start date must be on or before the end date, and the reporting range cannot end in the future. Select a valid date range to update the reporting view.
+              {rangeTooLong && maxRangeDays
+                ? `This reporting view supports up to ${maxRangeDays} calendar days. Choose a shorter range to refresh attendance and leave metrics.`
+                : "The start date must be on or before the end date, and the reporting range cannot end in the future. Select a valid date range to update the reporting view."}
             </p>
           ) : null}
         </section>

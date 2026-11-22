@@ -177,7 +177,7 @@ The additive attendance source is `GET /api/management-dashboard/attendance-summ
 - The service calls `calculateDailyAttendance` for every scheduled employee-day. Worked, regular worked, potential overtime and payable overtime minutes come from that authoritative calculation, not frontend formulas.
 - The live pulse distinguishes not-yet-started shifts from missing clock-ins during an active shift. This endpoint does not declare a confirmed absence or calculate lateness.
 - The query has an explicit 100,000 scheduled employee-day safety limit; exceeding it returns an error rather than a partial or silently truncated result.
-- The reusable `ManagementDashboardAttendanceAnalytics` section is exported but intentionally remains unmounted until the role-specific integration step. Existing attendance routes, reports, clocking workflows and personal My Day are unchanged.
+- The reusable `ManagementDashboardAttendanceAnalytics` section is mounted in all three management dashboards by Step 12. Its selected inclusive reporting range is limited to 31 calendar days. Existing attendance routes, reports, clocking workflows and personal My Day are unchanged.
 
 
 
@@ -208,7 +208,7 @@ The additive endpoint is GET /api/management-dashboard/leave-availability. It us
 - Today shows people on approved leave separately from scheduled employees, scheduled employees on leave, public-holiday shifts and available scheduled employees. People without an applicable schedule are not treated as available.
 - No confirmed absence, staffing gap, leave entitlement, paid leave amount or employee-level leave detail is inferred or exposed.
 
-The 100,000 scheduled employee-day and pending-review row limits return an explicit error rather than a partial summary. The ManagementDashboardLeaveAvailability component is exported but remains unmounted until Step 12. No database migration or new dependency was introduced, and existing leave APIs, approval actions, dashboards and personal My Day remain unchanged.
+The 100,000 scheduled employee-day and pending-review row limits return an explicit error rather than a partial summary. The ManagementDashboardLeaveAvailability component is mounted in all three management dashboards by Step 12, with the same 31-day reporting-range limit. No database migration or new dependency was introduced, and existing leave APIs, approval actions and personal My Day remain unchanged.
 
 
 ## 12. Step 10 overtime and payroll intelligence
@@ -241,7 +241,7 @@ The dashboard intentionally does not reuse the salary-payment population for eve
 - **Actual, payable and unapproved worked overtime:** calculated through loadManagementDashboardAttendanceSummary in the same snapshot. This uses the active, scheduled workforce in the authenticated management-dashboard scope and the existing calculateDailyAttendance logic, through the organization's current local work date. Actual overtime means worked minutes beyond scheduled end; payable overtime is capped by approved advance minutes; unapproved excess is the difference.
 - **Persisted excess-time review cases:** Organization Admin and HR Manager see tenant-wide cases; Department Manager sees cases in assigned departments only, matching GET /api/attendance/excess-overtime. The dashboard reads the existing review table without triggering the source endpoint's materialization/upsert operation. These cases are discovery-dependent and do not represent every instance of unapproved excess overtime.
 
-The monthly payroll roster is capped at 500 authorized employees and over-limit results fail explicitly rather than return a partial aggregate. The attendance source retains its existing 100,000 scheduled employee-day safety cap. The component returns aggregate-only data: no employee identities, individual rates, payment references or payslip detail. It remains unmounted until Step 12. No migration, new permission or payroll write is introduced.
+The monthly payroll roster is capped at 500 authorized employees and over-limit results fail explicitly rather than return a partial aggregate. The attendance source retains its existing 100,000 scheduled employee-day safety cap. The component returns aggregate-only data: no employee identities, individual rates, payment references or payslip detail. It is mounted in all three management dashboards by Step 12. No migration, new permission or payroll write is introduced.
 
 
 ## 13. Step 11 management action queues
@@ -256,5 +256,18 @@ The additive endpoint `GET /api/management-dashboard/action-center` reports acti
 - **Source state:** each queue is independently represented as ready, unavailable or not-applicable. A query failure is not coerced to zero. The overall total is unavailable while any permitted queue is unavailable. Only successful queries can display zero.
 - **No age/SLA claims:** the endpoint does not label requests old, late or overdue; no authoritative SLA contract was found.
 - **No approval mutation:** links open existing role-specific pages. Approval continues through existing routes and their current checks.
-- **Consistency:** all queue reads use one `REPEATABLE READ READ ONLY` transaction. No writes, new permissions or schema changes are introduced.
-- `ManagementDashboardActionCenter` remains exported and is not mounted until Step 12.
+- **Consistency:** all queue reads use one `REPEATABLE READ READ ONLY` transaction. Each queue query has its own savepoint and is executed sequentially; a statement failure rolls back only that queue before the next source is read. No writes, new permissions or schema changes are introduced.
+- `ManagementDashboardActionCenter` is mounted in all three management dashboards by Step 12.
+
+
+## 14. Step 12 dashboard composition and reporting controls
+
+Step 12 mounts the workforce KPI, workforce composition, attendance analytics, leave/availability, payroll/overtime and Action Center components inside the shared shell for Organization Admin, HR Manager and Department Manager. The sections use their own authenticated endpoint contracts; their population and authorization remain server-derived.
+
+The reporting shell defaults to the last 30 calendar days and supports organization-local reporting periods and custom dates. It enforces a 31-calendar-day maximum so attendance and leave sections do not submit periods that their existing APIs reject. The selected range drives attendance and leave; the payroll/overtime section uses the month containing the selected range's end date. Current workforce totals and queue counts remain current-state metrics, not date-filtered metrics.
+
+The Department Manager scope remains limited by the authenticated manager-to-department relationship. The current shell does not expose a partial department selector: the HR overview returns a limited department snapshot, and the current shared data contracts do not all accept the same department filter. Avoid suggesting a department was applied to sections that cannot honor it.
+
+The Organization Admin dashboard retains organization readiness, licensing and recent activity; the HR Manager dashboard retains workforce/operations destinations and department context; the Department Manager dashboard retains assigned departments and team destinations. Personal My Day remains above the management dashboard for HR and Department Managers. Employee My Day is unchanged.
+
+New sections refresh in the active workspace every 60 seconds. Attendance analytics and payroll/overtime refresh immediately on the existing attendance-change event. Failed datasets retain their own error/unavailable states; they are not turned into zero.

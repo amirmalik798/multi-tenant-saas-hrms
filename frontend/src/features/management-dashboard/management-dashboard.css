@@ -1814,3 +1814,11 @@
     text-align: left;
   }
 }
+
+
+.md-reporting-scope-note {
+  margin: -4px 0 0;
+  color: var(--subtle);
+  font-size: 10px;
+  line-height: 1.6;
+}

@@ -24,6 +24,8 @@ export type ManagementActionCenterSummary = {
   };
 };
 
+type QueueKey = "invitations" | "corrections" | "overtime" | "leave";
+
 function parseCount(value: unknown, label: string): number {
   const count = typeof value === "number" ? value : Number(value);
   if (!Number.isSafeInteger(count) || count < 0) {
@@ -42,6 +44,31 @@ function unavailable(label: string, description: string): ManagementActionQueue 
 
 function ready(count: number, href: string, label: string, description: string): ManagementActionQueue {
   return { status: "ready", count, href, label, description };
+}
+
+async function withQueueSavepoint(
+  client: PoolClient,
+  key: QueueKey,
+  label: string,
+  description: string,
+  query: () => Promise<ManagementActionQueue>,
+): Promise<ManagementActionQueue> {
+  // key is a closed union, not user input; only these fixed identifiers enter SQL.
+  const savepoint = "management_action_" + key;
+  await client.query("SAVEPOINT " + savepoint);
+
+  try {
+    const result = await query();
+    await client.query("RELEASE SAVEPOINT " + savepoint);
+    return result;
+  } catch (error) {
+    // A PostgreSQL statement error aborts the current transaction until it is
+    // rolled back. Roll back only this queue so sibling queues can still load.
+    await client.query("ROLLBACK TO SAVEPOINT " + savepoint);
+    await client.query("RELEASE SAVEPOINT " + savepoint);
+    console.error("Management Action Center queue failed:", key, error);
+    return unavailable(label, description);
+  }
 }
 
 async function countPendingReview(
@@ -105,8 +132,9 @@ function canReviewAttendance(actor: TenantPermissionActor): boolean {
 
 /**
  * Reads each actionable queue independently from its existing source table.
- * It returns aggregates only; it does not materialize cases or perform
- * approval writes. The supplied client belongs to a read-only snapshot.
+ * Each source has a savepoint inside the same repeatable-read snapshot, so a
+ * statement failure does not poison the other queue reads. No approval writes
+ * or record-level private data are returned.
  */
 export async function loadManagementActionCenterSummary(
   client: PoolClient,
@@ -135,97 +163,109 @@ export async function loadManagementActionCenterSummary(
     leave: "Leave requests",
   };
 
-  const queues: ManagementActionCenterSummary["queues"] = {
-    invitations: hasTenantPermission(actor, "invitation.view")
-      ? unavailable(labels.invitations, "Loading pending invitation status.")
-      : notApplicable(labels.invitations, "Invitation management is not available to this role."),
-    corrections: canReviewAttendanceQueues
-      ? unavailable(labels.corrections, "Loading attendance correction reviews.")
-      : notApplicable(labels.corrections, "Attendance correction review is not available to this role."),
-    overtime: canReviewAttendanceQueues
-      ? unavailable(labels.overtime, "Loading advance overtime reviews.")
-      : notApplicable(labels.overtime, "Overtime review is not available to this role."),
-    leave: unavailable(labels.leave, "Loading leave reviews."),
-  };
-
-  const jobs: Promise<void>[] = [];
+  let invitations = hasTenantPermission(actor, "invitation.view")
+    ? unavailable(labels.invitations, "Invitation status could not be loaded.")
+    : notApplicable(labels.invitations, "Invitation management is not available to this role.");
 
   if (hasTenantPermission(actor, "invitation.view")) {
-    jobs.push((async () => {
-      const result = await client.query<{ count: number | string }>(
-        "SELECT COUNT(*)::int AS count FROM public.employee_invitations " +
-        "WHERE organization_id = $1::uuid " +
-        "AND status = 'PENDING' AND expires_at > CURRENT_TIMESTAMP",
-        [scope.organizationId],
-      );
-      queues.invitations = ready(
-        parseCount(result.rows[0]?.count, "invitation"),
-        orgAdmin ? "/org/invitations" : "/hr/invitations",
-        labels.invitations,
-        "Pending invitations that have not expired and can still be managed.",
-      );
-    })().catch(() => {
-      queues.invitations = unavailable(labels.invitations, "Invitation status could not be loaded. Retry to refresh this queue.");
-    }));
+    invitations = await withQueueSavepoint(
+      client,
+      "invitations",
+      labels.invitations,
+      "Invitation status could not be loaded. Retry to refresh this queue.",
+      async () => {
+        const result = await client.query<{ count: number | string }>(
+          "SELECT COUNT(*)::int AS count FROM public.employee_invitations " +
+          "WHERE organization_id = $1::uuid " +
+          "AND status = 'PENDING' AND expires_at > CURRENT_TIMESTAMP",
+          [scope.organizationId],
+        );
+        return ready(
+          parseCount(result.rows[0]?.count, "invitation"),
+          orgAdmin ? "/org/invitations" : "/hr/invitations",
+          labels.invitations,
+          "Pending invitations that have not expired and can still be managed.",
+        );
+      },
+    );
   }
+
+  let corrections = canReviewAttendanceQueues
+    ? unavailable(labels.corrections, "Attendance corrections could not be loaded.")
+    : notApplicable(labels.corrections, "Attendance correction review is not available to this role.");
+
+  let overtime = canReviewAttendanceQueues
+    ? unavailable(labels.overtime, "Overtime requests could not be loaded.")
+    : notApplicable(labels.overtime, "Overtime review is not available to this role.");
 
   if (canReviewAttendanceQueues) {
-    jobs.push((async () => {
-      const count = await countPendingReview(
-        client, scope, "attendance_correction_requests", false,
-      );
-      queues.corrections = ready(
-        count,
-        orgAdmin ? "/org/attendance" : dm ? "/dm/reviews" : "/hr/work-queue",
-        labels.corrections,
-        dm
-          ? "Pending correction requests from employees in your assigned departments."
-          : "Pending correction requests you are authorized to review.",
-      );
-    })().catch(() => {
-      queues.corrections = unavailable(labels.corrections, "Attendance corrections could not be loaded. Retry to refresh this queue.");
-    }));
+    corrections = await withQueueSavepoint(
+      client,
+      "corrections",
+      labels.corrections,
+      "Attendance corrections could not be loaded. Retry to refresh this queue.",
+      async () => {
+        const count = await countPendingReview(
+          client, scope, "attendance_correction_requests", false,
+        );
+        return ready(
+          count,
+          orgAdmin ? "/org/attendance" : dm ? "/dm/reviews" : "/hr/work-queue",
+          labels.corrections,
+          dm
+            ? "Pending correction requests from employees in your assigned departments."
+            : "Pending correction requests you are authorized to review.",
+        );
+      },
+    );
 
-    jobs.push((async () => {
-      const count = await countPendingReview(
-        client, scope, "attendance_overtime_requests", false,
-      );
-      queues.overtime = ready(
-        count,
-        orgAdmin ? "/org/attendance" : dm ? "/dm/reviews" : "/hr/work-queue",
-        labels.overtime,
-        dm
-          ? "Pending advance overtime requests from employees in your assigned departments."
-          : "Pending advance-authorization requests you are authorized to review.",
-      );
-    })().catch(() => {
-      queues.overtime = unavailable(labels.overtime, "Overtime requests could not be loaded. Retry to refresh this queue.");
-    }));
+    overtime = await withQueueSavepoint(
+      client,
+      "overtime",
+      labels.overtime,
+      "Overtime requests could not be loaded. Retry to refresh this queue.",
+      async () => {
+        const count = await countPendingReview(
+          client, scope, "attendance_overtime_requests", false,
+        );
+        return ready(
+          count,
+          orgAdmin ? "/org/attendance" : dm ? "/dm/reviews" : "/hr/work-queue",
+          labels.overtime,
+          dm
+            ? "Pending advance overtime requests from employees in your assigned departments."
+            : "Pending advance-authorization requests you are authorized to review.",
+        );
+      },
+    );
   }
 
-  jobs.push((async () => {
-    const count = await countPendingReview(
-      client,
-      scope,
-      "leave_requests",
-      scope.roleName === "HR_MANAGER" || dm,
-    );
-    queues.leave = ready(
-      count,
-      orgAdmin ? "/org/leave" : dm ? "/dm/leave" : "/hr/modules/leave",
-      labels.leave,
-      dm
-        ? "Pending leave requests for your assigned departments, excluding your own requests and HR targets."
-        : scope.roleName === "HR_MANAGER"
-          ? "Pending leave requests within your existing HR review scope, excluding your own requests and HR targets."
-          : "Pending leave requests in your organization, excluding your own requests.",
-    );
-  })().catch(() => {
-    queues.leave = unavailable(labels.leave, "Leave requests could not be loaded. Retry to refresh this queue.");
-  }));
+  const leave = await withQueueSavepoint(
+    client,
+    "leave",
+    labels.leave,
+    "Leave requests could not be loaded. Retry to refresh this queue.",
+    async () => {
+      const count = await countPendingReview(
+        client,
+        scope,
+        "leave_requests",
+        scope.roleName === "HR_MANAGER" || dm,
+      );
+      return ready(
+        count,
+        orgAdmin ? "/org/leave" : dm ? "/dm/leave" : "/hr/modules/leave",
+        labels.leave,
+        dm
+          ? "Pending leave requests for your assigned departments, excluding your own requests and HR targets."
+          : scope.roleName === "HR_MANAGER"
+            ? "Pending leave requests within your existing HR review scope, excluding your own requests and HR targets."
+            : "Pending leave requests in your organization, excluding your own requests.",
+      );
+    },
+  );
 
-  await Promise.all(jobs);
-
+  const queues = { invitations, corrections, overtime, leave };
   const allQueues = Object.values(queues);
   const hasUnavailable = allQueues.some((queue) => queue.status === "unavailable");
   const total = hasUnavailable

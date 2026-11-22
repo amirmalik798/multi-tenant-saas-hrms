@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { apiRequest, isRecord } from "@/lib/api-client";
 import { formatDate, formatNumber } from "@/lib/format";
+import { useSmartRefresh } from "@/lib/smart-refresh";
 import type { WorkspaceRole } from "@/types/workspace";
 
 import {
@@ -114,11 +115,11 @@ export function ManagementDashboardActionCenter({
   const [state, setState] = useState<State>({ status: "loading" });
   const requestSequence = useRef(0);
   const mounted = useRef(false);
+  const hasReadySnapshot = useRef(false);
 
   const load = useCallback(async () => {
     const requestId = ++requestSequence.current;
-    const current = state;
-    if (current.status !== "ready") {
+    if (!hasReadySnapshot.current) {
       setState({ status: "loading" });
     }
 
@@ -129,17 +130,19 @@ export function ManagementDashboardActionCenter({
         throw new Error("The Action Center role does not match the active workspace.");
       }
       if (mounted.current && requestId === requestSequence.current) {
+        hasReadySnapshot.current = true;
         setState({ status: "ready", data: payload });
       }
     } catch (error) {
       if (mounted.current && requestId === requestSequence.current) {
+        hasReadySnapshot.current = false;
         setState({
           status: "error",
           message: error instanceof Error ? error.message : "Unable to load management actions.",
         });
       }
     }
-  }, [role, state]);
+  }, [role]);
 
   useEffect(() => {
     mounted.current = true;
@@ -149,6 +152,8 @@ export function ManagementDashboardActionCenter({
       requestSequence.current += 1;
     };
   }, [load]);
+
+  useSmartRefresh(() => load(), true, 60_000);
 
   return (
     <section className="md-action-center" aria-label="Management Action Center">
@@ -213,7 +218,7 @@ export function ManagementDashboardActionCenter({
                       <span className="md-action-center-status">Not available for this role</span>
                     ) : (
                       <button className="md-action-center-retry" type="button" onClick={() => void load()}>
-                        Retry this queue <RefreshCw size={12} aria-hidden="true" />
+                        Retry all queues <RefreshCw size={12} aria-hidden="true" />
                       </button>
                     )
                   }
