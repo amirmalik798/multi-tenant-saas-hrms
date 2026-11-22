@@ -254,6 +254,12 @@ if (
       );
     }
 
+    const managementPopulationParam = url.searchParams.get("managementPopulation");
+    if (managementPopulationParam && !["true", "false"].includes(managementPopulationParam)) {
+      return jsonResponse({ message: "managementPopulation must be true or false" }, 400);
+    }
+    const managementPopulationOnly = managementPopulationParam === "true";
+
     const payRateEligibleParam = url.searchParams.get("payRateEligible");
     if (payRateEligibleParam && !["true", "false"].includes(payRateEligibleParam)) {
       return jsonResponse({ message: "payRateEligible must be true or false" }, 400);
@@ -327,6 +333,15 @@ if (
           AND ${normalizedRole} NOT LIKE 'HR_MANAGER_%'
           AND ${normalizedRole} NOT LIKE 'HRMANAGER_%'`);
       }
+    }
+
+    // Match the canonical workforce population used by the management
+    // dashboard KPIs and composition section. This flag only narrows the
+    // existing role-authorized directory query.
+    if (managementPopulationOnly) {
+      where.push(`COALESCE(workforce_role.name, 'EMPLOYEE') NOT IN (
+        'ORGANIZATION_ADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR'
+      )`);
     }
 
     // Department Managers can only see employees belonging to

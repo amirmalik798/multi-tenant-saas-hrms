@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { AlertCircle, BadgeDollarSign, CalendarDays, CheckCircle2, CircleDollarSign, FileDown, Wallet } from "lucide-react";
+import { AlertCircle, ArrowRight, BadgeDollarSign, CalendarDays, CheckCircle2, ChevronUp, CircleDollarSign, FileDown, Wallet } from "lucide-react";
 import { useWorkspace } from "@/components/layout/WorkspaceGate";
 import { Button } from "@/components/ui/Button";
 import { Drawer } from "@/components/ui/Drawer";
@@ -10,6 +10,7 @@ import { Panel, PanelHeading } from "@/components/ui/Panel";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ProfilePhoto } from "@/components/ui/ProfilePhoto";
+import { PdfPreparationIndicator } from "@/components/ui/PdfPreparationIndicator";
 import { apiRequest } from "@/lib/api-client";
 import { formatDate, formatMoney, getISODateInTimeZone, humanize } from "@/lib/format";
 import { buildSalarySlipDocument, type SalarySlipPayload } from "@/features/payroll/salary-slip-document";
@@ -18,6 +19,7 @@ import { useAttendanceRefresh } from "@/lib/attendance-events";
 import { PersonalEarningsWorkspace } from "@/features/workspace/PersonalEarningsWorkspace";
 import { assertSalarySlipUsesOrganizationCurrency, normalizeCurrencyCode, paymentUsesOrganizationCurrency } from "@/lib/payroll-currency";
 import { buildDepartmentManagerPayslipDocument, type DepartmentManagerPayslipMonth } from "@/features/payroll/team-member-payslip-document";
+import { buildPdfPreparationDocument } from "@/features/payroll/pdf-preparation-document";
 
 interface Payment {
   id?: string; employeeId: string; employeeCode?: string; firstName?: string; lastName?: string;
@@ -54,6 +56,7 @@ export function PayrollWorkspace() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [monthTouchedByUser, setMonthTouchedByUser] = useState(false);
+  const [queryMonthReady, setQueryMonthReady] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
@@ -69,7 +72,6 @@ export function PayrollWorkspace() {
   const [bulkStartMonth, setBulkStartMonth] = useState(month);
   const [bulkEndMonth, setBulkEndMonth] = useState(month);
   const [bulkBusy, setBulkBusy] = useState(false);
-  const [bulkProgress, setBulkProgress] = useState("");
   const [bulkError, setBulkError] = useState("");
   const [slipTarget, setSlipTarget] = useState<Payment | null>(null);
   const [slipStartMonth, setSlipStartMonth] = useState(month);
@@ -99,8 +101,19 @@ export function PayrollWorkspace() {
     }
   }, [month]);
   useEffect(() => { if (workDate && !monthTouchedByUser) setMonth(workDate.slice(0, 7)); }, [workDate, monthTouchedByUser]);
-  useEffect(() => { void load(); }, [load]);
-  useSmartRefresh(() => load(true), !selected && !slipTarget && !teamSlipTarget && !bulkOpen && !saving && !bulkBusy && !slipLoading && !slipPrinting && !teamSlipBusy);
+  useEffect(() => {
+    const requestedMonth = new URLSearchParams(window.location.search).get("month") || "";
+    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth)) {
+      const [year] = requestedMonth.split("-").map(Number);
+      if (year >= 2000 && year <= 2100) {
+        setMonth(requestedMonth);
+        setMonthTouchedByUser(true);
+      }
+    }
+    setQueryMonthReady(true);
+  }, []);
+  useEffect(() => { if (queryMonthReady) void load(); }, [load, queryMonthReady]);
+  useSmartRefresh(() => load(true), queryMonthReady && !selected && !slipTarget && !teamSlipTarget && !bulkOpen && !saving && !bulkBusy && !slipLoading && !slipPrinting && !teamSlipBusy);
   useAttendanceRefresh(() => { void load(true); });
 
   const visible = payments.filter((item) => {
@@ -179,7 +192,7 @@ export function PayrollWorkspace() {
       return;
     }
     printWindow.document.open();
-    printWindow.document.write("<!doctype html><html><head><title>Preparing team member payslip</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing salary statement…</h2><p>Loading monthly payroll summaries from your authorized team scope.</p></body></html>");
+    printWindow.document.write(buildPdfPreparationDocument("payslip", document.documentElement.dataset.theme === "dark" ? "dark" : "light"));
     printWindow.document.close();
 
     setTeamSlipBusy(true);
@@ -311,7 +324,7 @@ export function PayrollWorkspace() {
     const printWindow = window.open("", "_blank");
     if (!printWindow) { setSlipError("Your browser blocked the salary-slip window. Allow pop-ups for this site and try again."); return; }
     printWindow.document.open();
-    printWindow.document.write("<!doctype html><html><head><title>Preparing salary slip</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing salary slip…</h2><p>Reading the latest payroll and payment status.</p></body></html>");
+    printWindow.document.write(buildPdfPreparationDocument("payslip", document.documentElement.dataset.theme === "dark" ? "dark" : "light"));
     printWindow.document.close();
     setSlipPrinting(true); setSlipError("");
     try {
@@ -341,9 +354,9 @@ export function PayrollWorkspace() {
     const printWindow = window.open("", "_blank");
     if (!printWindow) { setBulkError("Your browser blocked the combined salary-slip window. Allow pop-ups for this site and try again."); return; }
     printWindow.document.open();
-    printWindow.document.write("<!doctype html><html><head><title>Preparing workforce salary slips</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing workforce salary slips…</h2><p>Checking the authorized workforce and loading each monthly statement.</p></body></html>");
+    printWindow.document.write(buildPdfPreparationDocument("payslip", document.documentElement.dataset.theme === "dark" ? "dark" : "light"));
     printWindow.document.close();
-    setBulkBusy(true); setBulkError(""); setBulkProgress("Loading authorized workforce…");
+    setBulkBusy(true); setBulkError("");
     try {
       const params = new URLSearchParams({ startMonth: bulkStartMonth, endMonth: bulkEndMonth });
       const loadRoster = async () => {
@@ -383,9 +396,7 @@ export function PayrollWorkspace() {
           return result;
         }));
         for (const result of results) slips.set(result.employee.id, result);
-        setBulkProgress(`Preparing individual slips: ${Math.min(employees.length, offset + batch.length)} of ${employees.length}`);
       }
-      setBulkProgress("Verifying the authorized workforce before printing…");
       const latestRoster = await loadRoster();
       const initialIds = employees.map((person) => person.employeeId).sort();
       const latestIds = latestRoster.map((person) => person.employeeId).sort();
@@ -398,12 +409,12 @@ export function PayrollWorkspace() {
       if (printWindow.closed) throw new Error("The print window was closed before the combined salary slips were ready. Reopen the report and try again.");
       printWindow.document.open(); printWindow.document.write(buildSalarySlipDocument(payloads)); printWindow.document.close();
       window.setTimeout(() => { if (!printWindow.closed) { printWindow.focus(); printWindow.print(); } }, 300);
-      setBulkOpen(false); setBulkProgress("");
+      setBulkOpen(false);
       setNotice(`Combined salary slips prepared for ${employees.length} workforce members across ${monthCount} month(s): ${paid} PAID and ${total - paid} UNPAID employee-month statements. Payment records were not changed.`);
     } catch (caught) {
       if (!printWindow.closed) printWindow.close();
       setBulkError(caught instanceof Error ? caught.message : "Unable to prepare the combined salary-slip report.");
-    } finally { setBulkBusy(false); setBulkProgress(""); }
+    } finally { setBulkBusy(false); }
   }
 
   return <>
@@ -417,8 +428,23 @@ export function PayrollWorkspace() {
     </div>
     {currencyMismatchCount > 0 ? <div className="info-callout" role="status" style={{ marginBottom: 14 }}><AlertCircle size={15} /><span><strong>Payroll currency needs HR review.</strong> {currencyMismatchCount} workforce member(s) have rate or payment records outside the organization currency ({organizationCurrencyCode || "not configured"}). Their amounts and payslips are withheld rather than relabelled. Ask HR or the Organization Admin to reconcile the underlying pay-rate history before recording or generating valid monetary statements.</span></div> : null}
     <Panel>
-      <div className="toolbar"><div className="toolbar-left" style={{ flexWrap: "wrap" }}><label className="field" style={{ minWidth:160 }}><span className="field-label">Pay month</span><input className="text-input" type="month" value={month} max={currentOrganizationMonth} onChange={(e) => { setMonthTouchedByUser(true); setMonth(e.target.value); }} /></label>{user.role !== "EMPLOYEE" ? <label className="search-field" style={{ maxWidth:320 }}><SearchIcon /><input aria-label="Search salary payments" placeholder="Search employee, department, reference…" value={search} onChange={(e) => setSearch(e.target.value)} /></label> : null}{canManage ? <Button size="sm" variant="secondary" leading={<FileDown size={14} />} onClick={() => { setBulkStartMonth(month); setBulkEndMonth(month); setBulkError(""); setBulkOpen((value) => !value); }}>{bulkOpen ? "Close multi-month slips" : "Multi-month salary slips"}</Button> : null}</div><div className="toolbar-right"><span className="date-chip"><CalendarDays size={13} /> {timeZone}</span><span className="date-chip"><CircleDollarSign size={13} /> {organizationCurrencyCode || "Currency not configured"}</span><span style={{ color:"var(--muted)", fontSize:12 }}>{loading ? "Loading…" : `${payments.length} employees · ${payableCount} payable`}</span></div></div>
-      {bulkOpen && canManage ? <div style={{ padding: "16px 0 18px", borderBottom: "1px solid var(--border)", marginBottom: 16 }}><div className="info-callout" style={{ marginBottom: 13 }}>Generate a combined, print-ready salary statement for every employee in your authorized payroll scope. This is a read-only report and does not change payment records.</div><div className="toolbar-left" style={{ alignItems: "end", flexWrap: "wrap" }}><label className="field" style={{ minWidth: 160 }}><span className="field-label">From month</span><input className="text-input" type="month" min="2000-01" max={bulkEndMonth || currentOrganizationMonth} value={bulkStartMonth} disabled={bulkBusy} onChange={(event) => { setBulkStartMonth(event.target.value); setBulkError(""); }} /></label><label className="field" style={{ minWidth: 160 }}><span className="field-label">To month</span><input className="text-input" type="month" min={bulkStartMonth || "2000-01"} max={currentOrganizationMonth} value={bulkEndMonth} disabled={bulkBusy} onChange={(event) => { setBulkEndMonth(event.target.value); setBulkError(""); }} /></label><Button variant="primary" leading={<FileDown size={15} />} busy={bulkBusy} disabled={!bulkStartMonth || !bulkEndMonth} onClick={() => void generateMultiMonthPayslips()}>Generate combined payslips</Button></div>{bulkProgress ? <p className="field-hint" role="status" style={{ marginTop: 10 }}>{bulkProgress}</p> : null}{bulkError ? <div className="form-error" role="alert" style={{ marginTop: 10 }}>{bulkError}</div> : null}</div> : null}
+      <div className="toolbar salary-payments-toolbar"><div className="salary-payments-controls"><label className="field salary-payments-month"><span className="field-label">Pay month</span><input className="text-input" type="month" value={month} max={currentOrganizationMonth} onChange={(e) => { setMonthTouchedByUser(true); setMonth(e.target.value); }} /></label>{user.role !== "EMPLOYEE" ? <label className="search-field salary-payments-search"><SearchIcon /><input aria-label="Search salary payments" placeholder="Search employee, department, reference…" value={search} onChange={(e) => setSearch(e.target.value)} /></label> : null}{canManage ? <Button className={`salary-payments-bulk-toggle${bulkOpen ? " is-open" : ""}`} size="sm" variant="secondary" leading={bulkOpen ? <ChevronUp size={14} /> : <FileDown size={14} />} onClick={() => { setBulkStartMonth(month); setBulkEndMonth(month); setBulkError(""); setBulkOpen((value) => !value); }}>{bulkOpen ? "Hide multi-month slips" : "Multi-month salary slips"}</Button> : null}</div><div className="toolbar-right"><span className="date-chip"><CalendarDays size={13} /> {timeZone}</span><span className="date-chip"><CircleDollarSign size={13} /> {organizationCurrencyCode || "Currency not configured"}</span><span style={{ color:"var(--muted)", fontSize:12 }}>{loading ? "Loading…" : `${payments.length} employees · ${payableCount} payable`}</span></div></div>
+      {bulkOpen && canManage ? <section className="bulk-payslip-generator" aria-label="Combined payslip date range">
+        <div className="bulk-payslip-generator-intro info-callout">
+          <span className="bulk-payslip-generator-icon" aria-hidden="true"><FileDown size={17} /></span>
+          <span><strong>Combined salary report</strong><small>Generate a print-ready statement for every employee in your authorized payroll scope. This report is read-only and does not change payment records.</small></span>
+        </div>
+        <div className="bulk-payslip-controls">
+          <div className="bulk-payslip-date-range">
+            <label className="field bulk-payslip-month-field"><span className="field-label">From month</span><input className="text-input" type="month" min="2000-01" max={bulkEndMonth || currentOrganizationMonth} value={bulkStartMonth} disabled={bulkBusy} onChange={(event) => { setBulkStartMonth(event.target.value); setBulkError(""); }} /></label>
+            <span className="bulk-payslip-range-connector" aria-hidden="true"><ArrowRight size={16} /></span>
+            <label className="field bulk-payslip-month-field"><span className="field-label">To month</span><input className="text-input" type="month" min={bulkStartMonth || "2000-01"} max={currentOrganizationMonth} value={bulkEndMonth} disabled={bulkBusy} onChange={(event) => { setBulkEndMonth(event.target.value); setBulkError(""); }} /></label>
+          </div>
+          <Button className="bulk-payslip-generate" variant="primary" leading={<FileDown size={15} />} busy={bulkBusy} disabled={!bulkStartMonth || !bulkEndMonth} onClick={() => void generateMultiMonthPayslips()}>Generate combined payslips</Button>
+        </div>
+        {bulkBusy ? <PdfPreparationIndicator label="Generating payslip(s)" className="pdf-preparation-indicator-workspace" /> : null}
+        {bulkError ? <div className="form-error" role="alert" style={{ marginTop: 12 }}>{bulkError}</div> : null}
+      </section> : null}
       {loading && !payments.length ? <div className="loading-state">Calculating monthly salary records…</div> : null}
       {!loading && !error && !visible.length ? <div className="empty-state"><div className="state-icon"><BadgeDollarSign size={18} /></div><h3>No salary records for this period</h3><p>There are no payment or payable-work records available for {month} in your authorized scope.</p></div> : null}
       {visible.length ? <div className="table-wrap"><table className="data-table"><thead><tr>{user.role !== "EMPLOYEE" ? <th>Employee</th> : null}<th>Hours</th><th>Calculated amount</th><th>Status</th><th>Payment reference</th><th>Paid date</th><th /></tr></thead><tbody>{visible.map((item) => {
@@ -485,7 +511,7 @@ export function PayrollWorkspace() {
         </section>
         <div className="team-slip-note"><span className="team-slip-note-icon"><AlertCircle size={16} /></span><p>This manager statement includes backend-calculated monthly hours, payable time, calculated pay and payment status. The detailed daily payslip remains available to HR Managers and Organization Admins. You can include up to 24 months.</p></div>
         {teamSlipTarget.currencyMismatch || !paymentUsesOrganizationCurrency(teamSlipTarget.currencyCode, organizationCurrencyCode, teamSlipTarget.currencyMismatch) ? <div role="alert" className="form-error">This employee currently has a pay-rate currency mismatch ({normalizeCurrencyCode(teamSlipTarget.currencyCode) || "unavailable"} vs {organizationCurrencyCode || "organization currency unavailable"}). The statement cannot include a misleading amount until HR resolves the underlying rate history.</div> : null}
-        {teamSlipError ? <div role="alert" className="form-error">{teamSlipError}</div> : null}
+        {teamSlipBusy ? <PdfPreparationIndicator label="Generating payslip(s)" /> : null}{teamSlipError ? <div role="alert" className="form-error">{teamSlipError}</div> : null}
       </div> : null}
     </Drawer>
     <Drawer open={Boolean(slipTarget)} title="Generate individual salary slip" description="Choose the statement period. The latest payroll details load automatically whenever either selected month changes and are refreshed again before printing." onClose={() => { if (!slipLoading && !slipPrinting) { setSlipTarget(null); setSlipPayload(null); setSlipError(""); } }} width="standard" footer={<><Button variant="secondary" disabled={slipLoading || slipPrinting} onClick={() => { setSlipTarget(null); setSlipPayload(null); }}>Cancel</Button><Button variant="primary" leading={<FileDown size={14} />} busy={slipPrinting} disabled={!slipPayload || slipLoading} onClick={() => void printIndividualSlip()}>Generate & print</Button></>}>
@@ -515,9 +541,10 @@ export function PayrollWorkspace() {
           </div>
         </section>
         {slipError ? <div className="form-error" role="alert">{slipError}</div> : null}
-        {slipLoading ? <div className="salary-slip-loading-note" role="status"><CalendarDays size={16} /><span>Loading the selected payroll period…</span></div> : slipPayload ? <div className="success-callout"><CheckCircle2 size={15} /> Loaded {slipPayload.months.length} monthly statement(s) for {slipPayload.employee.firstName} {slipPayload.employee.lastName}. The print action refreshes the latest payroll data.</div> : !slipError ? <div className="form-note"><AlertCircle size={15} /> Each selected month is printed as a separate monthly statement. Up to 24 months can be included.</div> : null}
+        {slipPrinting ? <PdfPreparationIndicator label="Generating payslip(s)" /> : slipLoading ? <PdfPreparationIndicator label="Loading payslip details" /> : slipPayload ? <div className="success-callout"><CheckCircle2 size={15} /> Loaded {slipPayload.months.length} monthly statement(s) for {slipPayload.employee.firstName} {slipPayload.employee.lastName}. The print action refreshes the latest payroll data.</div> : !slipError ? <div className="form-note"><AlertCircle size={15} /> Each selected month is printed as a separate monthly statement. Up to 24 months can be included.</div> : null}
       </div> : null}
     </Drawer>
   </>;
 }
+
 function SearchIcon() { return <span aria-hidden="true">⌕</span>; }

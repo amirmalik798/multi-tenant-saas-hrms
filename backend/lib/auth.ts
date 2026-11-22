@@ -56,18 +56,11 @@ type RoleSessionBundle = {
 async function loadRoleSessions(): Promise<RoleSessionBundle> {
   const cookieStore = await cookies();
 
-  const platform = await getIronSession<SessionData>(
-    cookieStore,
-    sessionOptions,
-  );
-  const organizationAdmin = await getIronSession<SessionData>(
-    cookieStore,
-    organizationSessionOptions,
-  );
-  const workforce = await getIronSession<SessionData>(
-    cookieStore,
-    employeeSessionOptions,
-  );
+  const [platform, organizationAdmin, workforce] = await Promise.all([
+    getIronSession<SessionData>(cookieStore, sessionOptions),
+    getIronSession<SessionData>(cookieStore, organizationSessionOptions),
+    getIronSession<SessionData>(cookieStore, employeeSessionOptions),
+  ]);
 
   return { platform, organizationAdmin, workforce };
 }

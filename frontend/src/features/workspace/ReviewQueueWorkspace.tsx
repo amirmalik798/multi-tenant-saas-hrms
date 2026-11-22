@@ -101,6 +101,12 @@ export function ReviewQueueWorkspace() {
     if (errors.length) setError(errors.join(" · "));
     if (!silent) setLoading(false);
   }, [available, excessFromDate, excessToDate]);
+  useEffect(() => {
+    const requestedQueue = new URLSearchParams(window.location.search).get("queue");
+    if (requestedQueue && availableQueueTypes.includes(requestedQueue as QueueType)) {
+      setActive(requestedQueue as QueueType);
+    }
+  }, []);
   useEffect(() => { void load(); }, [load]);
   useSmartRefresh(() => load(true), !selected && !saving);
   useAttendanceRefresh(() => { void load(true); });

@@ -1,0 +1,214 @@
+# Management Dashboard Architecture
+
+**Status:** Step 3 of 14 — unified, secure management-dashboard data architecture  
+**Applies to:** Organization Admin, HR Manager, Department Manager  
+**Rollout rule:** Additive foundation. Existing dashboard endpoints, response contracts, business logic, and personal My Day remain unchanged.
+
+## 1. Architecture goals
+
+The three management workspaces should share one data architecture and consistent metric definitions while retaining their different authority:
+
+- **Organization Admin:** organization-wide administrative oversight inside the authenticated tenant.
+- **HR Manager:** organization-wide people-operations data within the existing HR permissions and review workflow.
+- **Department Manager:** only the departments assigned to the authenticated manager's employee record.
+
+The shared architecture centralizes identity-to-scope mapping, tenant metadata, and read-snapshot handling. It does not grant a role broader permissions than its existing workflows.
+
+## 2. Server-side layers
+
+| Layer | Responsibility | Rule |
+|---|---|---|
+| Route boundary | Per-request execution, authenticated actor resolution, HTTP status and response shape | Never trust browser-supplied organization, employee, manager, or department IDs |
+| Scope mapper | Convert the authenticated permission actor to a management-dashboard scope | Allow only Organization Admin, HR Manager, and Department Manager; all other roles fail closed |
+| Snapshot runner | Open one PostgreSQL **REPEATABLE READ READ ONLY** transaction for a dashboard read | Commit on success; roll back on failure; always release the connection |
+| Context loader | Load active organization metadata, validated time zone, work date, week-start setting, and authorized department context | All queries use the tenant ID and manager identity from the server-derived scope |
+| Metric services | The shared workforce-summary service is implemented in Step 6; attendance, availability, overtime, payroll and action-center services remain subsequent work | Reuse authoritative domain calculations and existing permission rules; never duplicate business calculations in React |
+| Presentation layer (subsequent steps) | Render shared cards, charts, filters, and drill-downs with role-aware content | Client-side presentation does not constitute authorization |
+
+## 3. Access-scope contract
+
+The server builds one of two scope forms:
+
+- **ORGANIZATION:** Organization Admin and HR Manager, constrained to the tenant from the authenticated session. HR Manager scope also retains the actor's employee identity for workflow rules such as excluding the actor's own requests.
+- **ASSIGNED_DEPARTMENTS:** Department Manager, constrained by the actor's authenticated employee ID and the departments.manager_id relationship.
+
+The scope mapper rejects Employee and any unrecognized role. It does not accept IDs or scope overrides from request parameters.
+
+Every later Department Manager aggregate must use the authenticated organization and manager identity. For workforce aggregation, use an EXISTS relationship to the authorized departments (or an equivalent distinct employee set) so employees are not double-counted if multiple assigned-department relationships can match. A browser-supplied department selection may narrow this server-derived set only after explicit validation in a later step.
+
+## 4. Shared bootstrap endpoint
+
+**GET /api/management-dashboard/context**
+
+The endpoint is a small, additive bootstrap contract for later dashboard sections. It returns:
+
+- schema version and generation timestamp;
+- authenticated management role and scope kind;
+- department count within that scope;
+- assigned department identifiers/names/statuses for Department Managers only;
+- organization name, validated time zone, configured week start, and organization-local work date.
+
+It does not return employee records, payroll values, personal attendance, review queue contents, or aggregate metrics. Those datasets are added by subsequent steps through permission-aware services.
+
+The endpoint uses the existing getTenantPermissionActor session/tenant/licensing boundary and jsonResponse no-cache headers. Employee access is rejected. No organization or department identifier is accepted from the browser.
+
+### Shared workforce KPI endpoint (Step 6)
+
+**GET /api/management-dashboard/workforce-summary**
+
+This endpoint adds the first shared aggregate on top of the scope and snapshot foundation. It derives the actor and scope from the authenticated session, loads organization context and workforce aggregates in one read-only snapshot, and returns a versioned response.
+
+The shared workforce population excludes organization-scoped role names `ORGANIZATION_ADMIN`, `ORG_ADMIN`, and `ORGANIZATION_ADMINISTRATOR`. Missing linked role records retain the established `EMPLOYEE` fallback. The aggregate returns total/active/inactive/former workforce, assigned and active-unassigned counts, and total/active/inactive departments.
+
+For Department Managers, employee scope is an `EXISTS` relationship to departments whose `manager_id` matches the authenticated actor employee ID. This keeps multi-department membership unique and prevents browser input from widening the population.
+
+The new endpoint does not change the existing Organization Admin, HR Manager or Department Manager overview endpoints. The `ManagementDashboardWorkforceKpis` component uses the shared metric cards and loading/error states and is mounted inside the role-specific dashboards by Step 12. Its canonical population remains distinct from legacy overview KPI fields.
+
+
+### Attendance and working-hours summary (Step 7)
+
+**GET /api/management-dashboard/attendance-summary**
+
+The Step 7 endpoint is an additive source for role-scoped attendance pulse, working-hours totals and a daily trend. It uses the existing actor-to-scope mapper and one `REPEATABLE READ READ ONLY` snapshot transaction. Tenant identity and the Department Manager employee identity are never accepted from request parameters.
+
+The request requires inclusive organization-local `fromDate` / `toDate` values, limited to 31 calendar days and not beyond the server-derived organization work date. An optional department filter can only narrow scope and is validated against the authenticated tenant and, for Department Managers, the authenticated manager's assigned departments.
+
+The service builds distinct employee-day rows from active workforce records, effective schedule assignments, active work schedules, weekday definitions and organization timezone. It resolves approved attendance corrections and approved missing-punch corrections as of the snapshot time. It also loads approved leave, public holidays and approved preauthorization minutes.
+
+For each scheduled employee-day, the service calls the existing `calculateDailyAttendance` helper and aggregates its authoritative worked, regular, potential-overtime and payable-overtime outputs. Attendance eligibility excludes approved leave and public holidays, consistent with the current clock-in route, which blocks clock-in on both. The rate is weighted across eligible scheduled employee-days and returns N/A when its denominator is zero. Current-day states include not-yet-due shifts and missing clock-ins only while the assigned shift is actively in progress; no confirmed absence or lateness is inferred.
+
+The endpoint enforces a 31-day date limit and a 100,000-row calculation limit. It returns an error when the row limit is exceeded rather than silently truncating the result. The corresponding `ManagementDashboardAttendanceAnalytics` frontend section is exported but remains opt-in and is not mounted into the live dashboards in Step 7.
+
+### Workforce composition summary (Step 8)
+
+**GET /api/management-dashboard/workforce-composition**
+
+The Step 8 endpoint provides current employment-status, department and workforce-role composition using the same canonical population key and server-derived role scope as the Step 6 workforce-summary endpoint. Department Manager data is restricted to departments whose `manager_id` matches the authenticated manager employee ID. The endpoint loads the shared workforce summary inside the same read-only snapshot and verifies that status totals, assigned department totals, unassigned totals and role totals reconcile before returning data. Empty authorized departments remain visible with zero counts.
+
+Organization Admin and HR Manager receive an explicit unassigned composition; Department Manager receives N/A because its population is already restricted to assigned departments. The frontend `ManagementDashboardWorkforceComposition` component is mounted inside the role-specific dashboards by Step 12.
+
+The employee-history audit did not establish a reliable effective-date contract. `writeEmployeeHistory` does not explicitly set `effective_at`; `PROFILE_CREATED` is recorded while a workforce profile is inactive pending invitation, and `INVITATION_ACCEPTED` is the later activation event. `joining_date` is user-entered, and no verified rehire/separation effective-date workflow was found. The endpoint therefore reports current composition only and explicitly marks movement/turnover as deferred.
+
+## 5. Snapshot and data consistency
+
+All future unified dashboard aggregation services should execute through withManagementDashboardSnapshot:
+
+1. Acquire one pooled PostgreSQL client.
+2. Begin **REPEATABLE READ READ ONLY**.
+3. Load all datasets needed for that response through the same client.
+4. Commit only after every required read succeeds.
+5. Roll back on an exception and release the client in all cases.
+
+A failed source must remain an error/unavailable state. Do not coerce a failed query into zero. If a future metric is optional, isolate its failure explicitly and mark that metric unavailable while preserving the rest of the response.
+
+## 6. Existing functionality intentionally preserved
+
+- /api/org/dashboard/stats and /api/org/dashboard/activity remain unchanged.
+- /api/hr-manager/overview remains unchanged.
+- /api/department-manager/overview remains unchanged.
+- Existing leave, attendance, correction, overtime, payroll, licensing, invitations, audit, and approval routes remain unchanged.
+- The existing dashboard UI continues using its current data sources during this foundation step.
+- Employee My Day and the personal My Day views for HR Manager and Department Manager are untouched.
+- No database migration, schema change, new permission, or business-rule change is introduced.
+- Step 6 adds an opt-in workforce aggregate and KPI component; existing dashboard UI and personal My Day remain unchanged.
+
+The new context endpoint is not yet wired into the visible dashboards. It establishes the shared, server-controlled foundation; subsequent steps add reusable presentation components and metric services incrementally.
+
+## 7. Required rules for subsequent services
+
+1. Receive a ManagementDashboardScope created from the authenticated actor; do not reconstruct it from request input.
+2. Reuse the same transaction client for related queries.
+3. Keep Organization Admin/HR organization scope separate from Department Manager assigned-department scope.
+4. Preserve workflow-specific exclusions, including the actor's own requests from their actionable review queue.
+5. Keep a manager's personal My Day data separate from management aggregates.
+6. Reuse calculateDailyAttendance and other authoritative server-side domain logic. Do not recreate attendance or payroll calculations in frontend code.
+7. Preserve existing endpoint contracts while new data is introduced additively.
+8. Use organization-local dates and the configured time zone/week start.
+9. Distinguish zero, unavailable, and not-applicable values.
+10. Do not introduce staffing, absence, lateness, payroll, or turnover interpretations before their authoritative inputs and definitions are verified.
+
+## 8. Step 3 completion criteria
+
+- A shared, typed scope exists for all three management roles.
+- Employee and unknown roles fail closed.
+- Department Manager scope originates only from the authenticated employee identity.
+- A reusable read-only snapshot helper exists.
+- The context loader returns only tenant metadata and role-authorized department context.
+- The new endpoint does not replace or modify any existing endpoint.
+- No visible dashboard or personal My Day workflow is changed.
+
+
+## 9. Leave and workforce availability (Step 9)
+
+GET /api/management-dashboard/leave-availability adds a role-scoped leave and schedule availability summary using the existing leave, employee schedule assignment, active work schedule, schedule weekday and public holiday tables. It does not modify the leave workflow, leave policy, personal leave feed, or any existing dashboard endpoint.
+
+The service uses the Step 6 active canonical workforce population: active employees in the authenticated tenant, excluding the three canonical organization-administrator workforce role names and retaining the established EMPLOYEE fallback for missing roles. Department Manager scope is still an EXISTS relationship to departments managed by the authenticated employee ID. A selected department can narrow this set only after server-side validation.
+
+The selected period is inclusive and limited to 31 calendar days. Approved request counts, distinct people and calendar days are separate values. Calendar days are inclusive overlap with the selected range and are not leave entitlement, paid-leave credit or scheduled workdays. Upcoming values include approved leave covering any selected-period date after the organization's local work date, including leave already in progress today. Pending review counts follow the existing decision route across employee employment statuses: the actor's own requests are excluded; HR Managers and Department Managers also exclude HR-target roles; Department Managers see only requests for employees in their managed departments. Approved-leave and availability measures separately use the active workforce population.
+
+Availability is computed only for active employees with an effective assignment to an ACTIVE schedule and a matching weekday. A scheduled employee-day with approved leave is unavailable. A scheduled employee-day on a public holiday is counted separately and removed from the availability-rate denominator. Availability rate is available scheduled employee-days divided by scheduled employee-days excluding public holidays. Employees without an applicable schedule are not assumed available. No absence or staffing-gap metric is inferred.
+
+The frontend ManagementDashboardLeaveAvailability composite section is mounted in all three management dashboards by Step 12. The endpoint and component add no migration, dependency, write operation, or new permission.
+
+
+## 10. Overtime and payroll intelligence (Step 10)
+
+GET /api/management-dashboard/payroll-overtime?month=YYYY-MM adds a role-aware monthly aggregate backed by the existing salary and overtime sources. All reads run in one REPEATABLE READ READ ONLY dashboard snapshot.
+
+**Payroll amounts use the existing salary-payment population.** The service mirrors GET /api/payroll/payments:
+- Organization Admin: eligible Employee, Department Manager and HR Manager payroll records in the authenticated organization.
+- HR Manager: eligible Employee and Department Manager payroll records, excluding the HR Manager's own employee record and HR Manager targets.
+- Department Manager: eligible Employee-role payroll records in departments whose manager_id matches the authenticated manager employee ID. This does not grant team payslip access; the existing workforce payslip endpoint continues to allow Department Managers only their own payslip.
+
+Only these authorized employee IDs are passed to calculateOrganizationMonthlyPay, using the same snapshot client. The helper additively accepts a PoolClient and optional employee-ID list; its existing callers and response contracts remain unchanged.
+
+**Overtime requests use the existing overtime-request list scope, not the payroll population.** Organization Admin and HR Manager see tenant-wide PREAUTHORIZATION requests. Department Manager sees their own requests plus requests for employees in managed departments, matching GET /api/attendance/overtime.
+
+**Actual worked overtime uses the existing attendance summary scope.** It calls loadManagementDashboardAttendanceSummary in the same snapshot, which calculates actual/potential overtime, payable overtime and unapproved excess from effective attendance events, approved corrections, assigned active schedules and advance-approved overtime. It uses the active scheduled workforce authorized by the shared management-dashboard scope, not the payroll employee ID list. Worked overtime is limited through the organization's current local work date; future preauthorization requests remain included for the full selected month.
+
+**Persisted excess-time review cases use the existing excess-review scope.** Organization Admin and HR Manager see tenant-wide persisted cases; Department Manager sees only cases for employees in assigned departments, matching GET /api/attendance/excess-overtime. The service only reads the review table and never triggers that endpoint's discovery/upsert side effect. Persisted cases are not a complete source for all unapproved overtime, so they remain separate from calculated unapproved excess minutes.
+
+Payroll output separates estimated payable values, monthly salary-ledger PAID values, monthly salary-ledger UNPAID values, employees without a payment record, employees without payable hours, missing-rate cases and currency mismatches. Amounts are grouped by currency code; no currency conversion or cross-currency summation occurs. PAID is the stored HRMS ledger status, not independent bank-transfer verification. Estimates are not labelled paid or finalized.
+
+The endpoint returns aggregate counts and currency totals only. It exposes no employee identities, individual hourly rates, payment references or payslips. It rejects future payroll months, caps the authorized payroll roster at 500 employees and returns an explicit error instead of a partial amount. No migration, new permission or write operation is added. ManagementDashboardPayrollOvertime is mounted in all three management dashboards by Step 12.
+
+
+## 11. Management Action Center (Step 11)
+
+`GET /api/management-dashboard/action-center` adds a read-only view of actionable invitation, attendance-correction, overtime and leave queues. The service reads source tables used by existing workflows within the shared `REPEATABLE READ READ ONLY` snapshot.
+
+Invitation count requires the same `invitation.view` permission as the invitation registry and counts only pending, unexpired invitations. Corrections and overtime follow the existing request-list scope: Organization Admin and HR Manager have tenant-wide review visibility; Department Manager is limited to assigned departments derived from the authenticated manager employee ID. The actor's own employee record is excluded from actionable counts.
+
+Leave follows the current leave-list rules: tenant-wide Organization Admin; HR Manager review excludes HR-target roles; Department Manager is restricted to assigned departments and excludes HR-target roles. Own requests are excluded.
+
+Each queue is independently resilient using a dedicated PostgreSQL savepoint in the shared `REPEATABLE READ READ ONLY` transaction. Queries run sequentially because an SQL statement error otherwise aborts the entire PostgreSQL transaction; the failed queue is rolled back to its savepoint and other sources can still be read. A permitted query failure becomes unavailable and the overall total becomes unavailable rather than a misleading partial total. A role that cannot use a queue sees N/A, and a successful empty queue displays zero. No SLA age or overdue label is invented. Cards link to existing role-specific pages and leave decision behavior in the current approval workspaces.
+
+The reusable `ManagementDashboardActionCenter` component is mounted in all three management dashboards by Step 12. Existing overview APIs remain available for supplemental role context, and personal My Day remains unchanged. No migration, write, permission, new dependency, or new approval action is introduced.
+
+
+## 12. Role-specific dashboard composition (Step 12)
+
+`WorkspaceDashboard` composes the six shared management sections inside `ManagementDashboardShell` for Organization Admin, HR Manager and Department Manager. Each section keeps its own authenticated endpoint and error state; the frontend does not merge incompatible populations into one number.
+
+- Organization Admin sees tenant-scoped workforce, attendance, leave, payroll/overtime and actionable queues, plus organization readiness links, licensing and the existing activity feed. The activity feed is not labelled as a formal audit log; the repository's separate audit-log route is not exposed as an Organization Admin destination.
+- HR Manager sees its current HR-permitted workforce/attendance/leave/overtime/payroll sections, action queues, HR operations destinations and the existing HR department snapshot.
+- Department Manager sees the same shared section components, but each service applies its server-side assigned-department scope. The page retains the assigned department list and team workspace shortcuts. Payroll remains aggregate-only and does not grant team payslip access.
+- PersonalMyDayWorkspace stays above the management view for HR Manager and Department Manager; EmployeeMyDayWorkspace remains the Employee dashboard and does not mount management sections.
+- The reporting shell defaults to 30 organization-local calendar days and supports a maximum 31-day range for the attendance and leave sources. Payroll/overtime follows the calendar month containing the selected end date. Current workforce and Action Center values remain current-state summaries.
+- All six data sections refresh every 60 seconds while active. Attendance and payroll/overtime also refresh on the existing attendance-change event. Focus, visibility and connectivity refresh behavior is provided by the existing smart-refresh hook.
+- A partial department dropdown is deliberately not shown: the HR overview department list is limited, and not all current component endpoints implement a common department narrowing contract. The authenticated APIs continue to enforce their own role scope.
+- Organization setup, licensing, recent activity, HR navigation, Department Manager team/department links, approvals, invitations, leave, payroll and reports retain their existing destinations. Existing API contracts and personal workspaces are unchanged.
+
+
+## 13. Interactive drill-down architecture (Step 13)
+
+The frontend route builder `features/management-dashboard/links.ts` maps each management role to its existing workforce, attendance, leave, payroll and report workspaces. The dashboard does not introduce a new detail API merely to duplicate those workspaces. Native links preserve the selected date range, reporting month or narrow workforce filters.
+
+Authorization remains at each receiving API:
+- Workforce reads still require the existing employee-view permission (or the route-specific Department Manager read allowance). The Department Manager's manager-to-department EXISTS predicate is unconditional. `managementPopulation=true` and optional status/department/unassigned filters only narrow the query; the population flag mirrors the shared workforce KPI's administrator-role exclusion.
+- Attendance reads still derive the actor from the session, validate inclusive dates and apply the 31-day maximum per request. `managementDashboard=true` adds ACTIVE-workforce filtering and, for Department Managers, removes the unrelated self row while retaining employees in assigned departments. The existing AttendanceWorkspace splits longer windows and follows pagination.
+- Leave reads continue to use the current tenant/role/department query. The UI applies date and status filters to the returned rows; it does not send a user-controlled scope. An additive `employmentStatus` field supports the ACTIVE-only approved-request detail. For HR/Department Manager pending-review links, an additional client-side exclusion removes the viewer's own request to match the actionable review aggregate. Distinct-person, approved-calendar-day and scheduled-availability metrics do not link to a request list that cannot reconcile one-for-one. The endpoint's 500-row cap is surfaced.
+- Payroll reads still pass through the current role-specific payment API. The month parameter selects an existing monthly ledger view. The review workspace accepts a presentation-only `queue` parameter to preselect corrections, advance overtime or excess review; it continues to load every queue through the existing authenticated APIs. Worked-overtime details open the corresponding active attendance period. Department Manager's existing aggregate-only/payment scope is unchanged; no individual team payslip capability is added.
+- Reports still use the existing attendance report endpoints and their current target-resolution/authorization. The dashboard only preselects dates and does not bypass target selection or export permissions.
+
+The calendar's dashboard flag is not a new authority: it can only remove records by adding ACTIVE and assigned-department restrictions. Likewise, employee directory filters cannot widen the API's underlying tenant or manager scope. No new permission, database table, migration, data write, export endpoint or dependency is required.

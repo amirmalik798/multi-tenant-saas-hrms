@@ -72,6 +72,20 @@ export function ProfileWorkspace() {
   useEffect(() => { void load(); }, [load]);
   useSmartRefresh(() => load(true), !drawerOpen && !saving && !photoUploading);
 
+  function openEditor() {
+    setError("");
+    setNotice("");
+    setForm({
+      phone: isAdmin ? profile?.contactPhone || "" : profile?.phone || "",
+      country: profile?.country || "",
+      city: profile?.city || "",
+      emergencyName: profile?.emergency_contact_name || "",
+      emergencyRelationship: profile?.emergency_contact_relationship || "",
+      emergencyPhone: profile?.emergency_contact_phone || "",
+    });
+    setDrawerOpen(true);
+  }
+
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true); setError(""); setNotice("");
     try {
@@ -129,7 +143,7 @@ export function ProfileWorkspace() {
   const phone = isAdmin ? profile?.contactPhone : profile?.phone;
 
   return <>
-    <PageHeader eyebrow="My account" title="My profile" description="Your identity and contact details for this organization workspace." action={canEdit ? <Button variant="primary" leading={<Pencil size={14} />} onClick={() => { setError(""); setDrawerOpen(true); }}>Edit contact details</Button> : undefined} />
+    <PageHeader eyebrow="My account" title="My profile" description="Your identity and contact details for this organization workspace." action={canEdit ? <Button variant="primary" leading={<Pencil size={14} />} disabled={loading} onClick={openEditor}>Edit contact details</Button> : undefined} />
     {notice ? <div className="success-callout" role="status" style={{ marginBottom: 12 }}>{notice}</div> : null}
     {error && !drawerOpen ? <div className="form-error" role="alert" style={{ marginBottom: 12 }}>{error}</div> : null}
     <div className="profile-layout">

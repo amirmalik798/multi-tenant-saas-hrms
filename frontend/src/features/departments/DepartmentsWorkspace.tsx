@@ -32,6 +32,7 @@ export function DepartmentsWorkspace() {
   const [managerOptionsError, setManagerOptionsError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [listError, setListError] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("ALL");
   const [drawer, setDrawer] = useState<"create" | "edit" | "details" | null>(null);
@@ -53,7 +54,7 @@ export function DepartmentsWorkspace() {
 
   const load = useCallback(async (silent = false) => {
     const requestId = ++listRequestRef.current;
-    if (!silent) setLoading(true); setError("");
+    if (!silent) setLoading(true); setError(""); setListError("");
     try {
       const allDepartments = await loadAllPages<Department>(async (page) => {
         const params = new URLSearchParams({ page: String(page), limit: "100", includeInactive: "true" });
@@ -62,8 +63,17 @@ export function DepartmentsWorkspace() {
         const result = await apiRequest<DepartmentResponse>(`/departments?${params.toString()}`);
         return { items: result.departments ?? [], totalPages: result.pagination?.totalPages };
       });
-      if (requestId === listRequestRef.current) setRows(allDepartments);
-    } catch (caught) { if (requestId === listRequestRef.current) setError(caught instanceof Error ? caught.message : "Unable to load departments."); }
+      if (requestId === listRequestRef.current) {
+        setRows(allDepartments);
+        setListError("");
+      }
+    } catch (caught) {
+      if (requestId === listRequestRef.current) {
+        const message = caught instanceof Error ? caught.message : "Unable to load departments.";
+        setError(message);
+        setListError(message);
+      }
+    }
     finally { if (!silent && requestId === listRequestRef.current) setLoading(false); }
   }, [query, status]);
   useEffect(() => { void load(); }, [load]);
@@ -110,14 +120,15 @@ export function DepartmentsWorkspace() {
   }
 
   return <>
-    <PageHeader eyebrow="People" title="Departments" description="Keep teams easy to understand, with clear ownership and staffing context." action={canCreate ? <Button variant="primary" leading={<Plus size={15} />} onClick={() => { setSelected(null); setDrawer("create"); }}>Create department</Button> : undefined} />
+    <PageHeader eyebrow="People" title="Departments" description="Keep teams easy to understand, with clear ownership and staffing context." action={canCreate ? <Button variant="primary" leading={<Plus size={15} />} onClick={() => { detailRequestRef.current += 1; setSelected(null); setDetailLoading(false); setError(""); setDrawer("create"); }}>Create department</Button> : undefined} />
     {notice ? <div className="info-callout" style={{ marginBottom: 14 }}>{notice}</div> : null}
     {managerOptionsError ? <div className="form-error" role="alert" style={{ marginBottom: 14 }}>Manager options could not be fully loaded. {managerOptionsError}</div> : null}
     <Panel>
       <div className="toolbar"><div className="toolbar-left"><label className="search-field"><Search size={15} /><input aria-label="Search departments" placeholder="Search departments or managers…" value={query} onChange={(e) => setQuery(e.target.value)} /></label><select className="filter-select" aria-label="Filter department status" value={status} onChange={(e) => setStatus(e.target.value)}><option value="ALL">All departments</option><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></div><span style={{ color: "var(--muted)", fontSize: 12 }}>{loading ? "Loading…" : `${rows.length} departments`}</span></div>
+      {listError && rows.length > 0 ? <div className="form-error" role="alert" style={{ marginBottom: 12 }}>The latest department refresh failed. The rows shown are from the last successful load and may not match the current filters. {listError}</div> : null}
       {error && !rows.length ? <div className="error-state"><div className="state-icon"><Building2 size={18} /></div><h3>Departments unavailable</h3><p>{error} This list will retry automatically.</p></div> : null}
       {loading && !rows.length ? <div style={{ padding: 18, display: "grid", gap: 12 }}>{[1,2,3,4].map((n) => <div key={n} className="skeleton" style={{ height: 54 }} />)}</div> : null}
-      {!loading && !rows.length && !error ? <div className="empty-state"><div className="state-icon"><Building2 size={18} /></div><h3>{query ? "No departments found" : "No departments yet"}</h3><p>{query ? "Try a different search." : "Create your first department to establish a clear team structure."}</p>{canCreate ? <Button variant="primary" size="sm" leading={<Plus size={14} />} onClick={() => setDrawer("create")}>Create department</Button> : null}</div> : null}
+      {!loading && !rows.length && !error ? <div className="empty-state"><div className="state-icon"><Building2 size={18} /></div><h3>{query ? "No departments found" : "No departments yet"}</h3><p>{query ? "Try a different search." : "Create your first department to establish a clear team structure."}</p>{canCreate ? <Button variant="primary" size="sm" leading={<Plus size={14} />} onClick={() => { detailRequestRef.current += 1; setSelected(null); setDetailLoading(false); setError(""); setDrawer("create"); }}>Create department</Button> : null}</div> : null}
       {rows.length ? <div className="table-wrap"><table className="data-table"><thead><tr><th>Department</th><th>Manager</th><th>Team size</th><th>Manager eligibility</th><th>Status</th><th /></tr></thead><tbody>{rows.map((department) => <tr key={department.id}>
         <td><button type="button" onClick={() => void openDepartment(department.id, "details")} style={{ display: "flex", alignItems: "center", gap: 10, border: 0, padding: 0, background: "transparent", textAlign: "left" }}><span className="org-avatar"><Building2 size={15} /></span><span><span className="table-primary">{department.name}</span><span className="table-secondary">{department.description || "No description"}</span></span></button></td>
         <td>{department.manager_name ? <div style={{ display: "flex", alignItems: "center", gap: 8 }}><ProfilePhoto name={department.manager_name} employeeId={department.manager_id} className="user-avatar" /><span><span className="table-primary">{department.manager_name}</span><span className="table-secondary">{department.manager_employee_code ?? ""}</span></span></div> : <span style={{ color: "var(--subtle)" }}>Not assigned</span>}</td>

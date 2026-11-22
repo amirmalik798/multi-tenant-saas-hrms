@@ -23,6 +23,12 @@ interface AttendanceEntry {
 }
 interface CalendarPayload { status?: string; today?: string; timeZone?: string; entries?: AttendanceEntry[]; hasMore?: boolean; nextOffset?: number | null; message?: string }
 
+function isValidCalendarDate(value: string | null): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(value + "T00:00:00.000Z");
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 function shiftDate(value: string, offset: number) {
   const date = new Date(`${value}T12:00:00Z`);
   date.setUTCDate(date.getUTCDate() + offset);
@@ -129,8 +135,18 @@ export function AttendanceWorkspace({ pageKey }: { pageKey: string }) {
         if (!authoritativeDate || !/^\d{4}-\d{2}-\d{2}$/.test(authoritativeDate)) {
           throw new Error("The organization work date could not be verified. Attendance has not been loaded using your device date.");
         }
-        const start = authoritativeDate;
-        const end = authoritativeDate;
+        // Dashboard filters narrow this page's normal calendar request.
+        // The receiving API still derives role/tenant scope from the session.
+        const query = new URLSearchParams(window.location.search);
+        const requestedFrom = query.get("fromDate");
+        const requestedTo = query.get("toDate");
+        const requestedRangeIsValid =
+          isValidCalendarDate(requestedFrom) &&
+          isValidCalendarDate(requestedTo) &&
+          requestedFrom <= requestedTo &&
+          requestedTo <= authoritativeDate;
+        const start = requestedRangeIsValid ? requestedFrom : authoritativeDate;
+        const end = requestedRangeIsValid ? requestedTo : authoritativeDate;
         if (!active) return;
         setVerifiedWorkDate(authoritativeDate);
         setTimeZone(initial.timeZone || "Africa/Kigali");
@@ -181,6 +197,9 @@ export function AttendanceWorkspace({ pageKey }: { pageKey: string }) {
         for (let page = 0; page < 500; page += 1) {
           const query = new URLSearchParams({ fromDate: chunk.fromDate, toDate: chunk.toDate, offset: String(offset) });
           if (selfOnly) query.set("scope", "self");
+          if (new URLSearchParams(window.location.search).get("managementDashboard") === "true") {
+            query.set("managementDashboard", "true");
+          }
           const result = await apiRequest<CalendarPayload>(`/attendance/calendar?${query.toString()}`);
           if (requestId !== loadSequenceRef.current) return;
           latestResult = result;

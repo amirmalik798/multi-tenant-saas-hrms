@@ -1,19 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Activity, AlertCircle, ArrowRight, ArrowUpRight, Building2, CalendarClock, CheckCircle2, Clock3, FileClock, Mail, ShieldCheck, Users, Wallet } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Activity,
+  AlertCircle,
+  ArrowRight,
+  Building2,
+  Users,
+} from "lucide-react";
+
 import { useWorkspace } from "@/components/layout/WorkspaceGate";
-import { Button } from "@/components/ui/Button";
 import { Panel, PanelHeading } from "@/components/ui/Panel";
-import { StatusBadge } from "@/components/ui/StatusBadge";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { apiRequest, isRecord, pickArray, stringValue, numberValue } from "@/lib/api-client";
-import { formatDate, formatNumber, humanize } from "@/lib/format";
+import { apiRequest, pickArray, stringValue } from "@/lib/api-client";
+import { formatDate, humanize } from "@/lib/format";
 import { roleLabels } from "@/lib/workspace-config";
 import { useSmartRefresh } from "@/lib/smart-refresh";
-import { notifyAttendanceStatusChanged, useAttendanceRefresh } from "@/lib/attendance-events";
+import { useAttendanceRefresh } from "@/lib/attendance-events";
 import type { WorkspaceRole } from "@/types/workspace";
+import { EmployeeMyDayWorkspace, PersonalMyDayWorkspace } from "@/features/workspace/EmployeeMyDayWorkspace";
+import {
+  ManagementDashboardActionCenter,
+  ManagementDashboardAttendanceAnalytics,
+  ManagementDashboardLeaveAvailability,
+  ManagementDashboardPayrollOvertime,
+  ManagementDashboardShell,
+  ManagementDashboardWorkforceComposition,
+  ManagementDashboardWorkforceKpis,
+  type ManagementDashboardDateRange,
+  type ManagementDashboardFilterState,
+} from "@/features/management-dashboard/components";
 
 interface DashboardData {
   stats?: Record<string, unknown>;
@@ -32,24 +48,67 @@ interface DashboardData {
   events?: Record<string, unknown>[];
 }
 
+type ManagementRole = Exclude<WorkspaceRole, "EMPLOYEE">;
+
+function isISODate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(value + "T00:00:00.000Z");
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function addCalendarDays(value: string, offset: number): string {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + offset)).toISOString().slice(0, 10);
+}
+
+function initialReportingRange(workDate: string | null | undefined, timeZone: string): ManagementDashboardDateRange {
+  let endDate: string;
+  if (isISODate(workDate)) {
+    endDate = workDate;
+  } else {
+    try {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).formatToParts(new Date());
+      const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+      endDate = String(values.year) + "-" + String(values.month) + "-" + String(values.day);
+    } catch {
+      const now = new Date();
+      endDate = [
+        String(now.getFullYear()).padStart(4, "0"),
+        String(now.getMonth() + 1).padStart(2, "0"),
+        String(now.getDate()).padStart(2, "0"),
+      ].join("-");
+    }
+  }
+  return { startDate: addCalendarDays(endDate, -29), endDate };
+}
+
 export function WorkspaceDashboard({ role }: { role: WorkspaceRole }) {
   const { user, timeZone, workDate } = useWorkspace();
-  const organizationHour = useMemo(() => {
-    try { return Number(new Intl.DateTimeFormat("en-US", { timeZone, hour: "2-digit", hourCycle: "h23" }).format(new Date())); }
-    catch { return new Date().getHours(); }
-  }, [timeZone]);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [partialWarning, setPartialWarning] = useState("");
-  const pendingLeaveCountRef = useRef<number | null>(null);
+  const [reportingRange, setReportingRange] = useState<ManagementDashboardDateRange>(
+    () => initialReportingRange(workDate, timeZone),
+  );
   const loadSequenceRef = useRef(0);
 
   const load = useCallback(async (silent = false) => {
+    if (role === "EMPLOYEE") return;
     const requestId = ++loadSequenceRef.current;
-    if (!silent) setLoading(true); setError(""); setPartialWarning("");
+
+    if (!silent) setLoading(true);
+    setError("");
+    setPartialWarning("");
+
     try {
       let result: DashboardData;
+
       if (role === "ORGANIZATION_ADMIN") {
         const [overview, activityResult] = await Promise.all([
           apiRequest<DashboardData>("/org/dashboard/stats"),
@@ -57,227 +116,355 @@ export function WorkspaceDashboard({ role }: { role: WorkspaceRole }) {
             .then((payload) => ({ payload, error: "" }))
             .catch((caught) => ({
               payload: null,
-              error: caught instanceof Error ? caught.message : "The recent activity feed is temporarily unavailable.",
+              error: caught instanceof Error
+                ? caught.message
+                : "The recent activity feed is temporarily unavailable.",
             })),
         ]);
+
         if (requestId !== loadSequenceRef.current) return;
+
         if (activityResult.error) {
-          setPartialWarning(`Organization overview loaded, but recent activity could not be retrieved: ${activityResult.error}`);
-          setData((current) => ({ ...overview, recentActivity: current?.recentActivity ?? [] }));
+          setPartialWarning(
+            "The organization overview loaded, but recent activity could not be retrieved: " +
+            activityResult.error,
+          );
+          setData((current) => ({
+            ...overview,
+            recentActivity: current?.recentActivity ?? [],
+          }));
           return;
         }
-        result = { ...overview, recentActivity: pickArray(activityResult.payload, "activities") };
-      } else if (role === "HR_MANAGER") {
-        result = await apiRequest<DashboardData>("/hr-manager/overview");
-      } else if (role === "DEPARTMENT_MANAGER") {
-        const [overview, leaveResult] = await Promise.all([
-          apiRequest<DashboardData>("/department-manager/overview"),
-          apiRequest<{ requests?: Array<{ employeeId?: string; status?: string }> }>("/leave/requests")
-            .then((payload) => ({ payload, error: "" }))
-            .catch((caught) => ({
-              payload: null,
-              error: caught instanceof Error ? caught.message : "The leave review count is temporarily unavailable.",
-            })),
-        ]);
-        if (requestId !== loadSequenceRef.current) return;
-        if (Array.isArray(leaveResult.payload?.requests)) {
-          pendingLeaveCountRef.current = leaveResult.payload.requests.filter((request) =>
-            request.status === "PENDING" && request.employeeId !== user.employeeId,
-          ).length;
-        } else if (leaveResult.error) {
-          setPartialWarning(`Team overview loaded, but the latest leave review count could not be retrieved: ${leaveResult.error}`);
-        }
+
         result = {
           ...overview,
-          reviewCounts: { ...overview.reviewCounts, leave: pendingLeaveCountRef.current },
+          recentActivity: pickArray(activityResult.payload, "activities"),
         };
+      } else if (role === "HR_MANAGER") {
+        result = await apiRequest<DashboardData>("/hr-manager/overview");
       } else {
-        const resultEvents = await apiRequest<DashboardData>("/attendance/events");
-        result = resultEvents;
+        // Department team data remains sourced from the existing manager overview.
+        // Actionable review counts are now supplied by the Step 11 snapshot endpoint.
+        result = await apiRequest<DashboardData>("/department-manager/overview");
       }
+
       if (requestId === loadSequenceRef.current) setData(result);
     } catch (caught) {
-      if (requestId === loadSequenceRef.current) setError(caught instanceof Error ? caught.message : "Unable to load your overview.");
+      if (requestId === loadSequenceRef.current) {
+        setError(caught instanceof Error ? caught.message : "Unable to load your workspace context.");
+      }
     } finally {
       if (!silent && requestId === loadSequenceRef.current) setLoading(false);
     }
-  }, [role, user.employeeId]);
+  }, [role]);
 
-  useEffect(() => { void load(); }, [load]);
-  useSmartRefresh(() => load(true));
-  useAttendanceRefresh(() => { void load(true); });
-
-  const stats = data?.stats ?? {};
-  const team = data?.team ?? {};
-  const reviews = data?.reviewCounts ?? {};
-  const metrics = useMemo(() => {
-    if (role === "ORGANIZATION_ADMIN") return [
-      { label: "Total workforce", value: stats.totalEmployees, note: `${formatNumber(numberValue(stats, "activeEmployees") ?? 0)} active`, icon: Users },
-      { label: "Departments", value: stats.totalDepartments, note: `${formatNumber(numberValue(stats, "activeDepartments") ?? 0)} active`, icon: Building2 },
-      { label: "Unassigned people", value: stats.unassignedEmployees, note: "Review department assignments", icon: ShieldCheck },
-      { label: "Pending invitations", value: stats.pendingInvitations, note: "Awaiting acceptance", icon: Mail },
-    ];
-    if (role === "HR_MANAGER") return [
-      { label: "Total workforce", value: stats.totalEmployees, note: `${formatNumber(numberValue(stats, "activeEmployees") ?? 0)} active`, icon: Users },
-      { label: "Departments", value: stats.totalDepartments, note: "Across your organization", icon: Building2 },
-      { label: "Corrections to review", value: stats.pendingCorrections, note: "Attendance requests", icon: FileClock },
-      { label: "Overtime requests", value: stats.pendingOvertime, note: "Awaiting decision", icon: Clock3 },
-    ];
-    if (role === "DEPARTMENT_MANAGER") return [
-      { label: "Team members", value: team.total, note: `${formatNumber(numberValue(team, "active") ?? 0)} active`, icon: Users },
-      { label: "Assigned departments", value: data?.departments?.length ?? 0, note: "Your management scope", icon: Building2 },
-      { label: "Items to review", value: reviews.total, note: "Corrections and overtime", icon: ClipboardIcon },
-      { label: "Pending leave", value: numberValue(reviews, "leave") ?? "—", note: numberValue(reviews, "leave") === null ? "Leave review count unavailable" : "Awaiting your review", icon: CalendarClock },
-    ];
-    return [
-      { label: "My latest activity", value: data?.events?.length ?? 0, note: "Recent attendance events", icon: Activity },
-      { label: "Clock status", value: humanize(data?.clockStatus ?? "UNKNOWN"), note: "Based on your recorded punches", icon: Clock3 },
-      { label: "Organization", value: user.organizationName, note: "Your current workplace", icon: Building2 },
-      { label: "My role", value: roleLabels[role], note: "Your workspace access", icon: ShieldCheck },
-    ];
-  }, [role, stats, team, reviews, data, user.organizationName]);
-
-  const heading = role === "EMPLOYEE" ? "Good to see you" : role === "DEPARTMENT_MANAGER" ? "Your team at a glance" : role === "HR_MANAGER" ? "People operations overview" : "Organization overview";
-  const description = role === "EMPLOYEE" ? "A quick view of your day, your time, and what needs your attention." : role === "DEPARTMENT_MANAGER" ? "Stay close to your assigned teams and the work that needs review." : role === "HR_MANAGER" ? "Understand workforce health and move the important work forward." : "Understand the health of your workforce and organization setup.";
-
-  return <>
-    <PageHeader eyebrow={roleLabels[role]} title={heading} description={description} />
-    <div className="dashboard-intro" style={{ marginBottom: 18 }}>
-      <div><h2>{role === "EMPLOYEE" ? `Welcome to your workspace` : `Good ${organizationHour < 12 ? "morning" : organizationHour < 18 ? "afternoon" : "evening"}`}, {user.displayName || roleLabels[role]}.</h2><p>{role === "EMPLOYEE" ? "Your personal work information is all in one place." : `Here is the latest view from ${user.organizationName}.`}</p></div>
-      <span className="date-chip"><CalendarClock size={14} /> {formatDate(data?.workDate ?? workDate ?? new Date().toISOString(), timeZone)}</span>
-    </div>
-
-    {error ? <div className="error-state panel" role="alert" style={{ marginBottom: 18 }}><div className="state-icon"><AlertCircle size={19} /></div><h3>We could not load this overview</h3><p>{error} The workspace will retry automatically.</p></div> : null}
-    {partialWarning ? <div className="info-callout" role="status" style={{ marginBottom: 18 }}><AlertCircle size={15} />{partialWarning}</div> : null}
-
-    <div className="page-grid grid-4" style={{ marginBottom: 18 }}>
-      {metrics.map((metric) => { const Icon = metric.icon; return <Panel key={metric.label} className="metric-card"><div className="metric-label"><span>{metric.label}</span><span className="metric-icon"><Icon size={16} /></span></div><div className="metric-value">{loading ? <span className="skeleton" style={{ display: "inline-block", width: 76, height: 30 }} /> : typeof metric.value === "number" ? formatNumber(metric.value) : (metric.value == null ? "—" : metric.value as ReactNode)}</div><div className="metric-foot">{metric.note}</div></Panel>; })}
-    </div>
-
-    {role === "EMPLOYEE" ? <EmployeeHomeContent clockStatus={data?.clockStatus} events={data?.events ?? []} timeZone={timeZone} /> : <div className="page-grid grid-2">
-      <Panel>
-        <PanelHeading title={role === "DEPARTMENT_MANAGER" ? "My departments" : "Work that needs attention"} description={role === "DEPARTMENT_MANAGER" ? "Only departments assigned to your manager account." : "Go straight to the next action instead of searching through the workspace."} />
-        {loading ? <div className="loading-state"><div className="skeleton" style={{ height: 14, width: "60%", margin: "0 auto" }} /></div> : role === "DEPARTMENT_MANAGER" ? (data?.departments?.length ? data.departments.map((row) => <div className="task-row" key={stringValue(row, "id")}><div><strong>{stringValue(row, "name") || "Department"}</strong><span>{formatNumber(numberValue(row, "activeEmployeeCount") ?? 0)} active of {formatNumber(numberValue(row, "employeeCount") ?? 0)} members</span></div><span className="task-count">{numberValue(row, "employeeCount") ?? 0}</span></div>) : <div className="empty-state"><div className="state-icon"><Building2 size={18} /></div><h3>No assigned departments</h3><p>Your assigned department list will appear here when it is available.</p></div>) : <AttentionLinks role={role} stats={stats} reviews={reviews} />}
-      </Panel>
-      <Panel>
-        <PanelHeading title={role === "DEPARTMENT_MANAGER" ? "Your review queue" : "Recent activity"} description={role === "DEPARTMENT_MANAGER" ? "Review the items currently waiting for a decision." : "A short timeline of recent organization activity."} />
-        {role === "DEPARTMENT_MANAGER" ? <div className="task-list">
-          <TaskLink href="/dm/reviews" title="Attendance corrections" description="Review employee correction requests." count={numberValue(reviews, "corrections") ?? 0} />
-          <TaskLink href="/dm/reviews" title="Overtime requests" description="Review requests submitted in advance." count={numberValue(reviews, "overtime") ?? 0} />
-          <TaskLink href="/dm/leave" title="Leave requests" description="Review time-off requests for your team." count={numberValue(reviews, "leave") ?? 0} />
-        </div> : data?.recentActivity?.length ? data.recentActivity.slice(0, 7).map((row, index) => <div className="activity-row" key={stringValue(row, "id") || index}><span className="activity-dot" /><div><strong>{humanize(stringValue(row, "actionKey", "eventType") || "Workforce update")}</strong><span>{stringValue(row, "actorEmail", "employeeName") || "Organization activity"} · {formatDate(stringValue(row, "createdAt", "effectiveAt"), timeZone)}</span></div></div>) : <div className="empty-state"><div className="state-icon"><Activity size={18} /></div><h3>No recent activity</h3><p>When an organization update is recorded, it will appear here.</p></div>}
-      </Panel>
-    </div>}
-  </>;
-}
-
-function AttentionLinks({ role, stats, reviews }: { role: WorkspaceRole; stats: Record<string, unknown>; reviews: Record<string, unknown> }) {
-  const isAdmin = role === "ORGANIZATION_ADMIN";
-  const links = isAdmin ? [
-    { href: "/org/employees?filter=unassigned", title: "Unassigned workforce", description: "People without a department assignment.", count: numberValue(stats, "unassignedEmployees") ?? 0 },
-    { href: "/org/departments", title: "Departments without managers", description: "Departments that need an eligible manager.", count: numberValue(stats, "departmentsWithoutEligibleManager") ?? 0 },
-    { href: "/org/invitations", title: "Pending invitations", description: "Invitations that have not yet been accepted.", count: numberValue(stats, "pendingInvitations") ?? 0 },
-  ] : [
-    { href: "/hr/work-queue", title: "Attendance corrections", description: "Requests waiting for HR review.", count: numberValue(stats, "pendingCorrections") ?? 0 },
-    { href: "/hr/work-queue", title: "Overtime requests", description: "Advance overtime requests waiting for review.", count: numberValue(stats, "pendingOvertime") ?? 0 },
-    { href: "/hr/invitations", title: "Pending invitations", description: "New workforce members yet to accept.", count: numberValue(stats, "pendingInvitations") ?? 0 },
-  ];
-  return <div>{links.map((item) => <TaskLink key={item.title} {...item} />)}</div>;
-}
-
-function TaskLink({ href, title, description, count }: { href: string; title: string; description: string; count: number }) {
-  return <Link href={href} className="task-row"><div><strong>{title}</strong><span>{description}</span></div><span style={{ display: "flex", alignItems: "center", gap: 9 }}><span className="task-count">{count}</span><ArrowRight size={14} color="var(--subtle)" /></span></Link>;
-}
-
-async function readEmployeeClockStatus(): Promise<"CLOCKED_IN" | "CLOCKED_OUT"> {
-  const result = await apiRequest<{ clockStatus?: unknown; data?: { clockStatus?: unknown } }>("/attendance/events");
-  const current = result.clockStatus ?? result.data?.clockStatus;
-  if (current !== "CLOCKED_IN" && current !== "CLOCKED_OUT") throw new Error("Your current attendance status could not be confirmed.");
-  return current;
-}
-
-function formatPunchTimestamp(value: unknown, timeZone: string) {
-  if (typeof value !== "string" || !value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-      timeZone,
-    }).format(date);
-  } catch {
-    return value;
-  }
-}
-
-function EmployeeHomeContent({ clockStatus, events, timeZone }: { clockStatus?: string; events: Record<string, unknown>[]; timeZone: string }) {
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<"CLOCKED_IN" | "CLOCKED_OUT" | "loading" | "unavailable">(
-    clockStatus === "CLOCKED_IN" || clockStatus === "CLOCKED_OUT" ? clockStatus : "loading",
-  );
-  const [error, setError] = useState("");
   useEffect(() => {
-    if (clockStatus === "CLOCKED_IN" || clockStatus === "CLOCKED_OUT") {
-      setStatus(clockStatus);
-      return;
-    }
-    let active = true;
-    void readEmployeeClockStatus().then((current) => { if (active) setStatus(current); })
-      .catch(() => { if (active) setStatus("unavailable"); });
-    return () => { active = false; };
-  }, [clockStatus]);
-  useSmartRefresh(async () => {
-    if (status !== "loading" && status !== "unavailable") return;
-    try { setStatus(await readEmployeeClockStatus()); }
-    catch { setStatus("unavailable"); }
-  }, status === "loading" || status === "unavailable");
+    void load();
+  }, [load]);
 
-  async function punch() {
-    if (saving || (status !== "CLOCKED_IN" && status !== "CLOCKED_OUT")) return;
-    setSaving(true); setError("");
-    const nextAction = status === "CLOCKED_IN" ? "CLOCK_OUT" : "CLOCK_IN";
-    const expected = nextAction === "CLOCK_IN" ? "CLOCKED_IN" : "CLOCKED_OUT";
-    try {
-      await apiRequest("/attendance/events", { method: "POST", body: JSON.stringify({ action: nextAction }) });
-      const confirmed = await readEmployeeClockStatus();
-      if (confirmed !== expected) throw new Error("The attendance action was submitted, but the updated clock status could not be confirmed.");
-      setStatus(confirmed);
-      notifyAttendanceStatusChanged();
-    } catch (caught) {
-      // A delayed/lost response may still have recorded the punch. Re-read the
-      // server state before showing an error or allowing another attempt.
-      try {
-        const confirmed = await readEmployeeClockStatus();
-        setStatus(confirmed);
-        if (confirmed === expected) {
-          notifyAttendanceStatusChanged();
-          return;
+  useSmartRefresh(() => load(true), role !== "EMPLOYEE", 60_000);
+  useAttendanceRefresh(() => {
+    if (role !== "EMPLOYEE") void load(true);
+  });
+
+  const title = role === "DEPARTMENT_MANAGER"
+    ? "Your team overview"
+    : role === "HR_MANAGER"
+      ? "People operations"
+      : "Organization overview";
+
+  const description = role === "DEPARTMENT_MANAGER"
+    ? "A focused view of your assigned departments, attendance, availability and pending team decisions."
+    : role === "HR_MANAGER"
+      ? "Bring workforce operations, attendance, leave, overtime and payroll readiness into one clear view."
+      : "Understand workforce health, organization readiness and the management work that needs attention.";
+
+  const handleFiltersChange = useCallback((filters: ManagementDashboardFilterState) => {
+    setReportingRange(filters.dateRange);
+  }, []);
+
+  if (role === "EMPLOYEE") return <EmployeeMyDayWorkspace />;
+
+  const managementRole = role as ManagementRole;
+
+  return (
+    <>
+      {role === "HR_MANAGER" || role === "DEPARTMENT_MANAGER" ? (
+        <PersonalMyDayWorkspace key={user.role + ":" + (user.employeeId ?? "none")} />
+      ) : null}
+
+      <ManagementDashboardShell
+        role={managementRole}
+        title={title}
+        description={description}
+        eyebrow={roleLabels[role]}
+        scopeLabel={
+          role === "DEPARTMENT_MANAGER"
+            ? "Assigned departments"
+            : role === "HR_MANAGER"
+              ? "Organization-wide HR scope"
+              : "Organization-wide scope"
         }
-      } catch {
-        setStatus("unavailable");
-      }
-      setError(caught instanceof Error ? caught.message : "The attendance action could not be completed.");
-    } finally { setSaving(false); }
-  }
-  return <div className="page-grid grid-2" style={{ marginTop: 18 }}>
-    <Panel className="panel-pad">
-      <p className="eyebrow">TODAY</p><h2 style={{ fontSize: 18, color: "var(--text-strong)", margin: "4px 0 0", letterSpacing: "-.025em" }}>Your attendance</h2>
-      <p style={{ color: "var(--muted)", fontSize: 12, margin: "6px 0 18px" }}>Your clock action is validated by the organization’s active shift and attendance rules.</p>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, border: "1px solid var(--border)", borderRadius: 11, background: "var(--surface-muted)" }}><span className="metric-icon"><Clock3 size={18} /></span><div><strong style={{ color: "var(--text-strong)", display: "block", fontSize: 13 }}>{status === "loading" ? "Checking attendance status…" : status === "unavailable" ? "Status unavailable" : humanize(status)}</strong><span style={{ color: "var(--muted)", fontSize: 12 }}>Current clock status</span></div><span style={{ marginLeft: "auto" }}><StatusBadge value={status} /></span></div>
-      {error ? <p role="alert" className="field-error" style={{ marginTop: 12 }}>{error}</p> : null}
-      <Button size="lg" className={`attendance-action-button ${status === "CLOCKED_IN" ? "is-clock-out" : "is-clock-in"}`} busy={saving} disabled={saving || (status !== "CLOCKED_IN" && status !== "CLOCKED_OUT")} onClick={() => void punch()} leading={<Clock3 size={16} />}>{saving ? "Recording…" : status === "CLOCKED_IN" ? "Clock out" : status === "CLOCKED_OUT" ? "Clock in" : status === "loading" ? "Checking status…" : "Clock status unavailable"}</Button>
-      <p className="field-hint" style={{ marginTop: 10 }}>If your action is outside the permitted shift window, the server will reject it and explain why.</p>
-    </Panel>
-    <Panel>
-      <PanelHeading title="Recent punches" description="Your most recent recorded attendance events." />
-      {events.length ? events.slice(0, 6).map((event, index) => <div className="activity-row" key={stringValue(event, "id") || index}><span className="activity-dot" /><div><strong>{humanize(stringValue(event, "eventType") || "Attendance event")}</strong><span>{formatPunchTimestamp(event.recordedAt, timeZone)} · {stringValue(event, "source") || "Recorded event"}</span></div></div>) : <div className="empty-state"><div className="state-icon"><Clock3 size={18} /></div><h3>No punches recorded yet</h3><p>Your attendance history will appear here once an event is recorded.</p></div>}
-    </Panel>
-  </div>;
+        timeZone={timeZone}
+        asOfDate={isISODate(workDate) ? workDate : reportingRange.endDate}
+        initialPeriod="last-30-days"
+        initialDateRange={reportingRange}
+        maxRangeDays={31}
+        onFiltersChange={handleFiltersChange}
+      >
+        {error ? (
+          <div className="error-state panel" role="alert">
+            <div className="state-icon"><AlertCircle size={19} /></div>
+            <h3>Workspace context could not be refreshed</h3>
+            <p>{error} The management sections below load from their own authorized data sources.</p>
+          </div>
+        ) : null}
+
+        {partialWarning ? (
+          <div className="info-callout" role="status">
+            <AlertCircle size={15} />
+            {partialWarning}
+          </div>
+        ) : null}
+
+        <p className="md-reporting-scope-note">
+          Reporting dates apply to attendance and leave. Payroll and overtime use the month containing the selected end date. Workforce composition and action queues reflect current records in your authorized scope.
+        </p>
+        <ManagementDashboardActionCenter role={managementRole} />
+        <ManagementDashboardWorkforceKpis />
+        <ManagementDashboardWorkforceComposition />
+        <ManagementDashboardAttendanceAnalytics
+          fromDate={reportingRange.startDate}
+          toDate={reportingRange.endDate}
+        />
+        <ManagementDashboardLeaveAvailability
+          fromDate={reportingRange.startDate}
+          toDate={reportingRange.endDate}
+        />
+        <ManagementDashboardPayrollOvertime month={reportingRange.endDate.slice(0, 7)} />
+
+        <div className="page-grid grid-2 md-management-context-grid">
+          {role === "ORGANIZATION_ADMIN" ? (
+            <>
+              <Panel>
+                <PanelHeading
+                  title="Organization readiness"
+                  description="Keep staffing structure, manager eligibility and organization administration moving."
+                />
+                <div className="task-list">
+                  <TaskLink
+                    href="/org/employees?filter=unassigned"
+                    title="Unassigned workforce"
+                    description="Review people who do not have a department assignment."
+                  />
+                  <TaskLink
+                    href="/org/departments"
+                    title="Department manager eligibility"
+                    description="Review department ownership and manager assignments."
+                  />
+                  <TaskLink
+                    href="/org/settings"
+                    title="Organization profile & settings"
+                    description="Maintain the organization context used throughout HRMS."
+                  />
+                  <TaskLink
+                    href="/org/license"
+                    title="License & payments"
+                    description="Review subscription access and payment verification."
+                  />
+                  <TaskLink
+                    href="/org/invitations"
+                    title="Invitation management"
+                    description="Open the existing invitation registry."
+                  />
+                </div>
+              </Panel>
+              <ActivityPanel
+                activity={data?.recentActivity ?? []}
+                loading={loading}
+                timeZone={timeZone}
+              />
+            </>
+          ) : role === "HR_MANAGER" ? (
+            <>
+              <Panel>
+                <PanelHeading
+                  title="HR operations"
+                  description="Jump directly into the existing workforce and operational workspaces."
+                />
+                <div className="task-list">
+                  <TaskLink href="/hr/employees" title="Workforce directory" description="Manage employee records and workforce details." />
+                  <TaskLink href="/hr/departments" title="Departments" description="Review department structure and ownership." />
+                  <TaskLink href="/hr/modules/attendance" title="Attendance operations" description="Review attendance records and corrections." />
+                  <TaskLink href="/hr/modules/leave" title="Leave & holidays" description="Manage leave decisions and public holidays." />
+                  <TaskLink href="/hr/modules/payroll" title="Salary payments" description="Review monthly salary payment records." />
+                  <TaskLink href="/hr/reports" title="Workforce reports" description="Generate authorized operational reports." />
+                </div>
+              </Panel>
+              <DepartmentSnapshotPanel
+                departments={data?.departments ?? []}
+                loading={loading}
+                description="Organization departments from the current HR overview."
+              />
+            </>
+          ) : (
+            <>
+              <Panel>
+                <PanelHeading
+                  title="Your assigned departments"
+                  description="Only departments assigned to your manager account are shown here."
+                />
+                {loading ? (
+                  <div className="loading-state">
+                    <div className="skeleton" style={{ height: 14, width: "60%", margin: "0 auto" }} />
+                  </div>
+                ) : data?.departments?.length ? (
+                  <div className="task-list">
+                    {data.departments.map((row) => (
+                      <TaskLink
+                        key={stringValue(row, "id")}
+                        href="/dm/team"
+                        title={stringValue(row, "name") || "Department"}
+                        description={stringValue(row, "description") || "Open your assigned department team."}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <div className="state-icon"><Building2 size={18} /></div>
+                    <h3>No assigned departments</h3>
+                    <p>Your assigned department list will appear here when it is available.</p>
+                  </div>
+                )}
+              </Panel>
+              <Panel>
+                <PanelHeading
+                  title="Team workspace"
+                  description="Your assigned team operations and reporting destinations."
+                />
+                <div className="task-list">
+                  <TaskLink href="/dm/team" title="My team" description="Open the employees in your assigned departments." />
+                  <TaskLink href="/dm/attendance" title="Attendance" description="Review your team's attendance records." />
+                  <TaskLink href="/dm/schedule" title="Team schedule" description="Review assigned working schedules." />
+                  <TaskLink href="/dm/leave" title="Leave & holidays" description="Open the existing team leave workspace." />
+                  <TaskLink href="/dm/payroll" title="Team payments" description="Open permitted team payment aggregates and your personal payslip access." />
+                  <TaskLink href="/dm/reports" title="Attendance reports" description="Generate reports for your assigned departments." />
+                </div>
+              </Panel>
+            </>
+          )}
+        </div>
+      </ManagementDashboardShell>
+    </>
+  );
 }
 
-function ClipboardIcon(props: { size?: number }) { return <FileClock size={props.size ?? 16} />; }
+function ActivityPanel({
+  activity,
+  loading,
+  timeZone,
+}: {
+  activity: Record<string, unknown>[];
+  loading: boolean;
+  timeZone: string;
+}) {
+  return (
+    <Panel>
+      <PanelHeading
+        title="Recent organization activity"
+        description="A short timeline of recorded organization changes."
+      />
+      {loading ? (
+        <div className="loading-state">
+          <div className="skeleton" style={{ height: 14, width: "60%", margin: "0 auto" }} />
+        </div>
+      ) : activity.length ? (
+        activity.slice(0, 7).map((row, index) => (
+          <div className="activity-row" key={stringValue(row, "id") || index}>
+            <span className="activity-dot" />
+            <div>
+              <strong>{humanize(stringValue(row, "actionKey", "eventType") || "Workforce update")}</strong>
+              <span>
+                {stringValue(row, "actorEmail", "employeeName") || "Organization activity"}
+                {" · "}
+                {formatDate(stringValue(row, "createdAt", "effectiveAt"), timeZone)}
+              </span>
+            </div>
+          </div>
+        ))
+      ) : (
+        <div className="empty-state">
+          <div className="state-icon"><Activity size={18} /></div>
+          <h3>No recent activity</h3>
+          <p>When an organization update is recorded, it will appear here.</p>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function DepartmentSnapshotPanel({
+  departments,
+  loading,
+  description,
+}: {
+  departments: Record<string, unknown>[];
+  loading: boolean;
+  description: string;
+}) {
+  return (
+    <Panel>
+      <PanelHeading title="Department snapshot" description={description} />
+      {loading ? (
+        <div className="loading-state">
+          <div className="skeleton" style={{ height: 14, width: "60%", margin: "0 auto" }} />
+        </div>
+      ) : departments.length ? (
+        <div className="task-list">
+          {departments.slice(0, 8).map((row, index) => {
+            const managerName = stringValue(row, "manager_name", "managerName");
+            return (
+              <div className="task-row" key={stringValue(row, "id") || index}>
+                <div>
+                  <strong>{stringValue(row, "name") || "Department"}</strong>
+                  <span>{humanize(stringValue(row, "status") || "Status unavailable")}</span>
+                </div>
+                <span className="task-count" aria-label="Department manager">
+                  {managerName ? "Manager: " + managerName : "No manager assigned"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="empty-state">
+          <div className="state-icon"><Users size={18} /></div>
+          <h3>No department data</h3>
+          <p>Department information will appear here when it is available.</p>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function TaskLink({
+  href,
+  title,
+  description,
+}: {
+  href: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <Link href={href} className="task-row">
+      <div>
+        <strong>{title}</strong>
+        <span>{description}</span>
+      </div>
+      <span style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        <ArrowRight size={14} color="var(--subtle)" />
+      </span>
+    </Link>
+  );
+}

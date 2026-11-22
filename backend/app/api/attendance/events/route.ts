@@ -86,6 +86,13 @@ export async function GET(request: Request) {
       conditions.push("ae.employee_id = $" + values.length + "::uuid");
     } else if (
       actor.kind === "ORGANIZATION_USER" &&
+      actor.roleName === "DEPARTMENT_MANAGER" &&
+      new URL(request.url).searchParams.get("scope") === "self"
+    ) {
+      values.push(actor.employeeId);
+      conditions.push("ae.employee_id = $" + values.length + "::uuid");
+    } else if (
+      actor.kind === "ORGANIZATION_USER" &&
       actor.roleName === "DEPARTMENT_MANAGER"
     ) {
       values.push(actor.employeeId);

@@ -17,20 +17,21 @@ export async function GET() {
 
     // Group by the stored organization lifecycle status so Archived is explicit,
     // rather than inferred as a remainder that could include future statuses.
-    const organizationResult = await pool.query(`
+    // These aggregate reads are independent; running them together avoids
+    // serial database round trips while preserving each query's filters.
+    const [
+      organizationResult,
+      monthlyRegistrationResult,
+      userResult,
+      employeeResult,
+      invitationResult,
+    ] = await Promise.all([
+      pool.query(`
       SELECT status, COUNT(*) AS count
       FROM organizations
       GROUP BY status
-    `);
-
-    const organizationCounts: Record<string, number> = {};
-    for (const row of organizationResult.rows) {
-      organizationCounts[String(row.status)] = Number(row.count);
-    }
-
-    // Return a complete six-month registration series, including zero-count
-    // months. This avoids deriving historical totals from a paginated list.
-    const monthlyRegistrationResult = await pool.query(`
+    `),
+      pool.query(`
       WITH months AS (
         SELECT generate_series(
           date_trunc('month', CURRENT_DATE) - INTERVAL '5 months',
@@ -47,13 +48,8 @@ export async function GET() {
         AND organizations.created_at < months.month_start + INTERVAL '1 month'
       GROUP BY months.month_start
       ORDER BY months.month_start
-    `);
-    const monthlyRegistrations = monthlyRegistrationResult.rows.map((row) => ({
-      month: String(row.month),
-      count: Number(row.count ?? 0),
-    }));
-
-    const userResult = await pool.query(`
+    `),
+      pool.query(`
       SELECT
         COUNT(u.id) AS total_users,
         COUNT(u.id) FILTER (WHERE u.status = 'ACTIVE') AS active_users,
@@ -101,10 +97,8 @@ export async function GET() {
       LEFT JOIN organizations AS org ON org.id = u.organization_id
       WHERE u.account_scope = 'PLATFORM'
          OR (u.account_scope = 'ORGANIZATION' AND org.status <> 'ARCHIVED')
-    `);
-
-    const userCounts = userResult.rows[0] ?? {};
-    const employeeResult = await pool.query(`
+    `),
+      pool.query(`
       SELECT
         COUNT(*) AS total_employees,
         COUNT(*) FILTER (WHERE employment_status = 'ACTIVE') AS active_employees,
@@ -113,15 +107,26 @@ export async function GET() {
       FROM public.employees AS e
       JOIN public.organizations AS org ON org.id = e.organization_id
       WHERE org.status <> 'ARCHIVED'
-    `);
-    const employeeCounts = employeeResult.rows[0] ?? {};
-    const totalEmployees = Number(employeeCounts.total_employees ?? 0);
-
-    const invitationResult = await pool.query(`
+    `),
+      pool.query(`
       SELECT
         (SELECT COUNT(*) FROM public.organization_invitations AS oi JOIN public.organizations AS org ON org.id = oi.organization_id WHERE oi.status = 'PENDING' AND oi.expires_at > NOW() AND org.status <> 'ARCHIVED') AS pending_organization_invitations,
         (SELECT COUNT(*) FROM public.employee_invitations AS ei JOIN public.organizations AS org ON org.id = ei.organization_id WHERE ei.status = 'PENDING' AND ei.expires_at > NOW() AND org.status <> 'ARCHIVED') AS pending_employee_invitations
-    `);
+    `),
+    ]);
+    const organizationCounts: Record<string, number> = {};
+    for (const row of organizationResult.rows) {
+      organizationCounts[String(row.status)] = Number(row.count);
+    }
+
+    const monthlyRegistrations = monthlyRegistrationResult.rows.map((row) => ({
+      month: String(row.month),
+      count: Number(row.count ?? 0),
+    }));
+    const userCounts = userResult.rows[0] ?? {};
+    const employeeCounts = employeeResult.rows[0] ?? {};
+    const totalEmployees = Number(employeeCounts.total_employees ?? 0);
+
     const invitationCounts = invitationResult.rows[0] ?? {};
     const pendingOrganizationInvitations = Number(invitationCounts.pending_organization_invitations ?? 0);
     const pendingEmployeeInvitations = Number(invitationCounts.pending_employee_invitations ?? 0);

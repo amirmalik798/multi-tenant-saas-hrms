@@ -6,6 +6,7 @@ import { useWorkspace } from "@/components/layout/WorkspaceGate";
 import { Button } from "@/components/ui/Button";
 import { Field, SelectInput, TextInput } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { PdfPreparationIndicator } from "@/components/ui/PdfPreparationIndicator";
 import { Panel } from "@/components/ui/Panel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ProfilePhoto } from "@/components/ui/ProfilePhoto";
@@ -14,6 +15,7 @@ import { formatDate, getISODateInTimeZone, humanize } from "@/lib/format";
 import { useAttendanceRefresh } from "@/lib/attendance-events";
 import { useSmartRefresh } from "@/lib/smart-refresh";
 import { buildAttendanceReportDocument, type AttendanceReportPayload } from "@/features/workspace/attendance-report-document";
+import { buildPdfPreparationDocument } from "@/features/payroll/pdf-preparation-document";
 
 interface ReportTarget { employeeId: string; employeeCode: string; firstName: string; lastName: string; departmentName: string | null; workforceRole: string; employmentStatus: string }
 type ReportPayload = AttendanceReportPayload;
@@ -37,6 +39,7 @@ export function ReportsWorkspace() {
   const [selectedDatePreset, setSelectedDatePreset] = useState<"7d" | "14d" | "3m" | "6m" | "12m" | null>(null);
   const reportRequestRef = useRef(0);
   const targetRequestRef = useRef(0);
+  const dashboardRangeSeededRef = useRef(false);
 
   const loadTargets = useCallback(async (silent = false) => {
     const requestId = ++targetRequestRef.current;
@@ -56,7 +59,36 @@ export function ReportsWorkspace() {
   }, [user.role]);
 
   useEffect(() => { void loadTargets(); }, [loadTargets]);
-  useEffect(() => { if (workDate) { setToDate(workDate); setFromDate((current) => current === monthStart(todayISO(timeZone)) ? monthStart(workDate) : current); setToMonth((current) => current === todayISO(timeZone).slice(0, 7) ? workDate.slice(0, 7) : current); setFromMonth((current) => current === todayISO(timeZone).slice(0, 7) ? workDate.slice(0, 7) : current); } }, [workDate, timeZone]);
+  useEffect(() => {
+    if (!workDate) return;
+    if (!dashboardRangeSeededRef.current) {
+      setToDate(workDate);
+      setFromDate((current) => current === monthStart(todayISO(timeZone)) ? monthStart(workDate) : current);
+    }
+    setToMonth((current) => current === todayISO(timeZone).slice(0, 7) ? workDate.slice(0, 7) : current);
+    setFromMonth((current) => current === todayISO(timeZone).slice(0, 7) ? workDate.slice(0, 7) : current);
+  }, [workDate, timeZone]);
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const requestedFrom = query.get("fromDate") || "";
+    const requestedTo = query.get("toDate") || "";
+    const validDate = (value: string) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+      const parsed = new Date(value + "T00:00:00.000Z");
+      return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+    };
+    const today = workDate || todayISO(timeZone);
+    if (validDate(requestedFrom) && validDate(requestedTo) &&
+      requestedFrom <= requestedTo && requestedTo <= today) {
+      dashboardRangeSeededRef.current = true;
+      setFromDate(requestedFrom);
+      setToDate(requestedTo);
+      setSelectedDatePreset(null);
+      setAutoPreviewRevision((revision) => revision + 1);
+    }
+  // URL is read once; subsequent changes are controlled by the report form.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function applyDatePreset(preset: "7d" | "14d" | "3m" | "6m" | "12m") {
     setSelectedDatePreset(preset);
@@ -159,7 +191,7 @@ export function ReportsWorkspace() {
       return;
     }
     printWindow.document.open();
-    printWindow.document.write("<!doctype html><html><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing attendance report...</h2><p>Loading your authorized attendance records.</p></body></html>");
+    printWindow.document.write(buildPdfPreparationDocument("attendance", document.documentElement.dataset.theme === "dark" ? "dark" : "light"));
     printWindow.document.close();
     try {
       if (!targetId && user.role !== "EMPLOYEE") throw new Error("Select a workforce member first.");
@@ -217,6 +249,7 @@ export function ReportsWorkspace() {
         <div className="organization-monthly-summary"><strong>{monthSpan || "—"}</strong><span><b>{monthSpan === 1 ? "calendar month selected" : "calendar months selected"}</b><small>Maximum 24 per report</small></span></div>
       </div>
       <div className="organization-monthly-footer"><p><span className="report-timezone-dot" /> Organization timezone <strong>{timeZone}</strong><span className="report-footer-separator">·</span> Future dates are excluded.</p><Button variant="primary" leading={<ArrowDownToLine size={14} />} busy={monthlyDownloading} disabled={!monthSpan || monthSpan > 24} onClick={() => void downloadOrganizationSeries()}>Download combined PDF</Button></div>
+      {monthlyDownloading ? <PdfPreparationIndicator label="Generating attendance report(s)" className="pdf-preparation-indicator-workspace" /> : null}
       {monthSpan > 24 ? <p className="field-hint" role="alert">Choose a range of 24 months or fewer.</p> : null}
     </Panel> : null}
     <Panel className="panel-pad individual-report-panel">
@@ -251,6 +284,7 @@ export function ReportsWorkspace() {
         <p><span className="report-timezone-dot" /> Organization timezone <strong>{timeZone}</strong><span className="report-footer-separator">·</span> Maximum span 24 months</p>
         <div className="report-action-group"><Button variant="secondary" leading={<FileBarChart size={14} />} busy={generating} disabled={loadingTargets || (!targetId && user.role !== "EMPLOYEE")} onClick={() => void generate()}>Preview report</Button><Button variant="primary" leading={<ArrowDownToLine size={14} />} busy={downloading} disabled={loadingTargets || (!targetId && user.role !== "EMPLOYEE")} onClick={() => void downloadPdf()}>Download PDF</Button></div>
       </div>
+      {generating || downloading ? <PdfPreparationIndicator label="Generating attendance report(s)" className="pdf-preparation-indicator-workspace" /> : null}
     </Panel>
     {report ? <>
       <div className="report-kpis"><Panel className="metric-card"><span className="metric-label">Attendance days recorded</span><strong className="metric-value">{report.attendanceRecordCount ?? 0}</strong></Panel><Panel className="metric-card"><span className="metric-label">Hours worked</span><strong className="metric-value">{totalWorkedHours.toFixed(1)}</strong></Panel><Panel className="metric-card"><span className="metric-label">Approved overtime hours</span><strong className="metric-value">{totalPayableOvertime.toFixed(1)}</strong></Panel></div>
