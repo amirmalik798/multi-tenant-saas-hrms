@@ -542,7 +542,7 @@ export function PersonalMyDayWorkspace() {
   }, [todayEntry, todaysEvents]);
 
   return (
-    <main className="myday-root">
+    <div className="myday-root">
       <header className="myday-heading-row">
         <div className="myday-heading-copy"><p className="eyebrow">{user.role === "EMPLOYEE" ? "EMPLOYEE WORKSPACE" : user.role === "HR_MANAGER" ? "HR MANAGER · PERSONAL WORKSPACE" : "DEPARTMENT MANAGER · PERSONAL WORKSPACE"}</p><h1>{greeting}, {firstName}</h1><p>Your day, your time, and everything that needs your attention.</p></div>
         <div className="myday-context"><span className="myday-org-chip"><span className="myday-org-dot" />{user.organizationName}</span><span className="myday-date-chip"><CalendarDays size={15} />{today ? formatDate(today) : "Work date unavailable"}</span></div>
@@ -1079,7 +1079,7 @@ export function PersonalMyDayWorkspace() {
           </div>
         ) : null}
       </Drawer>
-    </main>
+    </div>
   );
 }
 
