@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Activity, AlertCircle, ArrowRight, ArrowUpRight, Building2, CalendarClock, CheckCircle2, Clock3, FileClock, Mail, ShieldCheck, Users, Wallet } from "lucide-react";
+import { Activity, AlertCircle, ArrowRight, Building2, CalendarClock, Clock3, FileClock, Mail, ShieldCheck, Users } from "lucide-react";
 import { useWorkspace } from "@/components/layout/WorkspaceGate";
 import { Panel, PanelHeading } from "@/components/ui/Panel";
 import { PageHeader } from "@/components/ui/PageHeader";

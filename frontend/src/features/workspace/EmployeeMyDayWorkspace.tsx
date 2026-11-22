@@ -108,7 +108,8 @@ function buildRequests(snapshot: MyDaySnapshot): HomeRequest[] {
 
 export function EmployeeMyDayWorkspace() {
   const { user, timeZone, workDate, timeZoneStatus, currencyCode } = useWorkspace();
-  const today = workDate || (timeZoneStatus === "ready" ? getISODateInTimeZone(timeZone) : "");
+  const [calendarToday, setCalendarToday] = useState<string | null>(null);
+  const today = calendarToday || workDate || (timeZoneStatus === "ready" ? getISODateInTimeZone(timeZone) : "");
   const [snapshot, setSnapshot] = useState<MyDaySnapshot>(EMPTY_SNAPSHOT);
   const [loading, setLoading] = useState(true);
   const [criticalError, setCriticalError] = useState("");
@@ -149,6 +150,9 @@ export function EmployeeMyDayWorkspace() {
       notifications: results[6].status === "fulfilled" ? results[6].value : null,
     };
     setSnapshot(next);
+    if (next.calendar?.today && /^\\d{4}-\\d{2}-\\d{2}$/.test(next.calendar.today) && next.calendar.today !== today) {
+      setCalendarToday(next.calendar.today);
+    }
     setCriticalError(!next.calendar || !next.punches
       ? "Today's attendance could not be fully loaded. Clock actions remain disabled until the server confirms your status."
       : "");
