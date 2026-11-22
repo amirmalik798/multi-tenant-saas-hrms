@@ -92,9 +92,10 @@ export function WorkforceWorkspace() {
   const [selected, setSelected] = useState<Employee | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [notice, setNotice] = useState("");
+  const [noticeIsError, setNoticeIsError] = useState(false);
   const [statusTarget, setStatusTarget] = useState<Employee | null>(null);
   const [statusSaving, setStatusSaving] = useState(false);
-  const canCreate = user.role === "ORGANIZATION_ADMIN" || (user.role === "HR_MANAGER" && user.permissions.includes("employee.create"));
+  const canCreate = user.role === "ORGANIZATION_ADMIN" || (user.role === "HR_MANAGER" && user.permissions.includes("employee.create") && user.permissions.includes("user.invite"));
   const canEdit = user.role === "ORGANIZATION_ADMIN" || (user.role === "HR_MANAGER" && user.permissions.includes("employee.update"));
   const canInvite = user.role === "ORGANIZATION_ADMIN" || (user.role === "HR_MANAGER" && user.permissions.includes("employee.create") && user.permissions.includes("user.invite"));
   const canChangeStatus = user.role === "ORGANIZATION_ADMIN"
@@ -209,6 +210,7 @@ export function WorkforceWorkspace() {
       await apiRequest(`/employees/${encodeURIComponent(statusTarget.id)}`, {
         method: "PATCH", body: JSON.stringify({ employment_status: nextStatus }),
       });
+      setNoticeIsError(false);
       setNotice(`${statusTarget.first_name} ${statusTarget.last_name} is now ${nextStatus.toLowerCase()}.`);
       setStatusTarget(null);
       await load();
@@ -222,7 +224,7 @@ export function WorkforceWorkspace() {
 
   return <>
     <PageHeader eyebrow="People" title={title} description={user.role === "DEPARTMENT_MANAGER" ? "A focused directory of employees in your assigned departments." : "A single, searchable place to manage employee records and work relationships."} action={headerAction} />
-    {notice ? <div className="info-callout" style={{ marginBottom: 14 }}>{notice}</div> : null}
+    {notice ? <div className={noticeIsError ? "form-error" : "info-callout"} role={noticeIsError ? "alert" : "status"} style={{ marginBottom: 14 }}>{notice}</div> : null}
     <Panel>
       <div className="toolbar">
         <div className="toolbar-left"><label className="search-field"><Search size={15} /><input aria-label="Search workforce" placeholder="Search name, code, email, role…" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} /><kbd style={{ color: "var(--subtle)", fontSize: 9 }}>⌕</kbd></label>
@@ -279,12 +281,12 @@ export function WorkforceWorkspace() {
         </div>;
       })() : null}
     </Drawer>
-    <EmployeeDrawer open={drawerMode === "create" || drawerMode === "edit"} mode={drawerMode === "edit" ? "edit" : "create"} employee={selected} loading={detailLoading} departments={departments} managers={managerOptions} departmentOptionsError={departmentOptionsError} managerOptionsError={managerOptionsError} onClose={() => { setDrawerMode(null); setSelectedId(null); }} onSaved={() => { setDrawerMode(null); setSelectedId(null); setNotice("Workforce record saved."); void load(); setTimeout(() => setNotice(""), 4500); }} />
-    <EmployeeDetailsDrawer open={drawerMode === "details"} employee={selected} loading={detailLoading} error={error} canInvite={canInvite} onClose={() => { setDrawerMode(null); setSelectedId(null); setError(""); }} onInviteComplete={() => { setNotice("Invitation sent successfully."); void load(); setTimeout(() => setNotice(""), 4500); }} onEdit={canEdit ? () => { if (selectedId) void openDetails(selectedId, "edit"); } : undefined} />
+    <EmployeeDrawer open={drawerMode === "create" || drawerMode === "edit"} mode={drawerMode === "edit" ? "edit" : "create"} employee={selected} loading={detailLoading} departments={departments} managers={managerOptions} departmentOptionsError={departmentOptionsError} managerOptionsError={managerOptionsError} onClose={() => { setDrawerMode(null); setSelectedId(null); }} onSaved={(message, isError = false) => { setDrawerMode(null); setSelectedId(null); setNoticeIsError(isError); setNotice(message); void load(); setTimeout(() => setNotice(""), 4500); }} />
+    <EmployeeDetailsDrawer open={drawerMode === "details"} employee={selected} loading={detailLoading} error={error} canInvite={canInvite} onClose={() => { setDrawerMode(null); setSelectedId(null); setError(""); }} onInviteComplete={() => { setNoticeIsError(false); setNotice("Invitation sent successfully."); void load(); setTimeout(() => setNotice(""), 4500); }} onEdit={canEdit ? () => { if (selectedId) void openDetails(selectedId, "edit"); } : undefined} />
   </>;
 }
 
-function EmployeeDrawer({ open, mode, employee, loading, departments, managers, departmentOptionsError, managerOptionsError, onClose, onSaved }: { open: boolean; mode: "create" | "edit"; employee: Employee | null; loading: boolean; departments: DepartmentOption[]; managers: Employee[]; departmentOptionsError: string; managerOptionsError: string; onClose: () => void; onSaved: () => void }) {
+function EmployeeDrawer({ open, mode, employee, loading, departments, managers, departmentOptionsError, managerOptionsError, onClose, onSaved }: { open: boolean; mode: "create" | "edit"; employee: Employee | null; loading: boolean; departments: DepartmentOption[]; managers: Employee[]; departmentOptionsError: string; managerOptionsError: string; onClose: () => void; onSaved: (message: string, isError?: boolean) => void }) {
   const { user, workDate, timeZone } = useWorkspace();
   const dateContextRef = useRef({ workDate, timeZone });
   dateContextRef.current = { workDate, timeZone };
@@ -377,19 +379,34 @@ function EmployeeDrawer({ open, mode, employee, loading, departments, managers, 
     try {
       if (mode === "create") {
         if (user.role === "HR_MANAGER" && form.workforce_role === "HR_MANAGER") throw new Error("HR Managers cannot create another HR Manager profile.");
-        await apiRequest("/employees", { method: "POST", body: JSON.stringify(body) });
+        const created = await apiRequest<{ employee?: { id?: string } }>("/employees", { method: "POST", body: JSON.stringify(body) });
+        const employeeId = created.employee?.id;
+        if (!employeeId) {
+          onSaved("The workforce profile was created, but its invitation could not be started because the new profile ID was not returned. Refresh the directory and send the invitation from the profile.", true);
+          return;
+        }
+        try {
+          await apiRequest(`/employees/${encodeURIComponent(employeeId)}/invitation`, {
+            method: "POST",
+            body: JSON.stringify({ roleName: form.workforce_role }),
+          });
+          onSaved("Workforce member created and invitation email sent.");
+        } catch (inviteCaught) {
+          const message = inviteCaught instanceof Error ? inviteCaught.message : "Email delivery failed.";
+          onSaved(`Workforce member created, but the invitation email could not be sent. ${message} Open the member profile and choose “Send invitation” to retry.`, true);
+        }
       } else if (employee) {
         const { workforce_role: _notPatchable, ...editableBody } = body;
         void _notPatchable;
         await apiRequest(`/employees/${employee.id}`, { method: "PATCH", body: JSON.stringify(editableBody) });
+        onSaved("Workforce record saved.");
       }
-      onSaved();
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to save this workforce profile."); }
     finally { setSaving(false); }
   }
 
   const allowRoleChoice = mode === "create";
-  return <Drawer open={open} title={mode === "create" ? "Create workforce member" : "Edit workforce member"} description={mode === "create" ? "Create an inactive workforce profile. Account activation happens through the existing invitation acceptance process." : "Update this person’s work and contact details. Server-side role and field permissions remain authoritative."} onClose={() => { if (!saving) onClose(); }} footer={<><Button variant="secondary" disabled={saving} onClick={onClose}>Cancel</Button><Button variant="primary" busy={saving || loading} onClick={() => document.querySelector<HTMLFormElement>("#employee-profile-form")?.requestSubmit()}>{mode === "create" ? "Create profile" : "Save changes"}</Button></>}>
+  return <Drawer open={open} title={mode === "create" ? "Create workforce member" : "Edit workforce member"} description={mode === "create" ? "Create the profile and immediately send an invitation email. The person’s account becomes active after accepting it." : "Update this person’s work and contact details. Server-side role and field permissions remain authoritative."} onClose={() => { if (!saving) onClose(); }} footer={<><Button variant="secondary" disabled={saving} onClick={onClose}>Cancel</Button><Button variant="primary" busy={saving || loading} onClick={() => document.querySelector<HTMLFormElement>("#employee-profile-form")?.requestSubmit()}>{mode === "create" ? "Create & send invitation" : "Save changes"}</Button></>}>
     {loading ? <div className="loading-state">Loading workforce profile…</div> : <form id="employee-profile-form" onSubmit={submit}>
       {error ? <div className="form-error" role="alert">{error}</div> : null}
       <section className="form-section"><h3 className="form-section-title"><UserRound size={15} /> Personal & employment</h3><div className="form-grid">
@@ -443,7 +460,7 @@ function EmployeeDrawer({ open, mode, employee, loading, departments, managers, 
       <section className="form-section"><button type="button" className="form-section-title" onClick={() => setShowEmergency((value) => !value)} style={{ width: "100%", border: 0, background: "transparent", padding: 0, cursor: "pointer", textAlign: "left" }}><ShieldCheck size={15} /> Emergency contact <span style={{ marginLeft: "auto", color: "var(--accent)", fontSize: 10 }}>{showEmergency ? "Hide" : "Add details"}</span></button>
         {showEmergency ? <div className="form-grid" style={{ marginTop: 13 }}><Field label="Contact name"><TextInput value={form.emergency_contact_name} onChange={(e) => update("emergency_contact_name", e.target.value)} /></Field><Field label="Relationship"><TextInput value={form.emergency_contact_relationship} onChange={(e) => update("emergency_contact_relationship", e.target.value)} /></Field><Field label="Contact phone"><TextInput value={form.emergency_contact_phone} onChange={(e) => update("emergency_contact_phone", e.target.value)} /></Field></div> : <p className="form-section-description">Optional information. Reveal only when you need to record it.</p>}
       </section>
-      {mode === "create" ? <div className="form-note"><ShieldCheck size={15} /> New workforce profiles are created as inactive. The person becomes an active account only after completing the existing invitation flow.</div> : null}
+      {mode === "create" ? <div className="form-note"><ShieldCheck size={15} /> An invitation email is sent to this address immediately after the profile is created. The person becomes active only after completing the invitation acceptance process.</div> : null}
     </form>}
   </Drawer>;
 }
