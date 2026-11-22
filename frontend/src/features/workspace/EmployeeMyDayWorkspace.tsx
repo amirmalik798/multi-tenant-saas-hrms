@@ -182,8 +182,9 @@ export function EmployeeMyDayWorkspace() {
   const remainingMinutes = Math.max(0, scheduledMinutes - regularMinutes);
   const approvedLeaveToday = todayEntry?.leaveRequest?.status === "APPROVED";
   const holidayToday = Boolean(todayEntry?.publicHoliday);
-  const canPunch = Boolean(todayEntry?.expectedStart && todayEntry.expectedEnd) &&
-    statusKnown && !savingPunch && !approvedLeaveToday && !holidayToday;
+  const canPunch = statusKnown && !savingPunch && (isClockedIn || (
+    Boolean(todayEntry?.expectedStart && todayEntry.expectedEnd) && !approvedLeaveToday && !holidayToday
+  ));
 
   const weekStart = today ? mondayOf(today) : "";
   const weekDays = useMemo(() => weekStart ? Array.from({ length: 7 }, (_, index) => {
@@ -281,7 +282,7 @@ export function EmployeeMyDayWorkspace() {
           </div>
           <div className="myday-attendance-actions">
             <Button type="button" size="lg" className={"myday-clock-button " + (isClockedIn ? "is-clock-out" : "is-clock-in")} busy={savingPunch} disabled={!canPunch || loading} onClick={() => void punch()} leading={<Clock3 size={18} />}>{savingPunch ? "Recording attendance…" : isClockedIn ? "Clock out" : "Clock in"}</Button>
-            <span className="myday-clock-hint">{approvedLeaveToday || holidayToday ? "Attendance actions are unavailable for approved leave or a public holiday." : todayEntry?.expectedStart ? "Your shift and attendance rules are verified by HRMS." : "No active shift is assigned for today."}</span>
+            <span className="myday-clock-hint">{isClockedIn ? "Clock-out remains available so an open attendance session can always be closed." : approvedLeaveToday || holidayToday ? "Clock-in is unavailable for approved leave or a public holiday." : todayEntry?.expectedStart ? "Your shift and attendance rules are verified by HRMS." : "No active shift is assigned for today."}</span>
           </div>
           {punchError ? <p className="myday-inline-error" role="alert">{punchError}</p> : null}
           {todayEntry?.calculationStatus === "REVIEW_REQUIRED" ? <Link className="myday-review-link" href="/employee/requests"><AlertCircle size={15} />Your attendance needs review<ChevronRight size={15} /></Link> : null}
