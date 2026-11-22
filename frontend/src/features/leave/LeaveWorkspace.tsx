@@ -55,7 +55,7 @@ export function LeaveWorkspace() {
     if (holidayResult.status === "fulfilled") { setHolidays(holidayResult.value.holidays ?? []); setCanManageHolidays(Boolean(holidayResult.value.canManage)); }
     else errors.push(holidayResult.reason instanceof Error ? holidayResult.reason.message : "Unable to load public holidays.");
     setError(errors.join(" · "));
-    if (!silent && requestId === loadSequenceRef.current) setLoading(false);
+    if (requestId === loadSequenceRef.current) setLoading(false);
   }, []);
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
