@@ -4491,3 +4491,30 @@ body {
  .myday-month-chart-legend span{font-size:8px}
  .myday-month-chart-hint{font-size:9px}
 }
+
+
+/* Employee My Day — selectable monthly insights */
+.myday-monthly-heading{align-items:flex-start}
+.myday-month-panel-actions{display:flex;flex-direction:column;align-items:flex-end;gap:10px;flex:0 0 auto}
+.myday-month-navigation{display:flex;align-items:center;gap:7px;padding:5px;border:1px solid var(--border);border-radius:12px;background:var(--surface-muted)}
+.myday-month-nav-button{display:grid;place-items:center;width:31px;height:31px;border:1px solid var(--border);border-radius:8px;color:var(--text-strong);background:var(--surface);cursor:pointer;transition:background .15s ease,border-color .15s ease,color .15s ease}
+.myday-month-nav-button:hover:not(:disabled){border-color:var(--accent);color:var(--accent-strong);background:var(--accent-soft)}
+.myday-month-nav-button:disabled{opacity:.35;cursor:not-allowed}
+.myday-month-current{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:112px;gap:2px;padding:0 5px}
+.myday-month-current strong{color:var(--text-strong);font-size:11px;font-weight:780;white-space:nowrap}
+.myday-month-current span{color:var(--muted);font-size:9px}
+.myday-month-current-button{display:inline-flex;align-items:center;gap:5px;min-height:31px;padding:0 9px;border:1px solid color-mix(in srgb,var(--accent) 28%,var(--border));border-radius:8px;color:var(--accent-strong);background:var(--accent-soft);font-size:10px;font-weight:720;cursor:pointer;white-space:nowrap}
+.myday-month-current-button:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--surface))}
+.myday-month-nav-button:focus-visible,.myday-month-current-button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:850px){
+ .myday-monthly-heading{flex-direction:column}
+ .myday-month-panel-actions{align-items:flex-start;width:100%}
+ .myday-month-panel-actions>.myday-text-link{align-self:flex-end}
+}
+@media(max-width:600px){
+ .myday-month-navigation{max-width:100%;gap:5px}
+ .myday-month-current{min-width:98px}
+ .myday-month-current strong{font-size:10px}
+ .myday-month-nav-button{width:29px;height:29px}
+ .myday-month-current-button{min-height:29px;padding:0 7px;font-size:9px}
+}

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle, ArrowRight, CalendarCheck, CalendarClock, CalendarDays,
-  CheckCircle2, ChevronRight, Clock3, Coffee, FileClock, Mail,
+  CheckCircle2, ChevronLeft, ChevronRight, Clock3, Coffee, FileClock, Mail,
   MessageCircle, Sparkles, Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -107,6 +107,15 @@ function addCalendarDays(value: string, amount: number): string {
   date.setUTCDate(date.getUTCDate() + amount);
   return date.toISOString().slice(0, 10);
 }
+function addCalendarMonths(value: string, amount: number): string {
+  const [year, month] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1 + amount, 1));
+  return date.getUTCFullYear() + "-" + String(date.getUTCMonth() + 1).padStart(2, "0");
+}
+function lastDateOfMonth(value: string): string {
+  const [year, month] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+}
 function mondayOf(value: string): string {
   const date = new Date(value + "T12:00:00.000Z");
   date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1));
@@ -197,12 +206,43 @@ export function EmployeeMyDayWorkspace() {
   const [selectedShift, setSelectedShift] = useState<SelectedShift | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<HomeRequest | null>(null);
   const [selectedMonthDay, setSelectedMonthDay] = useState<EarningsDay | null>(null);
-  const [clockNow, setClockNow] = useState(() => Date.now());
+  const [selectedInsightsMonth, setSelectedInsightsMonth] = useState<string | null>(null);
+  const [monthlyEarningsState, setMonthlyEarningsState] = useState<{
+    month: string;
+    payload: EarningsPayload | null;
+    loading: boolean;
+    error: string;
+  }>({ month: "", payload: null, loading: false, error: "" });
+  const currentMonth = today ? today.slice(0, 7) : "";
+  const activeInsightsMonth = selectedInsightsMonth || currentMonth;
+  const clockNowState = useState(() => Date.now());
+  const clockNow = clockNowState[0];
+  const setClockNow = clockNowState[1];
 
   useEffect(() => {
     const timer = window.setInterval(() => setClockNow(Date.now()), 15000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!activeInsightsMonth || timeZoneStatus !== "ready") return;
+    let active = true;
+    setMonthlyEarningsState({ month: activeInsightsMonth, payload: null, loading: true, error: "" });
+    apiRequest<EarningsPayload>("/employee/earnings?month=" + activeInsightsMonth)
+      .then((payload) => {
+        if (active) setMonthlyEarningsState({ month: activeInsightsMonth, payload, loading: false, error: "" });
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setMonthlyEarningsState({
+          month: activeInsightsMonth,
+          payload: null,
+          loading: false,
+          error: error instanceof Error ? error.message : "Unable to load attendance for this month.",
+        });
+      });
+    return () => { active = false; };
+  }, [activeInsightsMonth, timeZoneStatus]);
 
   const load = useCallback(async (silent = false) => {
     if (!today || timeZoneStatus !== "ready") {
@@ -313,15 +353,26 @@ export function EmployeeMyDayWorkspace() {
       : snapshot.earnings?.hasRates === false
         ? "Pay rates not set"
         : "Estimate unavailable";
+  const monthlyEarnings = monthlyEarningsState.month === activeInsightsMonth
+    ? monthlyEarningsState.payload
+    : null;
+  const monthlyEarningsLoading = !activeInsightsMonth || monthlyEarningsState.month !== activeInsightsMonth || monthlyEarningsState.loading;
+  const monthlyEarningsError = monthlyEarningsState.month === activeInsightsMonth ? monthlyEarningsState.error : "";
+  const isCurrentInsightsMonth = Boolean(activeInsightsMonth && activeInsightsMonth === currentMonth);
+  const insightsMonthEnd = activeInsightsMonth
+    ? isCurrentInsightsMonth ? today : lastDateOfMonth(activeInsightsMonth)
+    : "";
+  const canGoToPreviousMonth = activeInsightsMonth > "2000-01";
+  const canGoToNextMonth = Boolean(activeInsightsMonth && activeInsightsMonth < currentMonth);
   const monthLabel = useMemo(() => {
-    if (!today) return "This month";
-    const firstDay = new Date(today.slice(0, 7) + "-01T12:00:00.000Z");
+    if (!activeInsightsMonth) return "Select a month";
+    const firstDay = new Date(activeInsightsMonth + "-01T12:00:00.000Z");
     return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(firstDay);
-  }, [today]);
-  const monthlyDays = useMemo(() => (snapshot.earnings?.days ?? [])
-    .filter((day) => day.workDate.slice(0, 7) === today.slice(0, 7) && day.workDate <= today)
+  }, [activeInsightsMonth]);
+  const monthlyDays = useMemo(() => (monthlyEarnings?.days ?? [])
+    .filter((day) => day.workDate.slice(0, 7) === activeInsightsMonth && day.workDate <= insightsMonthEnd)
     .sort((a, b) => a.workDate.localeCompare(b.workDate)),
-  [snapshot.earnings, today]);
+  [monthlyEarnings, activeInsightsMonth, insightsMonthEnd]);
   const monthTotalWorked = monthlyDays.reduce((sum, day) => sum + Number(day.workedMinutes ?? 0), 0);
   const monthDaysWorked = monthlyDays.filter((day) => Number(day.workedMinutes ?? 0) > 0).length;
   const monthRegularWorked = monthlyDays.reduce((sum, day) => sum + Number(day.regularWorkedMinutes ?? 0), 0);
@@ -560,24 +611,50 @@ export function EmployeeMyDayWorkspace() {
       </section>
 
       <section className="myday-panel myday-monthly-panel">
-        <div className="myday-panel-heading">
+        <div className="myday-panel-heading myday-monthly-heading">
           <div>
             <span className="myday-section-kicker">YOUR MONTH</span>
             <h2>Monthly attendance insights</h2>
-            <p>{monthLabel} · Your recorded work and approved paid time, month to date.</p>
+            <p>{monthLabel} · {isCurrentInsightsMonth ? "Recorded work and approved paid time, month to date." : "Full-month attendance and approved paid time."}</p>
           </div>
-          <Link href="/employee/reports" className="myday-text-link">Attendance reports <ArrowRight size={14} /></Link>
+          <div className="myday-month-panel-actions">
+            <div className="myday-month-navigation" aria-label="Choose attendance insights month">
+              <button
+                type="button"
+                className="myday-month-nav-button"
+                aria-label="Previous month"
+                title="Previous month"
+                disabled={!canGoToPreviousMonth}
+                onClick={() => setSelectedInsightsMonth(addCalendarMonths(activeInsightsMonth, -1))}
+              ><ChevronLeft size={16} /></button>
+              <div className="myday-month-current"><strong>{monthLabel}</strong><span>{isCurrentInsightsMonth ? "Month to date" : "Full month"}</span></div>
+              <button
+                type="button"
+                className="myday-month-nav-button"
+                aria-label="Next month"
+                title="Next month"
+                disabled={!canGoToNextMonth}
+                onClick={() => setSelectedInsightsMonth(addCalendarMonths(activeInsightsMonth, 1))}
+              ><ChevronRight size={16} /></button>
+              {!isCurrentInsightsMonth ? (
+                <button type="button" className="myday-month-current-button" onClick={() => setSelectedInsightsMonth(currentMonth)}>
+                  <CalendarDays size={14} /> Current
+                </button>
+              ) : null}
+            </div>
+            <Link href="/employee/reports" className="myday-text-link">Attendance reports <ArrowRight size={14} /></Link>
+          </div>
         </div>
 
-        {loading && !snapshot.earnings ? (
+        {monthlyEarningsLoading ? (
           <div className="myday-monthly-loading" role="status" aria-label="Loading monthly attendance insights">
             {Array.from({ length: 5 }, (_, index) => <div className="myday-month-metric-skeleton" key={index}><MyDaySkeleton className="myday-skeleton-row-detail" /><MyDaySkeleton className="myday-skeleton-stat" /></div>)}
           </div>
-        ) : !snapshot.earnings ? (
+        ) : !monthlyEarnings ? (
           <div className="myday-empty-state">
             <span><AlertCircle size={21} /></span>
             <strong>Monthly attendance insights unavailable</strong>
-            <small>Your monthly attendance breakdown could not be retrieved. It will retry automatically.</small>
+            <small>{monthlyEarningsError || "Your monthly attendance breakdown could not be retrieved. It will retry automatically."}</small>
           </div>
         ) : (
           <>
@@ -616,13 +693,13 @@ export function EmployeeMyDayWorkspace() {
 
             <div className="myday-month-chart-heading">
               <div><strong>Daily recorded work</strong><span>Actual worked hours for each day of the month</span></div>
-              <span className="myday-month-chart-unit">Hours · month to date</span>
+              <span className="myday-month-chart-unit">Hours · {isCurrentInsightsMonth ? "month to date" : "full month"}</span>
             </div>
             {!hasMonthlyAttendance ? (
               <div className="myday-empty-state myday-month-chart-empty">
                 <span><CalendarDays size={21} /></span>
-                <strong>No recorded work yet this month</strong>
-                <small>Daily attendance bars will appear as work is recorded.</small>
+                <strong>No attendance activity in {monthLabel}</strong>
+                <small>Daily attendance bars will appear when work, paid leave or scheduled assignments are recorded in this month.</small>
               </div>
             ) : (
               <>
