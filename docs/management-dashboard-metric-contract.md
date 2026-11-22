@@ -193,3 +193,19 @@ The new endpoint is `GET /api/management-dashboard/workforce-composition`. It us
 
 **Movement audit result:** `writeEmployeeHistory` writes an event type and before/after snapshots but does not pass an `effective_at` value in its insert. The employee-history reader sorts by `effective_at`, but the checked-in source did not expose a table definition/default that proves its semantics. The employee creation flow writes `PROFILE_CREATED` while the profile is `INACTIVE` pending invitation acceptance; the acceptance flow later writes `INVITATION_ACCEPTED` with a transition to `ACTIVE`. Profile edits write `EMPLOYMENT_STATUS_CHANGED` for status changes. The profile `joining_date` is supplied by the user during profile creation and therefore is not proof of actual activation. Former employees cannot be reactivated through the ordinary profile edit flow, and no verified rehire/separation effective-date contract was found. Joiners, departures, reactivations and turnover are consequently deferred; no date is inferred from `created_at`, `joining_date` or an unverified `effective_at` default.
 
+
+
+## 11. Step 9 leave and workforce availability
+
+The additive endpoint is GET /api/management-dashboard/leave-availability. It uses the Step 6 canonical active workforce population, the shared authenticated scope mapper and one read-only database snapshot. The selected inclusive organization-local date range is limited to 31 days. An optional department selection may narrow the authenticated scope only after the server validates it.
+
+- Approved requests count current APPROVED requests whose inclusive dates overlap the selected range.
+- People with approved leave counts distinct active workforce members with at least one overlapping approved request.
+- Approved calendar days sums inclusive calendar-date overlap per approved request. It is not scheduled-work-day entitlement, paid-leave credit, or payroll.
+- Upcoming leave counts approved requests and distinct people whose request begins after the organization's current local work date, and calendar days falling in the selected period.
+- Actionable pending reviews count pending requests overlapping the period only when the current role can decide them. The actor's own requests are excluded. HR Managers and Department Managers also exclude the HR-target roles excluded by the existing leave PATCH workflow. Department Managers are restricted to assigned departments.
+- Availability is based only on active employees with an effective assignment to an ACTIVE schedule and a matching weekday. Approved leave makes an otherwise scheduled employee-day unavailable. Public-holiday employee-days are displayed separately and removed from the rate denominator. The rate is available scheduled employee-days divided by scheduled employee-days excluding public holidays.
+- Today shows people on approved leave separately from scheduled employees, scheduled employees on leave, public-holiday shifts and available scheduled employees. People without an applicable schedule are not treated as available.
+- No confirmed absence, staffing gap, leave entitlement, paid leave amount or employee-level leave detail is inferred or exposed.
+
+The 100,000 scheduled employee-day and pending-review row limits return an explicit error rather than a partial summary. The ManagementDashboardLeaveAvailability component is exported but remains unmounted until Step 12. No database migration or new dependency was introduced, and existing leave APIs, approval actions, dashboards and personal My Day remain unchanged.

@@ -45,3 +45,9 @@ export type {
 } from "./ManagementDashboardAttendanceAnalytics";
 
 export { ManagementDashboardWorkforceComposition } from "./ManagementDashboardWorkforceComposition";
+
+export { ManagementDashboardLeaveAvailability } from "./ManagementDashboardLeaveAvailability";
+
+export type {
+  ManagementDashboardLeaveAvailabilityProps,
+} from "./ManagementDashboardLeaveAvailability";

@@ -86,3 +86,12 @@ It uses the existing theme tokens and responsive styles and adds no chart depend
 
 The backend reconciles all composition totals against the existing Step 6 workforce-summary service inside the same database snapshot. The section is exported but remains unmounted in the live dashboards until Step 12. It introduces no chart package or database migration.
 
+
+
+## 9. Leave and availability composite section (Step 9)
+
+ManagementDashboardLeaveAvailability reuses the shared section heading, metric cards, responsive grids, chart panel, panel, skeleton and error-state primitives. It reads only the new role-scoped /api/management-dashboard/leave-availability endpoint and accepts inclusive reporting dates plus an optional narrowing department from its parent.
+
+The section distinguishes actionable pending reviews, approved requests, distinct people with approved leave, inclusive approved calendar days, upcoming approved leave and scheduled availability. It includes a daily stacked availability trend and a current-day summary that separates people on leave from the employees who have an active scheduled shift today.
+
+The trend separates available scheduled employee-days, approved-leave scheduled employee-days and public-holiday scheduled employee-days. Its rate denominator excludes public holidays. All chart values retain text labels and N/A states; no chart dependency is added. The component is exported but intentionally unmounted until Step 12. Personal My Day and the existing leave workflows are untouched.

@@ -136,3 +136,16 @@ The new context endpoint is not yet wired into the visible dashboards. It establ
 - The context loader returns only tenant metadata and role-authorized department context.
 - The new endpoint does not replace or modify any existing endpoint.
 - No visible dashboard or personal My Day workflow is changed.
+
+
+## 9. Leave and workforce availability (Step 9)
+
+GET /api/management-dashboard/leave-availability adds a role-scoped leave and schedule availability summary using the existing leave, employee schedule assignment, active work schedule, schedule weekday and public holiday tables. It does not modify the leave workflow, leave policy, personal leave feed, or any existing dashboard endpoint.
+
+The service uses the Step 6 active canonical workforce population: active employees in the authenticated tenant, excluding the three canonical organization-administrator workforce role names and retaining the established EMPLOYEE fallback for missing roles. Department Manager scope is still an EXISTS relationship to departments managed by the authenticated employee ID. A selected department can narrow this set only after server-side validation.
+
+The selected period is inclusive and limited to 31 calendar days. Approved request counts, distinct people and calendar days are separate values. Calendar days are inclusive overlap with the selected range and are not leave entitlement, paid-leave credit or scheduled workdays. Upcoming values include only approved leave beginning after the organization's local work date. Pending review counts follow the existing decision route: the actor's own requests are excluded; HR Managers and Department Managers also exclude HR-target roles; Department Managers see only requests for employees in their managed departments.
+
+Availability is computed only for active employees with an effective assignment to an ACTIVE schedule and a matching weekday. A scheduled employee-day with approved leave is unavailable. A scheduled employee-day on a public holiday is counted separately and removed from the availability-rate denominator. Availability rate is available scheduled employee-days divided by scheduled employee-days excluding public holidays. Employees without an applicable schedule are not assumed available. No absence or staffing-gap metric is inferred.
+
+The frontend ManagementDashboardLeaveAvailability composite section is exported but remains unmounted until Step 12. The endpoint and component add no migration, dependency, write operation, or new permission.
