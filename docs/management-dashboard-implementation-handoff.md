@@ -411,21 +411,31 @@ Do not replace these data sources until the replacement has been verified agains
 
 ## 9. Verification status at this handoff
 
-- Steps 2–13 are committed on `main`. Step 10 implementation commit: `5fa195a6f6158e0d1d70aa32d8f34d61ab79b954`. Step 11 implementation commit: `7d11a2b0ef0b1909acd283c2bb2cdfcd36e8f508`. Step 12 implementation commit: `c47f7651548a2e86b880b23cab72c7773746370a`.
-- Step 6's shared workforce-summary source is mounted as the canonical workforce KPI section in all three management dashboards by Step 12.
-- Step 7 adds the role-scoped attendance summary and reusable attendance analytics component; the UI is mounted in Step 12 with the shared 31-day reporting-range validation.
-- Step 8 adds workforce-composition analytics using the Step 6 population, with current status, department, unassigned and role totals reconciled to the shared workforce KPI source.
-- Step 8's employee-history audit did not establish authoritative effective dates for joining, departure or rehire; movement and turnover remain deferred rather than inferred.
-- Step 9 adds the snapshot-backed leave-availability endpoint and exported opt-in component. It distinguishes approved requests, distinct people, inclusive calendar days, upcoming approved leave and scheduled availability.
-- Step 10 adds `GET /api/management-dashboard/payroll-overtime?month=YYYY-MM` and the snapshot-backed `loadManagementDashboardPayrollOvertimeSummary` service.
-- Step 11 adds `GET /api/management-dashboard/action-center` and `loadManagementActionCenterSummary`, with independently resilient counts for pending invitations, attendance corrections, advance overtime and leave. Counts apply existing tenant/role/self-exclusion rules; a failed queue is unavailable rather than zero. Existing workflow routes remain the action destinations. The component is mounted in Step 12.
-- Payroll amount scope mirrors the existing salary-payment GET route: Organization Admin sees eligible Employees, Department Managers and HR Managers; HR Manager sees eligible Employees and Department Managers excluding self and HR targets; Department Manager sees eligible Employee-role members in assigned departments only.
-- Department Managers do not gain workforce payslip access. The endpoint returns aggregate amounts only, grouped by currency; estimated payable, recorded PAID and recorded UNPAID amounts remain separate.
-- Overtime preauthorization requests follow the existing overtime-request GET scope; worked actual/payable/unapproved minutes use the Step 7 active scheduled workforce and attendance calculation; persisted excess-review cases follow the existing excess-review GET scope and are read without triggering its materialization behavior.
-- `ManagementDashboardPayrollOvertime` is mounted in Step 12 as an aggregate-only section. It does not change any existing payment action, payslip route or approval workflow.
-- Steps 7–11 have source-level checks only. Step 10 passed 31/31 targeted source checks. Step 11 received source-contract review; no frontend/backend build, database/API runtime verification, browser testing or full regression suite has been run. Do not describe these changes as runtime-certified.
-- Step 10 adds no database migration, new dependency, new permission or write operation. Existing payroll and overtime routes remain unchanged.
-- Full regression testing remains gated until the user says **`lets test now`**.
+### Implementation status
+
+- Steps 1–13 have implementation artifacts on `main`: Step 1 is the recorded audit/blueprint; Steps 2–13 are represented by the metric contract, secure data foundation, shared UI, six server-backed management sections, role-specific integration, and drill-down/reporting work described above.
+- All six management sections are mounted in `WorkspaceDashboard.tsx` for Organization Admin, HR Manager and Department Manager. Employee My Day remains the Employee route; HR Manager and Department Manager retain their separate Personal My Day section.
+- Role and tenant scope is derived by the backend from the authenticated actor. Department Manager scope uses the authenticated manager employee ID and assigned-department relationship; browser filters are narrowing controls only.
+- The dashboard summary services use a shared `REPEATABLE READ READ ONLY` snapshot. Action Center queue reads use savepoints so an individual queue failure can be represented as unavailable without poisoning sibling reads.
+- Workforce movement/turnover remains explicitly deferred because the repository does not yet prove authoritative effective-date and rehire/separation semantics. No unsupported movement figures are fabricated.
+- This is an implementation status, not a claim that every feature has passed production verification.
+
+### Audit correction made during final source review
+
+- The shared reporting shell's `isValidDate` regular expression was over-escaped and rejected ordinary ISO dates. It has been corrected to validate four-digit year, two-digit month and day, followed by a real calendar-date check.
+- Fix commit: `b6b9280d34f347fc20a3cfcf52f2020cce5feb9b`.
+
+### Verification evidence and limits
+
+- GitHub source readback was performed against `main` after the date-validation fix. The current source confirms the six sections are mounted and the reporting dates feed attendance/leave; payroll and overtime use the month containing the selected end date.
+- Existing package scripts expose frontend `build`, `lint`, `typecheck`, and `check:source`, plus backend `build` and `lint`. No GitHub Actions workflow files were found in the current repository tree.
+- No successful frontend/backend production build, database/API runtime validation, browser responsive/theme/accessibility test, or full regression run has been established by this audit. Do not describe the implementation as build-certified or runtime-certified.
+- The full regression campaign remains gated until the user explicitly says **`lets test now`**. Narrow checks and targeted bug fixes are permitted before then.
+
+### Step 14 readiness
+
+Step 14 remains open. It must perform build/lint/type checks, targeted API and database reconciliation, desktop/tablet/mobile review in light/dark themes, keyboard/focus/reduced-motion review, loading/empty/unavailable/error/N/A state review, drill-down destination verification, request/performance inspection, and the agreed regression campaign after explicit authorization.
+
 
 ## 10. Relevant commits
 
