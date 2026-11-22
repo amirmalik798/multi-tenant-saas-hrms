@@ -62,8 +62,10 @@ function formatActionTime(value: string | null | undefined, timeZone: string) {
   }
 }
 
-async function readStatus(): Promise<ConfirmedStatus> {
-  const response = await apiRequest<{ clockStatus?: unknown; data?: { clockStatus?: unknown } }>("/attendance/events");
+async function readStatus(role?: WorkspaceRole): Promise<ConfirmedStatus> {
+  if (!role) throw new Error("Your workspace role could not be confirmed.");
+  const scope = role === "HR_MANAGER" || role === "DEPARTMENT_MANAGER" ? "?scope=self" : "";
+  const response = await apiRequest<{ clockStatus?: unknown; data?: { clockStatus?: unknown } }>("/attendance/events" + scope);
   const status = response.clockStatus ?? response.data?.clockStatus;
   if (status !== "CLOCKED_IN" && status !== "CLOCKED_OUT") throw new Error("Your current attendance status could not be confirmed.");
   return status;
@@ -139,7 +141,7 @@ export function WorkspaceClock({
       inFlight = true;
       try {
         try {
-          const next = await readStatus();
+          const next = await readStatus(role);
           if (active) setStatus(next);
         } catch {
           if (active) setStatus("unavailable");
@@ -306,7 +308,7 @@ export function WorkspaceClock({
       ? "is-clock-in"
       : "is-clock-unknown";
   async function performAction() {
-    if (!showAttendanceStatus || submitting || !canPerformClockAction) return;
+    if (!showAttendanceStatus || submitting || !canPerformClockAction || !role) return;
     setSubmitting(true);
     setActionError("");
     setActionNotice("");
@@ -315,7 +317,7 @@ export function WorkspaceClock({
     const expected: ConfirmedStatus = action === "CLOCK_IN" ? "CLOCKED_IN" : "CLOCKED_OUT";
     try {
       await apiRequest("/attendance/events", { method: "POST", body: JSON.stringify({ action }) });
-      const confirmed = await readStatus();
+      const confirmed = await readStatus(role);
       if (confirmed !== expected) throw new Error("The attendance event was submitted, but the new clock status could not be confirmed. Refresh the status before trying again.");
       setStatus(confirmed);
       setActionNotice(action === "CLOCK_IN" ? "Your clock-in was recorded." : "Your clock-out was recorded.");
@@ -324,7 +326,7 @@ export function WorkspaceClock({
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "The attendance action was not accepted.";
       try {
-        const confirmed = await readStatus();
+        const confirmed = await readStatus(role);
         setStatus(confirmed);
         if (confirmed === expected) {
           setActionNotice(action === "CLOCK_IN" ? "Your clock-in was recorded." : "Your clock-out was recorded.");
