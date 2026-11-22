@@ -217,7 +217,7 @@ export function WorkforceWorkspace() {
     } finally { setStatusSaving(false); }
   }
 
-  const headerAction = canCreate ? <Button variant="primary" leading={<Plus size={15} />} onClick={() => { setSelected(null); setDrawerMode("create"); setSelectedId(null); }}>Add workforce member</Button> : undefined;
+  const headerAction = canCreate ? <Button variant="primary" leading={<Plus size={15} />} onClick={() => { detailRequestRef.current += 1; setSelected(null); setSelectedId(null); setDetailLoading(false); setDrawerMode("create"); }}>Add workforce member</Button> : undefined;
   const title = user.role === "DEPARTMENT_MANAGER" ? "My team" : "Workforce";
 
   return <>
@@ -233,7 +233,7 @@ export function WorkforceWorkspace() {
       </div>
       {listError && rows.length > 0 ? <div className="form-error" role="alert" style={{ marginBottom: 12 }}>The latest workforce refresh failed. The rows shown are from the last successful load and may not match the current filters. {listError}</div> : null}
       {error && !rows.length ? <div className="error-state"><div className="state-icon"><X size={18} /></div><h3>Workforce could not be loaded</h3><p>{error}</p><Button variant="secondary" onClick={() => void load()}>Retry</Button></div> : null}
-      {loading && !rows.length ? <TableSkeleton /> : !rows.length && !error ? <div className="empty-state"><div className="state-icon"><Users size={19} /></div><h3>{search || statusFilter !== "ALL" || departmentFilter !== "ALL" ? "No matching people" : "No workforce records yet"}</h3><p>{search || statusFilter !== "ALL" || departmentFilter !== "ALL" ? "Try adjusting your search or filters." : "Workforce profiles will appear here after they have been created."}</p>{canCreate ? <Button size="sm" variant="primary" leading={<Plus size={14} />} onClick={() => { setSelected(null); setSelectedId(null); setDetailLoading(false); setDrawerMode("create"); }}>Add workforce member</Button> : null}</div> : null}
+      {loading && !rows.length ? <TableSkeleton /> : !rows.length && !error ? <div className="empty-state"><div className="state-icon"><Users size={19} /></div><h3>{search || statusFilter !== "ALL" || departmentFilter !== "ALL" ? "No matching people" : "No workforce records yet"}</h3><p>{search || statusFilter !== "ALL" || departmentFilter !== "ALL" ? "Try adjusting your search or filters." : "Workforce profiles will appear here after they have been created."}</p>{canCreate ? <Button size="sm" variant="primary" leading={<Plus size={14} />} onClick={() => { detailRequestRef.current += 1; setSelected(null); setSelectedId(null); setDetailLoading(false); setDrawerMode("create"); }}>Add workforce member</Button> : null}</div> : null}
       {rows.length ? <><div className="table-wrap"><table className="data-table"><thead><tr><th>Person</th><th>Role & department</th><th>Manager</th><th>Employment</th><th>Invitation</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
         {rows.map((person) => <tr key={person.id}>
           <td><button type="button" onClick={() => void openDetails(person.id)} style={{ display: "flex", alignItems: "center", gap: 10, border: 0, padding: 0, background: "transparent", textAlign: "left" }}><ProfilePhoto name={`${person.first_name} ${person.last_name}`} employeeId={person.id} className="user-avatar" /><span><span className="table-primary">{person.first_name} {person.last_name}</span><span className="table-secondary">{person.employee_code} · {person.email}</span></span></button></td>
