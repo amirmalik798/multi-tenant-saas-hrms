@@ -4,7 +4,7 @@
 **Repository:** amirmalik798/multi-tenant-saas-hrms  
 **Active branch:** main  
 **Roadmap:** 14 steps  
-**Current status:** Step 12 complete; Steps 1–12 complete; Steps 13–14 remain
+**Current status:** Step 13 complete; Steps 1–13 complete; Step 14 remains
 
 ## 1. Objective
 
@@ -356,19 +356,30 @@ Do not replace these data sources until the replacement has been verified agains
 
 **Verification boundary:** Source-level checks only. The Action Center queue isolation was strengthened with per-queue savepoints so a PostgreSQL statement error does not poison sibling reads in the shared snapshot. No frontend/backend build, runtime API/database check or browser visual test was run. The full regression campaign remains gated until the user says **`lets test now`**.
 
-### Step 13 of 14 — Interactive drill-downs and reporting
+### Step 13 of 14 — Interactive drill-downs and reporting (implemented)
 
-**Goal:** Make dashboard summaries useful for investigation and action.
+**Status:** Complete; source changes committed to `main` in the Step 13 implementation commit listed below.
 
-**Implementation approach:**
-1. Link each card/chart/table to an existing authorized route whenever possible.
-2. For new drill-downs, implement server-side authorization from the session and scope mapper.
-3. Validate date range and department filters on the server; browser values can narrow but never expand access.
-4. Keep the same metric definition/population between summary and detail.
-5. Add exports only where the existing permissions and source data allow them.
-6. Ensure charts and controls work with keyboard and screen readers.
+**Implemented:**
+1. Added `frontend/src/features/management-dashboard/links.ts` as the central role-aware route builder for Organization Admin, HR Manager and Department Manager destinations. It does not expose any Super Admin route.
+2. Added native keyboard-accessible drill-down links to workforce KPI cards, workforce-status counts, department rows, unassigned workforce, all eight attendance summary cards, each daily attendance/availability trend item, payroll/overtime cards and the associated panels. Action Center queue links continue to use the existing API-provided destinations.
+3. Workforce links carry status, department or unassigned filters plus `managementPopulation=true`. The existing employee-directory endpoint validates the flag and applies the exact dashboard workforce-role exclusion. Department Manager access remains restricted by the directory's mandatory authenticated manager-to-department EXISTS condition; a browser-supplied department ID only narrows that scope.
+4. Attendance links carry the selected reporting dates and `managementDashboard=true`. The existing attendance-calendar endpoint continues to validate YYYY-MM-DD dates and its 31-day request window. Dashboard mode additionally limits results to active workforce and removes the Department Manager's standalone self row; their own employee record is included only when it independently belongs to one of the manager's assigned departments. The detail page follows existing chunking and pagination.
+5. Leave links reuse the existing authenticated leave-request endpoint. The existing backend continues to enforce tenant, role and assigned-department scope. The page applies the selected date-overlap/status filters only as client-side narrowing; approved-leave links further retain ACTIVE employees, while manager pending-review links exclude the viewer's own request to match the dashboard review metric. The response now includes employee employment status as an additive field. The endpoint's existing 500-record cap is disclosed in the UI rather than presented as a complete list.
+6. Payroll/overtime links preserve the month used by the aggregate. Payroll metrics open the existing role-authorized salary-payment workspace. Worked-overtime detail opens attendance for the exact month-to-organization-date window used by the aggregate; advance-overtime and persisted excess-review panels open the existing review workspace on the matching queue tab for HR/Department Managers, while Organization Admin retains its existing Action Center destination. Department Manager payroll remains aggregate/team-scope only; no payslip permission was added.
+7. The attendance-report link carries the selected dashboard dates into the existing Reports workspace, which seeds the date controls and previews using its existing role-authorized report API. PDF generation remains in the current report flow; no new export or download permission is introduced. Leave drill-down links are limited to pending-review and approved-request counts; distinct-person, calendar-day and scheduled-availability metrics remain descriptive because the request list cannot represent those aggregates one-for-one.
+8. Added visible focus treatment and clear, consistent link styling. Role-specific destination selection remains presentation-only; every destination fetches through the existing authenticated backend contract.
 
-**Acceptance:** every drill-down preserves tenant and role scope and reconciles to its parent metric.
+**Data and security decisions:**
+- No new drill-down query accepts an organization ID, employee ID or manager ID as an authorization source. The receiving endpoint derives the actor and scope from the authenticated session.
+- URL values can only narrow: workforce status/department/unassigned filters, attendance date window, leave status/date window and payroll month. Attendance/employee parameters are validated server-side; leave presentation filters run over a response already restricted by the backend.
+- The leave endpoint still returns at most 500 requests. The view reports this cap when reached; the separate aggregate remains authoritative and is not represented as reconciled to a truncated list.
+- Workforce-role distribution remains a read-only visualization because the existing directory has no matching workforce-role filter. No misleading clickable filter was invented.
+- No migration, new dependency, new permission, new write path or changed existing approval/payment action.
+
+**Files:** `frontend/src/features/management-dashboard/links.ts`; shared dashboard primitives, workforce KPIs/composition, attendance analytics, leave availability and payroll/overtime sections; `frontend/src/features/workforce/WorkforceWorkspace.tsx`; `frontend/src/features/workspace/AttendanceWorkspace.tsx`; `frontend/src/features/workspace/ReportsWorkspace.tsx`; `frontend/src/features/leave/LeaveWorkspace.tsx`; `frontend/src/features/payroll/PayrollWorkspace.tsx`; `frontend/src/features/workspace/ReviewQueueWorkspace.tsx`; `backend/app/api/employees/route.ts`; `backend/app/api/attendance/calendar/route.ts`; `backend/app/api/leave/requests/route.ts`; and the management-dashboard stylesheet.
+
+**Verification:** GitHub source readback and static contract checks only. Reviewed route mapping, role-scoped backend filters, inclusive date-window propagation, dashboard population flags, leave self/active filtering, payroll month propagation, report date seeding, JSX link pairs, and keyboard-focus selectors. No frontend/backend build, database/API runtime validation, browser test, or full regression suite was run. Final live data reconciliation and responsive/browser verification remain in Step 14.
 
 ### Step 14 of 14 — Final refinement and verification
 
@@ -400,8 +411,8 @@ Do not replace these data sources until the replacement has been verified agains
 
 ## 9. Verification status at this handoff
 
-- Steps 2–12 are committed on `main`. Step 10 implementation commit: `5fa195a6f6158e0d1d70aa32d8f34d61ab79b954`. Step 11 implementation commit: `7d11a2b0ef0b1909acd283c2bb2cdfcd36e8f508`. Step 12 implementation commit: `c47f7651548a2e86b880b23cab72c7773746370a`.
-- Step 6's shared workforce-summary source and component remain exported but are not mounted in the existing dashboards.
+- Steps 2–13 are committed on `main`. Step 10 implementation commit: `5fa195a6f6158e0d1d70aa32d8f34d61ab79b954`. Step 11 implementation commit: `7d11a2b0ef0b1909acd283c2bb2cdfcd36e8f508`. Step 12 implementation commit: `c47f7651548a2e86b880b23cab72c7773746370a`.
+- Step 6's shared workforce-summary source is mounted as the canonical workforce KPI section in all three management dashboards by Step 12.
 - Step 7 adds the role-scoped attendance summary and reusable attendance analytics component; the UI is mounted in Step 12 with the shared 31-day reporting-range validation.
 - Step 8 adds workforce-composition analytics using the Step 6 population, with current status, department, unassigned and role totals reconciled to the shared workforce KPI source.
 - Step 8's employee-history audit did not establish authoritative effective dates for joining, departure or rehire; movement and turnover remain deferred rather than inferred.
@@ -432,4 +443,5 @@ Do not replace these data sources until the replacement has been verified agains
 - Step 10 — overtime and payroll intelligence: [5fa195a6f6158e0d1d70aa32d8f34d61ab79b954](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/5fa195a6f6158e0d1d70aa32d8f34d61ab79b954)
 - Step 11 — Management Action Center: [7d11a2b0ef0b1909acd283c2bb2cdfcd36e8f508](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/7d11a2b0ef0b1909acd283c2bb2cdfcd36e8f508)
 - Step 12 — role-specific management dashboard integration: [c47f7651548a2e86b880b23cab72c7773746370a](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/c47f7651548a2e86b880b23cab72c7773746370a)
+- Step 13 — interactive drill-downs and reporting: `<STEP13_COMMIT_SHA>`
 Step 1 was completed as source audit and UX blueprint work and did not create a repository commit.

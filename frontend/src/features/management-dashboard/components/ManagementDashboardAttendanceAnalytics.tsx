@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Activity,
@@ -16,6 +17,7 @@ import { formatDate, formatNumber } from "@/lib/format";
 import { useSmartRefresh } from "@/lib/smart-refresh";
 import { useAttendanceRefresh } from "@/lib/attendance-events";
 import type { WorkspaceRole } from "@/types/workspace";
+import { managementDashboardLinks } from "../links";
 
 import {
   ManagementDashboardChartPanel,
@@ -324,9 +326,13 @@ export function ManagementDashboardAttendanceAnalytics({
         description="Scheduled attendance, worked time and overtime calculated from effective attendance records."
         action={
           state.status === "ready" ? (
-            <span className="md-workforce-asof">
-              As of {formatDate(state.data.generatedAt, state.data.organization.timeZone)}
-            </span>
+            <div className="md-dashboard-drilldown-actions">
+              <span className="md-workforce-asof">
+                As of {formatDate(state.data.generatedAt, state.data.organization.timeZone)}
+              </span>
+              <Link className="md-dashboard-drilldown-link" href={managementDashboardLinks(state.data.scope.roleName).attendance(state.data.filters.fromDate, state.data.filters.toDate)}>Open attendance calendar</Link>
+              <Link className="md-dashboard-drilldown-link" href={managementDashboardLinks(state.data.scope.roleName).reports(state.data.filters.fromDate, state.data.filters.toDate)}>Create attendance report</Link>
+            </div>
           ) : null
         }
         className="md-attendance-heading"
@@ -387,6 +393,7 @@ export function ManagementDashboardAttendanceAnalytics({
               context="Weighted across the selected period"
               icon={Activity}
               tone="accent"
+              href={managementDashboardLinks(state.data.scope.roleName).attendance(state.data.filters.fromDate, state.data.filters.toDate)}
             />
             <ManagementDashboardMetricCard
               label="Eligible shift-days"
@@ -394,6 +401,7 @@ export function ManagementDashboardAttendanceAnalytics({
               description="Scheduled employee-days after approved leave and public holidays are excluded."
               icon={CalendarClock}
               tone="neutral"
+              href={managementDashboardLinks(state.data.scope.roleName).attendance(state.data.filters.fromDate, state.data.filters.toDate)}
             />
             <ManagementDashboardMetricCard
               label="Present shift-days"
@@ -401,6 +409,7 @@ export function ManagementDashboardAttendanceAnalytics({
               description="Eligible scheduled days with at least one effective clock-in."
               icon={UserCheck}
               tone="success"
+              href={managementDashboardLinks(state.data.scope.roleName).attendance(state.data.filters.fromDate, state.data.filters.toDate)}
             />
             <ManagementDashboardMetricCard
               label="Scheduled hours"
@@ -408,6 +417,7 @@ export function ManagementDashboardAttendanceAnalytics({
               description="Expected hours on attendance-eligible scheduled days."
               icon={Clock3}
               tone="neutral"
+              href={managementDashboardLinks(state.data.scope.roleName).attendance(state.data.filters.fromDate, state.data.filters.toDate)}
             />
             <ManagementDashboardMetricCard
               label="Worked hours"
@@ -415,6 +425,7 @@ export function ManagementDashboardAttendanceAnalytics({
               description="Total server-calculated work time, including any recorded work on leave or holiday dates."
               icon={Timer}
               tone="accent"
+              href={managementDashboardLinks(state.data.scope.roleName).attendance(state.data.filters.fromDate, state.data.filters.toDate)}
             />
             <ManagementDashboardMetricCard
               label="Regular worked hours"
@@ -422,6 +433,7 @@ export function ManagementDashboardAttendanceAnalytics({
               description="Calculated worked time excluding potential overtime."
               icon={Clock3}
               tone="neutral"
+              href={managementDashboardLinks(state.data.scope.roleName).attendance(state.data.filters.fromDate, state.data.filters.toDate)}
             />
             <ManagementDashboardMetricCard
               label="Potential overtime"
@@ -429,6 +441,7 @@ export function ManagementDashboardAttendanceAnalytics({
               description="Time calculated beyond assigned shift end, before authorization."
               icon={Activity}
               tone="warning"
+              href={managementDashboardLinks(state.data.scope.roleName).attendance(state.data.filters.fromDate, state.data.filters.toDate)}
             />
             <ManagementDashboardMetricCard
               label="Payable overtime"
@@ -436,6 +449,7 @@ export function ManagementDashboardAttendanceAnalytics({
               description="Actual overtime minutes covered by approved advance authorization."
               icon={UserCheck}
               tone="success"
+              href={managementDashboardLinks(state.data.scope.roleName).attendance(state.data.filters.fromDate, state.data.filters.toDate)}
             />
           </ManagementDashboardMetricGrid>
 
@@ -460,8 +474,9 @@ export function ManagementDashboardAttendanceAnalytics({
                   aria-label="Daily attendance rates"
                 >
                   {state.data.dailyTrend.map((day) => (
-                    <div
-                      className="md-attendance-trend-item"
+                    <Link
+                      className="md-attendance-trend-item md-attendance-trend-link"
+                      href={managementDashboardLinks(state.data.scope.roleName).attendance(day.workDate, day.workDate)}
                       role="listitem"
                       aria-label={shortDate(day.workDate) + ": " + formatRate(day.attendanceRate) + ", " + formatNumber(day.presentShiftDays) + " of " + formatNumber(day.eligibleShiftDays) + " eligible shifts present"}
                       key={day.workDate}
@@ -485,7 +500,7 @@ export function ManagementDashboardAttendanceAnalytics({
                       >
                         {shortDate(day.workDate)}
                       </time>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               )}

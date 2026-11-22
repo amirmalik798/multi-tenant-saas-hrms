@@ -15,6 +15,7 @@ import { apiRequest, isRecord } from "@/lib/api-client";
 import { formatDate, formatNumber } from "@/lib/format";
 import { useSmartRefresh } from "@/lib/smart-refresh";
 import type { WorkspaceRole } from "@/types/workspace";
+import { managementDashboardLinks } from "../links";
 
 import {
   ManagementDashboardErrorState,
@@ -223,6 +224,9 @@ export function ManagementDashboardWorkforceKpis() {
 
       {state.status === "ready" ? (
         <>
+          {(() => {
+            const links = managementDashboardLinks(state.data.scope.roleName);
+            return (
           <ManagementDashboardMetricGrid columns={3}>
             <ManagementDashboardMetricCard
               label={state.data.scope.roleName === "DEPARTMENT_MANAGER" ? "Team workforce" : "Total workforce"}
@@ -231,6 +235,7 @@ export function ManagementDashboardWorkforceKpis() {
               context={roleScopeLabel(state.data.scope.roleName)}
               icon={Users}
               tone="accent"
+              href={links.workforce()}
             />
             <ManagementDashboardMetricCard
               label="Active workforce"
@@ -238,6 +243,7 @@ export function ManagementDashboardWorkforceKpis() {
               description="Employees with ACTIVE employment status."
               icon={UserCheck}
               tone="success"
+              href={links.workforce({ status: "ACTIVE" })}
             />
             <ManagementDashboardMetricCard
               label="Inactive workforce"
@@ -245,6 +251,7 @@ export function ManagementDashboardWorkforceKpis() {
               description="Employees with INACTIVE employment status."
               icon={UserMinus}
               tone="warning"
+              href={links.workforce({ status: "INACTIVE" })}
             />
             <ManagementDashboardMetricCard
               label="Former workforce"
@@ -252,6 +259,7 @@ export function ManagementDashboardWorkforceKpis() {
               description="Employees with FORMER employment status."
               icon={UserX}
               tone="neutral"
+              href={links.workforce({ status: "FORMER" })}
             />
             <ManagementDashboardMetricCard
               label="Active unassigned"
@@ -266,6 +274,7 @@ export function ManagementDashboardWorkforceKpis() {
                 : "Active employees without a valid department assignment."}
               icon={UserMinus}
               tone="warning"
+              href={state.data.scope.roleName === "DEPARTMENT_MANAGER" ? undefined : links.workforce({ status: "ACTIVE", unassigned: true })}
             />
             <ManagementDashboardMetricCard
               label={state.data.scope.roleName === "DEPARTMENT_MANAGER" ? "Assigned departments" : "Departments"}
@@ -277,8 +286,11 @@ export function ManagementDashboardWorkforceKpis() {
               }
               icon={Building2}
               tone="accent"
+              href={links.departments()}
             />
           </ManagementDashboardMetricGrid>
+            );
+          })()}
 
           <p className="md-workforce-definition">
             Shared workforce counts exclude organization-administrator role records. Existing role-specific dashboard totals remain unchanged.

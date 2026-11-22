@@ -124,3 +124,14 @@ The Organization Admin view keeps organization-readiness and licensing destinati
 The reporting shell defaults to the last 30 calendar days and rejects custom ranges longer than 31 days, matching attendance and leave API limits. Payroll/overtime is keyed to the month containing the selected range's end date. It deliberately does not show an incomplete department selector. The current HR overview provides only a limited department list, and not every section currently implements a common department narrowing contract.
 
 The sections refresh every 60 seconds while active. Attendance and payroll/overtime also refresh immediately on the existing attendance-change event. Existing focus/visibility/online refresh behavior is retained. HR/Department Manager personal My Day stays above the management shell, and Employee My Day is unchanged.
+
+
+## 13. Drill-down interaction system (Step 13)
+
+`managementDashboardLinks` is the only route-construction helper for the shared management dashboard. It keeps Organization Admin, HR Manager and Department Manager route prefixes explicit. It intentionally does not provide Employee or Super Admin destinations.
+
+`ManagementDashboardMetricCard` accepts an optional `href` and renders a compact native "View details" link only for an available/actionable card. Cards with unavailable or N/A states do not render misleading links. Workforce composition exposes links for status totals, department totals and unassigned workforce; role-mix entries remain descriptive because no existing route offers the same role filter.
+
+Attendance analytics makes daily trend items focusable links and provides heading-level actions to its authorized calendar/report workspaces. Leave exposes request-level drill-downs only for approved-request and actionable-pending counts; aggregate people/day/availability measures remain descriptive where no one-to-one detail view exists. Payroll metrics open their existing monthly payroll workspace; actual overtime opens matching attendance detail, while preauthorization and excess-review panels open the relevant existing review-queue tab for HR/Department Managers. Existing Action Center cards retain their server-returned links.
+
+The destination pages read URL filters once on mount and seed their existing controls. Receiving APIs still derive the user and scope from the session. Selected filters are validated server-side where the endpoint supports them; otherwise they are applied only to an already-authorized response. Visible focus rings, descriptive link text and reduced dependence on hover make the new interactions keyboard-usable. Existing page actions remain unchanged.

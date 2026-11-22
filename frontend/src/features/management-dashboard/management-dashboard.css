@@ -1822,3 +1822,94 @@
   font-size: 10px;
   line-height: 1.6;
 }
+
+
+/* Step 13: clear, keyboard-accessible links from dashboard summaries to detail views. */
+.md-metric-drilldown,
+.md-dashboard-drilldown-link,
+.md-composition-detail-link,
+.md-composition-drilldown {
+  color: var(--accent-strong);
+  font-size: 10px;
+  font-weight: 720;
+  text-decoration: none;
+  text-underline-offset: 3px;
+}
+
+.md-metric-drilldown {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  min-height: 28px;
+  margin-top: auto;
+  padding-top: 9px;
+}
+
+.md-metric-drilldown:hover,
+.md-dashboard-drilldown-link:hover,
+.md-composition-detail-link:hover,
+.md-composition-drilldown:hover {
+  color: var(--text-strong);
+  text-decoration: underline;
+}
+
+.md-dashboard-drilldown-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.md-dashboard-drilldown-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  gap: 5px;
+}
+
+.md-composition-detail-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+}
+
+.md-composition-drilldown {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+}
+
+.md-attendance-trend-link,
+.md-leave-trend-link {
+  color: inherit;
+  text-decoration: none;
+  border-radius: 8px;
+}
+
+.md-attendance-trend-link:hover,
+.md-leave-trend-link:hover {
+  background: color-mix(in srgb, var(--accent-soft) 42%, transparent);
+}
+
+.md-metric-drilldown:focus-visible,
+.md-dashboard-drilldown-link:focus-visible,
+.md-composition-detail-link:focus-visible,
+.md-composition-drilldown:focus-visible,
+.md-attendance-trend-link:focus-visible,
+.md-leave-trend-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (max-width: 720px) {
+  .md-section-heading {
+    align-items: flex-start;
+  }
+
+  .md-dashboard-drilldown-actions {
+    justify-content: flex-start;
+  }
+}

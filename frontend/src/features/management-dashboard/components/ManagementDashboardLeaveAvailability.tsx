@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Activity,
@@ -16,6 +17,7 @@ import { apiRequest, isRecord } from "@/lib/api-client";
 import { formatDate, formatNumber } from "@/lib/format";
 import { useSmartRefresh } from "@/lib/smart-refresh";
 import type { WorkspaceRole } from "@/types/workspace";
+import { managementDashboardLinks } from "../links";
 
 import {
   ManagementDashboardChartPanel,
@@ -363,9 +365,12 @@ export function ManagementDashboardLeaveAvailability({
         description="Approved leave, actionable pending reviews and scheduled workforce availability from the existing leave and schedule records."
         action={
           state.status === "ready" ? (
-            <span className="md-workforce-asof">
-              As of {formatDate(state.data.generatedAt, state.data.organization.timeZone)}
-            </span>
+            <div className="md-dashboard-drilldown-actions">
+              <span className="md-workforce-asof">
+                As of {formatDate(state.data.generatedAt, state.data.organization.timeZone)}
+              </span>
+              <Link className="md-dashboard-drilldown-link" href={managementDashboardLinks(state.data.scope.roleName).leave(state.data.filters.fromDate, state.data.filters.toDate)}>Open leave requests</Link>
+            </div>
           ) : null
         }
       />
@@ -423,12 +428,14 @@ export function ManagementDashboardLeaveAvailability({
               description="Pending requests this role is permitted to decide in the selected period."
               icon={CalendarClock}
               tone={state.data.period.actionablePendingRequests > 0 ? "warning" : "neutral"}
+              href={managementDashboardLinks(state.data.scope.roleName).leave(state.data.filters.fromDate, state.data.filters.toDate, "PENDING")}
             />
             <ManagementDashboardMetricCard
               label="Approved leave requests"
               value={formatNumber(state.data.period.approvedRequests)}
               description="Approved requests overlapping the selected date range."
               icon={CalendarDays}
+              href={managementDashboardLinks(state.data.scope.roleName).leave(state.data.filters.fromDate, state.data.filters.toDate, "APPROVED")}
             />
             <ManagementDashboardMetricCard
               label="People with approved leave"

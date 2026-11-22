@@ -14,9 +14,10 @@ import { apiRequest } from "@/lib/api-client";
 import { useSmartRefresh } from "@/lib/smart-refresh";
 import { formatDate, humanize } from "@/lib/format";
 
-interface LeaveRequest { id: string; employeeId: string; employeeCode?: string; firstName?: string; lastName?: string; departmentName?: string; leaveType: string; startDate: string; endDate: string; isPaid: boolean; reason: string; status: string; reviewerNote?: string | null; isOwnRequest?: boolean; createdAt?: string }
+interface LeaveRequest { id: string; employeeId: string; employmentStatus?: string; employeeCode?: string; firstName?: string; lastName?: string; departmentName?: string; leaveType: string; startDate: string; endDate: string; isPaid: boolean; reason: string; status: string; reviewerNote?: string | null; isOwnRequest?: boolean; createdAt?: string }
 interface Holiday { id: string; holidayDate: string; name: string; isPaid: boolean; notes?: string | null }
 type Tab = "requests" | "holidays";
+type LeaveDashboardFilter = { fromDate: string; toDate: string; status: "PENDING" | "APPROVED" | ""; excludeOwn: boolean; activeWorkforceOnly: boolean };
 
 export function LeaveWorkspace() {
   const { user, timeZone } = useWorkspace();
@@ -35,6 +36,7 @@ export function LeaveWorkspace() {
   const [reviewerNote, setReviewerNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [dashboardFilter, setDashboardFilter] = useState<LeaveDashboardFilter>({ fromDate: "", toDate: "", status: "", excludeOwn: false, activeWorkforceOnly: false });
   const [leaveStartDate, setLeaveStartDate] = useState("");
   const [leaveEndDate, setLeaveEndDate] = useState("");
 
@@ -52,14 +54,39 @@ export function LeaveWorkspace() {
     setError(errors.join(" · "));
     if (!silent) setLoading(false);
   }, []);
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const fromDate = query.get("fromDate") || "";
+    const toDate = query.get("toDate") || "";
+    const requestedStatus = (query.get("status") || "").toUpperCase();
+    const validDate = (value: string) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+      const parsed = new Date(value + "T00:00:00.000Z");
+      return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+    };
+    const validRange = validDate(fromDate) && validDate(toDate) && fromDate <= toDate;
+    setDashboardFilter({
+      fromDate: validRange ? fromDate : "",
+      toDate: validRange ? toDate : "",
+      status: requestedStatus === "PENDING" || requestedStatus === "APPROVED" ? requestedStatus : "",
+      excludeOwn: query.get("excludeOwn") === "true",
+      activeWorkforceOnly: query.get("activeWorkforceOnly") === "true",
+    });
+  }, []);
+
   useEffect(() => { void load(); }, [load]);
   useSmartRefresh(() => load(true), !requestOpen && !holidayOpen && !decisionTarget && !holidayToRemove && !saving);
 
   const visibleRequests = useMemo(() => requests.filter((item) => {
+    if (dashboardFilter.status && item.status !== dashboardFilter.status) return false;
+    if (dashboardFilter.excludeOwn && item.employeeId === user.employeeId) return false;
+    if (dashboardFilter.activeWorkforceOnly && item.employmentStatus !== "ACTIVE") return false;
+    if (dashboardFilter.fromDate && dashboardFilter.toDate &&
+      (item.endDate < dashboardFilter.fromDate || item.startDate > dashboardFilter.toDate)) return false;
     const needle = search.trim().toLowerCase();
     if (!needle) return true;
     return [item.firstName, item.lastName, item.employeeCode, item.departmentName, item.leaveType, item.status, item.reason].some((value) => String(value ?? "").toLowerCase().includes(needle));
-  }), [requests, search]);
+  }), [requests, search, dashboardFilter, user.employeeId]);
   const pending = requests.filter((item) => item.status === "PENDING").length;
   const showRequestActions = visibleRequests.some((item) => {
     const own = Boolean(item.isOwnRequest) || item.employeeId === user.employeeId;
@@ -116,6 +143,22 @@ export function LeaveWorkspace() {
     <PageHeader eyebrow="Time off" title="Leave & holidays" description="Keep leave requests, review decisions, and organization holidays in one clear view." action={<div style={{ display:"flex", gap:8 }}>{user.role !== "ORGANIZATION_ADMIN" ? <Button variant="primary" leading={<Plus size={14} />} onClick={() => { setError(""); setLeaveStartDate(""); setLeaveEndDate(""); setRequestOpen(true); }}>Request leave</Button> : null}{canManageHolidays ? <Button variant="secondary" leading={<Plus size={14} />} onClick={() => setHolidayOpen(true)}>Add holiday</Button> : null}</div>} />
     {notice ? <div role="status" className="success-callout" style={{ marginBottom: 13 }}><CheckCircle2 size={15} />{notice}</div> : null}
     {error ? <div role="alert" className="form-error" style={{ marginBottom: 13 }}>{error}</div> : null}
+    {dashboardFilter.fromDate || dashboardFilter.status ? (
+      <div className="info-callout" role="status" style={{ marginBottom: 13 }}>
+        <CalendarDays size={15} />
+        <span>
+          Dashboard filter: {dashboardFilter.fromDate && dashboardFilter.toDate ? formatDate(dashboardFilter.fromDate, timeZone) + " – " + formatDate(dashboardFilter.toDate, timeZone) : "Any date"}
+          {dashboardFilter.status ? " · " + humanize(dashboardFilter.status) : ""}
+          {" · "}{visibleRequests.length} matching request(s) in the existing authorized queue
+        </span>
+        <Button size="sm" variant="ghost" onClick={() => setDashboardFilter({ fromDate: "", toDate: "", status: "", excludeOwn: false, activeWorkforceOnly: false })}>Clear filter</Button>
+      </div>
+    ) : null}
+    {requests.length >= 500 && tab === "requests" ? (
+      <p className="field-hint" role="status" style={{ marginBottom: 12 }}>
+        The existing leave endpoint returns up to 500 authorized requests. Narrow the date range or search to inspect a smaller set; summary analytics remain based on their separate aggregate query.
+      </p>
+    ) : null}
     <Panel>
       <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", justifyContent:"space-between", gap:12, padding:"12px 16px", borderBottom:"1px solid var(--border)" }}>
         <div style={{ display:"flex", gap:5 }}><button type="button" className={`button button-sm ${tab === "requests" ? "button-primary" : "button-ghost"}`} onClick={() => setTab("requests")}>Leave requests <span className="task-count">{requests.length}</span></button><span className="field-hint" style={{ alignSelf: "center" }}>{pending} pending</span><button type="button" className={`button button-sm ${tab === "holidays" ? "button-primary" : "button-ghost"}`} onClick={() => setTab("holidays")}>Public holidays</button></div>

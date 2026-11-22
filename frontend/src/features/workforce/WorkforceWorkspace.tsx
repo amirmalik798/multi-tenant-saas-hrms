@@ -82,6 +82,7 @@ export function WorkforceWorkspace() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [departmentFilter, setDepartmentFilter] = useState("ALL");
+  const [queryFiltersReady, setQueryFiltersReady] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -107,6 +108,9 @@ export function WorkforceWorkspace() {
       if (search.trim()) params.set("q", search.trim());
       if (statusFilter !== "ALL") params.set("status", statusFilter);
       if (departmentFilter !== "ALL") departmentFilter === "UNASSIGNED" ? params.set("unassigned", "true") : params.set("departmentId", departmentFilter);
+       if (new URLSearchParams(window.location.search).get("managementPopulation") === "true") {
+         params.set("managementPopulation", "true");
+       }
       const result = await apiRequest<DirectoryResponse>(`/employees?${params.toString()}`);
       if (requestId !== listRequestRef.current) return;
       setRows(Array.isArray(result.employees) ? result.employees : []);
@@ -117,8 +121,28 @@ export function WorkforceWorkspace() {
     } finally { if (!silent && requestId === listRequestRef.current) setLoading(false); }
   }, [page, search, statusFilter, departmentFilter]);
 
-  useEffect(() => { void load(); }, [load]);
-  useSmartRefresh(() => load(true), !drawerMode && !statusTarget && !detailLoading && !statusSaving);
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const requestedStatus = (query.get("status") || "").toUpperCase();
+    const requestedDepartment = query.get("departmentId") || "";
+    const requestedUnassigned = query.get("unassigned") === "true";
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    if (["ACTIVE", "INACTIVE", "FORMER"].includes(requestedStatus)) {
+      setStatusFilter(requestedStatus);
+    }
+    if (requestedUnassigned) {
+      setDepartmentFilter("UNASSIGNED");
+    } else if (uuidPattern.test(requestedDepartment)) {
+      setDepartmentFilter(requestedDepartment);
+    }
+    setQueryFiltersReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (queryFiltersReady) void load();
+  }, [load, queryFiltersReady]);
+  useSmartRefresh(() => load(true), queryFiltersReady && !drawerMode && !statusTarget && !detailLoading && !statusSaving);
   useEffect(() => {
     let active = true;
     setDepartmentOptionsError("");

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   Activity,
@@ -12,6 +13,7 @@ import { apiRequest, isRecord } from "@/lib/api-client";
 import { formatDate, formatNumber } from "@/lib/format";
 import { useSmartRefresh } from "@/lib/smart-refresh";
 import type { WorkspaceRole } from "@/types/workspace";
+import { managementDashboardLinks } from "../links";
 
 import {
   ManagementDashboardChartLegend,
@@ -267,12 +269,12 @@ function StatusStack({
   );
 }
 
-function StatusCountDetails({ counts }: { counts: WorkforceCounts }) {
+function StatusCountDetails({ counts, links }: { counts: WorkforceCounts; links: ReturnType<typeof managementDashboardLinks> }) {
   return (
     <div className="md-composition-counts">
-      <span><i className="md-composition-dot md-composition-dot-active" /> Active {formatNumber(counts.activeEmployees)}</span>
-      <span><i className="md-composition-dot md-composition-dot-inactive" /> Inactive {formatNumber(counts.inactiveEmployees)}</span>
-      <span><i className="md-composition-dot md-composition-dot-former" /> Former {formatNumber(counts.formerEmployees)}</span>
+      <Link href={links.workforce({ status: "ACTIVE" })} className="md-composition-detail-link"><i className="md-composition-dot md-composition-dot-active" /> Active {formatNumber(counts.activeEmployees)}</Link>
+      <Link href={links.workforce({ status: "INACTIVE" })} className="md-composition-detail-link"><i className="md-composition-dot md-composition-dot-inactive" /> Inactive {formatNumber(counts.inactiveEmployees)}</Link>
+      <Link href={links.workforce({ status: "FORMER" })} className="md-composition-detail-link"><i className="md-composition-dot md-composition-dot-former" /> Former {formatNumber(counts.formerEmployees)}</Link>
     </div>
   );
 }
@@ -361,6 +363,9 @@ export function ManagementDashboardWorkforceComposition() {
 
       {state.status === "ready" ? (
         <>
+          {(() => {
+            const links = managementDashboardLinks(state.data.scope.roleName);
+            return (
           <div className="md-composition-meta">
             <span>{formatNumber(state.data.summary.totalEmployees)} distinct workforce members</span>
             <span>{roleScopeLabel(state.data.scope.roleName)}</span>
@@ -382,7 +387,7 @@ export function ManagementDashboardWorkforceComposition() {
                 counts={state.data.summary}
                 label="Overall employment status composition"
               />
-              <StatusCountDetails counts={state.data.summary} />
+              <StatusCountDetails counts={state.data.summary} links={links} />
             </ManagementDashboardChartPanel>
 
             <ManagementDashboardChartPanel
@@ -400,7 +405,7 @@ export function ManagementDashboardWorkforceComposition() {
                     <div className="md-composition-department" key={department.departmentId}>
                       <div className="md-composition-department-heading">
                         <div>
-                          <strong>{department.departmentName}</strong>
+                          <Link className="md-composition-drilldown" href={links.workforce({ departmentId: department.departmentId })}>{department.departmentName}</Link>
                           <span>{department.departmentStatus.replace(/[_-]+/g, " ")}</span>
                         </div>
                         <b>{formatNumber(department.totalEmployees)}</b>
@@ -417,7 +422,7 @@ export function ManagementDashboardWorkforceComposition() {
                   <div className="md-composition-department md-composition-unassigned">
                     <div className="md-composition-department-heading">
                       <div>
-                        <strong>Unassigned</strong>
+                        <Link className="md-composition-drilldown" href={links.workforce({ unassigned: true })}>Unassigned</Link>
                         <span>No valid department assignment</span>
                       </div>
                       <b>{formatNumber(state.data.unassigned.totalEmployees)}</b>
@@ -486,8 +491,10 @@ export function ManagementDashboardWorkforceComposition() {
           </ManagementDashboardGrid>
 
           <p className="md-composition-definition">
-            Composition uses the same population key as the shared workforce KPI cards. Department totals, role totals and unassigned totals are checked against the canonical headcount before the API returns data.
+            Composition uses the same population key as the shared workforce KPI cards. Status and department links open the role-authorized directory with the same filter; role distribution remains a summary because the existing directory has no workforce-role filter.
           </p>
+            );
+          })()}
         </>
       ) : null}
     </section>

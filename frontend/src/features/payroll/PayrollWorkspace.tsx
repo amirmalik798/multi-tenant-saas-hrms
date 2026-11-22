@@ -54,6 +54,7 @@ export function PayrollWorkspace() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [monthTouchedByUser, setMonthTouchedByUser] = useState(false);
+  const [queryMonthReady, setQueryMonthReady] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
@@ -99,8 +100,19 @@ export function PayrollWorkspace() {
     }
   }, [month]);
   useEffect(() => { if (workDate && !monthTouchedByUser) setMonth(workDate.slice(0, 7)); }, [workDate, monthTouchedByUser]);
-  useEffect(() => { void load(); }, [load]);
-  useSmartRefresh(() => load(true), !selected && !slipTarget && !teamSlipTarget && !bulkOpen && !saving && !bulkBusy && !slipLoading && !slipPrinting && !teamSlipBusy);
+  useEffect(() => {
+    const requestedMonth = new URLSearchParams(window.location.search).get("month") || "";
+    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth)) {
+      const [year] = requestedMonth.split("-").map(Number);
+      if (year >= 2000 && year <= 2100) {
+        setMonth(requestedMonth);
+        setMonthTouchedByUser(true);
+      }
+    }
+    setQueryMonthReady(true);
+  }, []);
+  useEffect(() => { if (queryMonthReady) void load(); }, [load, queryMonthReady]);
+  useSmartRefresh(() => load(true), queryMonthReady && !selected && !slipTarget && !teamSlipTarget && !bulkOpen && !saving && !bulkBusy && !slipLoading && !slipPrinting && !teamSlipBusy);
   useAttendanceRefresh(() => { void load(true); });
 
   const visible = payments.filter((item) => {

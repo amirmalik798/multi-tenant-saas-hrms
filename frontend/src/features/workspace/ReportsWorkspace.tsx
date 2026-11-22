@@ -37,6 +37,7 @@ export function ReportsWorkspace() {
   const [selectedDatePreset, setSelectedDatePreset] = useState<"7d" | "14d" | "3m" | "6m" | "12m" | null>(null);
   const reportRequestRef = useRef(0);
   const targetRequestRef = useRef(0);
+  const dashboardRangeSeededRef = useRef(false);
 
   const loadTargets = useCallback(async (silent = false) => {
     const requestId = ++targetRequestRef.current;
@@ -56,7 +57,36 @@ export function ReportsWorkspace() {
   }, [user.role]);
 
   useEffect(() => { void loadTargets(); }, [loadTargets]);
-  useEffect(() => { if (workDate) { setToDate(workDate); setFromDate((current) => current === monthStart(todayISO(timeZone)) ? monthStart(workDate) : current); setToMonth((current) => current === todayISO(timeZone).slice(0, 7) ? workDate.slice(0, 7) : current); setFromMonth((current) => current === todayISO(timeZone).slice(0, 7) ? workDate.slice(0, 7) : current); } }, [workDate, timeZone]);
+  useEffect(() => {
+    if (!workDate) return;
+    if (!dashboardRangeSeededRef.current) {
+      setToDate(workDate);
+      setFromDate((current) => current === monthStart(todayISO(timeZone)) ? monthStart(workDate) : current);
+    }
+    setToMonth((current) => current === todayISO(timeZone).slice(0, 7) ? workDate.slice(0, 7) : current);
+    setFromMonth((current) => current === todayISO(timeZone).slice(0, 7) ? workDate.slice(0, 7) : current);
+  }, [workDate, timeZone]);
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const requestedFrom = query.get("fromDate") || "";
+    const requestedTo = query.get("toDate") || "";
+    const validDate = (value: string) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+      const parsed = new Date(value + "T00:00:00.000Z");
+      return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+    };
+    const today = workDate || todayISO(timeZone);
+    if (validDate(requestedFrom) && validDate(requestedTo) &&
+      requestedFrom <= requestedTo && requestedTo <= today) {
+      dashboardRangeSeededRef.current = true;
+      setFromDate(requestedFrom);
+      setToDate(requestedTo);
+      setSelectedDatePreset(null);
+      setAutoPreviewRevision((revision) => revision + 1);
+    }
+  // URL is read once; subsequent changes are controlled by the report form.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function applyDatePreset(preset: "7d" | "14d" | "3m" | "6m" | "12m") {
     setSelectedDatePreset(preset);

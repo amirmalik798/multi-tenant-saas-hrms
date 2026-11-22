@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { useId, type HTMLAttributes, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
@@ -81,6 +83,8 @@ export type ManagementDashboardMetricCardProps = ClassNameProps & {
   icon?: LucideIcon;
   tone?: ManagementDashboardTone;
   state?: ManagementDashboardMetricState;
+  /** Existing role-authorized detail route; omitted when a metric is not actionable. */
+  href?: string;
 };
 
 /**
@@ -95,6 +99,7 @@ export function ManagementDashboardMetricCard({
   icon: Icon,
   tone = "neutral",
   state = "ready",
+  href,
   className = "",
 }: ManagementDashboardMetricCardProps) {
   const displayedValue =
@@ -128,6 +133,11 @@ export function ManagementDashboardMetricCard({
 
       {description ? <p className="md-metric-description">{description}</p> : null}
       {context ? <div className="md-metric-context">{context}</div> : null}
+      {href && state !== "unavailable" && state !== "not-applicable" ? (
+        <Link className="md-metric-drilldown" href={href}>
+          View details <ArrowRight size={13} aria-hidden="true" />
+        </Link>
+      ) : null}
     </article>
   );
 }

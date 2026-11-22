@@ -4,7 +4,7 @@ import { parseJsonRequestBody, validateSameOriginRequest } from "../../../../lib
 import { isRecord, isValidDateString, jsonResponse, organizationIsActive } from "../../../../lib/schedule-utils";
 
 const TYPES = new Set(["ANNUAL", "SICK", "PERSONAL", "PARENTAL", "UNPAID", "OTHER"]);
-const SELECT = `SELECT r.id, r.employee_id AS "employeeId", r.leave_type AS "leaveType", r.start_date::text AS "startDate", r.end_date::text AS "endDate", r.is_paid AS "isPaid", r.reason, r.status, r.reviewer_note AS "reviewerNote", r.decision_at AS "decisionAt", r.created_at AS "createdAt", e.employee_code AS "employeeCode", e.first_name AS "firstName", e.last_name AS "lastName", e.department_id AS "departmentId", d.name AS "departmentName" FROM public.leave_requests r JOIN public.employees e ON e.id = r.employee_id AND e.organization_id = r.organization_id LEFT JOIN public.departments d ON d.id = e.department_id AND d.organization_id = e.organization_id`;
+const SELECT = `SELECT r.id, r.employee_id AS "employeeId", r.leave_type AS "leaveType", r.start_date::text AS "startDate", r.end_date::text AS "endDate", r.is_paid AS "isPaid", r.reason, r.status, r.reviewer_note AS "reviewerNote", r.decision_at AS "decisionAt", r.created_at AS "createdAt", e.employee_code AS "employeeCode", e.first_name AS "firstName", e.last_name AS "lastName", e.department_id AS "departmentId", e.employment_status AS "employmentStatus", d.name AS "departmentName" FROM public.leave_requests r JOIN public.employees e ON e.id = r.employee_id AND e.organization_id = r.organization_id LEFT JOIN public.departments d ON d.id = e.department_id AND d.organization_id = e.organization_id`;
 
 export async function GET(request: Request) {
   try {

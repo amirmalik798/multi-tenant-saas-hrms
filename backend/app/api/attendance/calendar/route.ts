@@ -46,6 +46,11 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const fromDate = url.searchParams.get("fromDate");
     const toDate = url.searchParams.get("toDate");
+    const managementDashboardParam = url.searchParams.get("managementDashboard") ?? "false";
+    if (!["true", "false"].includes(managementDashboardParam)) {
+      return jsonResponse({ message: "managementDashboard must be true or false" }, 400);
+    }
+    const managementDashboardScope = managementDashboardParam === "true";
     const offsetValue = url.searchParams.get("offset") ?? "0";
     const offset = Number(offsetValue);
     if (!/^\d+$/.test(offsetValue) || !Number.isSafeInteger(offset) || offset < 0 || offset > 1_000_000) {
@@ -162,6 +167,7 @@ export async function GET(request: Request) {
          ) AS account_role ON TRUE
          WHERE e.organization_id = $1
            AND regexp_replace(UPPER(COALESCE(workforce_role.name, account_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g') IN ('EMPLOYEE', 'DEPARTMENT_MANAGER', 'HR_MANAGER')
+           AND ($7::boolean = FALSE OR e.employment_status = 'ACTIVE')
            -- A linked organization account with an admin role must never be
            -- treated as a workforce attendance row, even if the employee
            -- record's workforce_role_id is stale or says EMPLOYEE.
@@ -184,7 +190,7 @@ export async function GET(request: Request) {
              )
              OR (
                $2::text = 'DEPARTMENT'
-               AND (e.id = $3::uuid OR EXISTS (
+               AND (($7::boolean = FALSE AND e.id = $3::uuid) OR EXISTS (
                  SELECT 1
                  FROM public.departments AS managed_department
                  WHERE managed_department.organization_id = e.organization_id
@@ -466,6 +472,7 @@ LEFT JOIN approved_overtime AS ot
         fromDate,
         toDate,
         offset,
+        managementDashboardScope,
       ],
     );
 

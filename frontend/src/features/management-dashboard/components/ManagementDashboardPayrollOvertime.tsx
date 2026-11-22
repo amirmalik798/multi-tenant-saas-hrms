@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BadgeCheck,
@@ -18,6 +19,7 @@ import { formatDate, formatNumber } from "@/lib/format";
 import { useSmartRefresh } from "@/lib/smart-refresh";
 import { useAttendanceRefresh } from "@/lib/attendance-events";
 import type { WorkspaceRole } from "@/types/workspace";
+import { managementDashboardLinks } from "../links";
 
 import {
   ManagementDashboardErrorState,
@@ -263,6 +265,13 @@ function formatMoney(value: MoneyBreakdown): string {
   }
 }
 
+function payrollAttendanceRange(month: string, workDate: string): { fromDate: string; toDate: string } {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const monthEnd = new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10);
+  const toDate = workDate.slice(0, 7) === month && workDate < monthEnd ? workDate : monthEnd;
+  return { fromDate: month + "-01", toDate };
+}
+
 function roleScopeLabel(role: ManagementRole): string {
   if (role === "DEPARTMENT_MANAGER") return "Assigned-department employee payroll";
   if (role === "HR_MANAGER") return "Authorized organization payroll population";
@@ -274,17 +283,20 @@ function MoneyBreakdownList({
   description,
   rows,
   empty,
+  href,
 }: {
   title: string;
   description: string;
   rows: MoneyBreakdown[];
   empty: string;
+  href: string;
 }) {
   return (
     <ManagementDashboardPanel
       heading={title}
       description={description}
       className="md-payroll-money-panel"
+      action={<Link className="md-dashboard-drilldown-link" href={href}>Open monthly payroll</Link>}
     >
       {rows.length === 0 ? (
         <p className="md-payroll-empty">{empty}</p>
@@ -366,9 +378,14 @@ export function ManagementDashboardPayrollOvertime({
         description="Actual overtime, advance approvals, calculated payable earnings and recorded salary-payment statuses from the existing payroll sources."
         action={
           state.status === "ready" ? (
-            <span className="md-workforce-asof">
-              As of {formatDate(state.data.generatedAt, state.data.organization.timeZone)}
-            </span>
+            <div className="md-dashboard-drilldown-actions">
+              <span className="md-workforce-asof">
+                As of {formatDate(state.data.generatedAt, state.data.organization.timeZone)}
+              </span>
+              <Link className="md-dashboard-drilldown-link" href={managementDashboardLinks(state.data.scope.roleName).payroll(state.data.filters.month)}>
+                Open monthly payroll
+              </Link>
+            </div>
           ) : null
         }
       />
@@ -427,13 +444,15 @@ export function ManagementDashboardPayrollOvertime({
               value={formatNumber(state.data.payroll.eligibleEmployees)}
               description="Employees included by the existing role-specific salary-payment access rules."
               icon={Wallet}
-            />
+            
+              href={managementDashboardLinks(state.data.scope.roleName).payroll(state.data.filters.month)}/>
             <ManagementDashboardMetricCard
               label="Payable earnings"
               value={formatNumber(state.data.payroll.employeesWithPayableEarnings)}
               description="Employees with calculated payable hours in this month."
               icon={Banknote}
-            />
+            
+              href={managementDashboardLinks(state.data.scope.roleName).payroll(state.data.filters.month)}/>
             <ManagementDashboardMetricCard
               label="Estimate needs review"
               value={formatNumber(
@@ -453,40 +472,46 @@ export function ManagementDashboardPayrollOvertime({
                   ? "warning"
                   : "neutral"
               }
-            />
+            
+              href={managementDashboardLinks(state.data.scope.roleName).payroll(state.data.filters.month)}/>
             <ManagementDashboardMetricCard
               label="Estimate ready"
               value={formatNumber(state.data.payroll.estimateReadyEmployees)}
               description="Employees with payable earnings and a complete same-currency calculation."
               icon={BadgeCheck}
               tone="success"
-            />
+            
+              href={managementDashboardLinks(state.data.scope.roleName).payroll(state.data.filters.month)}/>
             <ManagementDashboardMetricCard
               label="Recorded as paid"
               value={formatNumber(state.data.payroll.paidPaymentCount)}
               description="Monthly salary ledger records marked PAID."
               icon={CircleDollarSign}
               tone="success"
-            />
+            
+              href={managementDashboardLinks(state.data.scope.roleName).payroll(state.data.filters.month)}/>
             <ManagementDashboardMetricCard
               label="Recorded as unpaid"
               value={formatNumber(state.data.payroll.unpaidPaymentCount)}
               description="Monthly salary ledger records marked UNPAID."
               icon={Wallet}
               tone="warning"
-            />
+            
+              href={managementDashboardLinks(state.data.scope.roleName).payroll(state.data.filters.month)}/>
             <ManagementDashboardMetricCard
               label="No payment record"
               value={formatNumber(state.data.payroll.employeesWithoutPaymentRecord)}
               description="No monthly salary-payment ledger row has been recorded."
               icon={CalendarClock}
-            />
+            
+              href={managementDashboardLinks(state.data.scope.roleName).payroll(state.data.filters.month)}/>
             <ManagementDashboardMetricCard
               label="No payable hours"
               value={formatNumber(state.data.payroll.employeesWithoutPayableHours)}
               description="No payable minutes were calculated for the selected month."
               icon={Clock3}
-            />
+            
+              href={managementDashboardLinks(state.data.scope.roleName).payroll(state.data.filters.month)}/>
           </ManagementDashboardMetricGrid>
 
           <ManagementDashboardGrid columns={3} className="md-payroll-money-grid">
@@ -495,19 +520,22 @@ export function ManagementDashboardPayrollOvertime({
               description="Calculated amount for complete-rate employees only. Separate currencies are not combined."
               rows={state.data.payroll.estimatedPayableByCurrency}
               empty="No complete payable estimate is available for this month."
-            />
+            
+              href={managementDashboardLinks(state.data.scope.roleName).payroll(state.data.filters.month)}/>
             <MoneyBreakdownList
               title="Recorded paid"
               description="Amounts saved in the monthly salary ledger with status PAID; not independent bank-transfer verification."
               rows={state.data.payroll.recordedPaidByCurrency}
               empty="No salary payment is recorded as PAID for this month."
-            />
+            
+              href={managementDashboardLinks(state.data.scope.roleName).payroll(state.data.filters.month)}/>
             <MoneyBreakdownList
               title="Recorded unpaid"
               description="Amounts stored in the monthly salary ledger with status UNPAID; kept separate from estimated and paid amounts."
               rows={state.data.payroll.recordedUnpaidByCurrency}
               empty="No UNPAID salary amount is recorded in the monthly ledger."
-            />
+            
+              href={managementDashboardLinks(state.data.scope.roleName).payroll(state.data.filters.month)}/>
           </ManagementDashboardGrid>
 
           <ManagementDashboardGrid columns={2} className="md-payroll-overtime-grid">
@@ -515,6 +543,7 @@ export function ManagementDashboardPayrollOvertime({
               heading="Advance overtime authorization"
               eyebrow="Preauthorization requests"
               description="Requests submitted before the work date are separate from overtime actually worked."
+              action={<Link className="md-dashboard-drilldown-link" href={managementDashboardLinks(state.data.scope.roleName).reviewQueue("overtime")}>Open attendance detail</Link>}
             >
               <div className="md-payroll-stats-grid">
                 <div className="md-payroll-stat">
@@ -539,6 +568,10 @@ export function ManagementDashboardPayrollOvertime({
               heading="Worked overtime"
               eyebrow="Attendance calculation"
               description={"Actual overtime is calculated from effective clock events for " + formatNumber(state.data.overtime.scheduledEmployees) + " distinct employees scheduled in the reporting period; payable overtime is capped by approved advance minutes."}
+              action={<Link className="md-dashboard-drilldown-link" href={managementDashboardLinks(state.data.scope.roleName).attendance(
+                payrollAttendanceRange(state.data.filters.month, state.data.organization.workDate).fromDate,
+                payrollAttendanceRange(state.data.filters.month, state.data.organization.workDate).toDate,
+              )}>Open attendance detail</Link>}
             >
               <div className="md-payroll-stats-grid">
                 <div className="md-payroll-stat">
@@ -564,6 +597,7 @@ export function ManagementDashboardPayrollOvertime({
             heading="Recorded excess-time review cases"
             description="Existing persisted review cases only. This is separate from the full calculation of unapproved excess overtime."
             className="md-payroll-review-panel"
+            action={<Link className="md-dashboard-drilldown-link" href={managementDashboardLinks(state.data.scope.roleName).reviewQueue("excess")}>Open attendance detail</Link>}
           >
             <div className="md-payroll-review-grid">
               <div className="md-payroll-review-stat">
