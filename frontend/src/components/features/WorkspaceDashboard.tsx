@@ -142,7 +142,7 @@ export function WorkspaceDashboard({ role }: { role: WorkspaceRole }) {
 
   if (role === "EMPLOYEE") return <EmployeeMyDayWorkspace />;
   return <>
-    {role === "HR_MANAGER" || role === "DEPARTMENT_MANAGER" ? <PersonalMyDayWorkspace /> : null}
+    {role === "HR_MANAGER" || role === "DEPARTMENT_MANAGER" ? <PersonalMyDayWorkspace key={user.role + ":" + (user.employeeId ?? "none")} /> : null}
     <PageHeader eyebrow={roleLabels[role]} title={heading} description={description} />
     <div className="dashboard-intro" style={{ marginBottom: 18 }}>
       <div><h2>{role === "EMPLOYEE" ? `Welcome to your workspace` : `Good ${organizationHour < 12 ? "morning" : organizationHour < 18 ? "afternoon" : "evening"}`}, {user.displayName || roleLabels[role]}.</h2><p>{role === "EMPLOYEE" ? "Your personal work information is all in one place." : `Here is the latest view from ${user.organizationName}.`}</p></div>
