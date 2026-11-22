@@ -34,20 +34,17 @@ export async function GET(request: Request) {
     const status = allowedStatuses.has(requestedStatus) ? requestedStatus : "NON_ARCHIVED";
     const searchPattern = `%${search}%`;
 
-    const result = await pool.query(`
-      SELECT
-        o.id, o.name, o.slug, o.contact_email, o.contact_phone, o.address,
-        o.country, o.status, o.created_at,
-        (
-          SELECT u.email FROM users AS u JOIN roles AS r ON r.id = u.role_id
-          WHERE u.organization_id = o.id AND u.account_scope = 'ORGANIZATION'
-            AND r.scope = 'ORGANIZATION' AND r.organization_id = o.id
-            AND r.name = 'ORGANIZATION_ADMIN'
-          ORDER BY CASE WHEN u.status = 'ACTIVE' THEN 0 ELSE 1 END, u.created_at DESC
-          LIMIT 1
-        ) AS organization_admin_email,
-        (
-          SELECT u.id
+    const [result, totalsResult] = await Promise.all([
+      pool.query(`
+        SELECT
+          o.id, o.name, o.slug, o.contact_email, o.contact_phone, o.address,
+          o.country, o.status, o.created_at,
+          organization_admin.email AS organization_admin_email,
+          organization_admin.id AS organization_admin_user_id,
+          organization_users.user_count
+        FROM organizations AS o
+        LEFT JOIN LATERAL (
+          SELECT u.email, u.id
           FROM users AS u
           JOIN roles AS r ON r.id = u.role_id
           WHERE u.organization_id = o.id
@@ -57,47 +54,49 @@ export async function GET(request: Request) {
             AND r.name = 'ORGANIZATION_ADMIN'
           ORDER BY CASE WHEN u.status = 'ACTIVE' THEN 0 ELSE 1 END, u.created_at DESC
           LIMIT 1
-        ) AS organization_admin_user_id,
-        (SELECT COUNT(*)::integer FROM users AS u
-          WHERE u.organization_id = o.id AND u.account_scope = 'ORGANIZATION') AS user_count
-      FROM organizations AS o
-      WHERE ($2::text = 'ALL' OR ($2::text = 'NON_ARCHIVED' AND o.status <> 'ARCHIVED') OR o.status = $2::text)
-        AND ($1::text = '' OR
-          o.name ILIKE $3 OR o.slug ILIKE $3 OR
-          COALESCE(o.contact_email, '') ILIKE $3 OR
-          COALESCE(o.contact_phone, '') ILIKE $3 OR
-          COALESCE(o.address, '') ILIKE $3 OR
-          EXISTS (SELECT 1 FROM users su JOIN roles sr ON sr.id = su.role_id
-            WHERE su.organization_id = o.id AND su.account_scope = 'ORGANIZATION'
-              AND sr.name = 'ORGANIZATION_ADMIN' AND sr.scope = 'ORGANIZATION'
-              AND sr.organization_id = o.id AND su.email ILIKE $3))
-      ORDER BY o.created_at DESC, o.id DESC
-      LIMIT $4 OFFSET $5
-    `, [search, status, searchPattern, pageSize, offset]);
+        ) AS organization_admin ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*)::integer AS user_count
+          FROM users AS u
+          WHERE u.organization_id = o.id
+            AND u.account_scope = 'ORGANIZATION'
+        ) AS organization_users ON TRUE
+        WHERE ($2::text = 'ALL' OR ($2::text = 'NON_ARCHIVED' AND o.status <> 'ARCHIVED') OR o.status = $2::text)
+          AND ($1::text = '' OR
+            o.name ILIKE $3 OR o.slug ILIKE $3 OR
+            COALESCE(o.contact_email, '') ILIKE $3 OR
+            COALESCE(o.contact_phone, '') ILIKE $3 OR
+            COALESCE(o.address, '') ILIKE $3 OR
+            EXISTS (SELECT 1 FROM users su JOIN roles sr ON sr.id = su.role_id
+              WHERE su.organization_id = o.id AND su.account_scope = 'ORGANIZATION'
+                AND sr.name = 'ORGANIZATION_ADMIN' AND sr.scope = 'ORGANIZATION'
+                AND sr.organization_id = o.id AND su.email ILIKE $3))
+        ORDER BY o.created_at DESC, o.id DESC
+        LIMIT $4 OFFSET $5
+      `, [search, status, searchPattern, pageSize, offset]),
+      pool.query(`
+        SELECT
+          (SELECT COUNT(*) FILTER (WHERE status <> 'ARCHIVED')::integer FROM organizations) AS total,
+          (SELECT COUNT(*) FILTER (WHERE status = 'ACTIVE')::integer FROM organizations) AS active,
+          (SELECT COUNT(*) FILTER (WHERE status = 'PENDING_SETUP')::integer FROM organizations) AS pending,
+          (SELECT COUNT(*) FILTER (WHERE status = 'SUSPENDED')::integer FROM organizations) AS suspended,
+          (SELECT COUNT(*) FILTER (WHERE status = 'ARCHIVED')::integer FROM organizations) AS archived,
+          (SELECT COUNT(*)::integer FROM organizations o
+           WHERE ($2::text = 'ALL' OR ($2::text = 'NON_ARCHIVED' AND o.status <> 'ARCHIVED') OR o.status = $2::text)
+             AND ($1::text = '' OR o.name ILIKE $3 OR o.slug ILIKE $3
+               OR COALESCE(o.contact_email, '') ILIKE $3
+               OR COALESCE(o.contact_phone, '') ILIKE $3
+               OR COALESCE(o.address, '') ILIKE $3
+               OR EXISTS (SELECT 1 FROM users su JOIN roles sr ON sr.id = su.role_id
+                 WHERE su.organization_id = o.id AND su.account_scope = 'ORGANIZATION'
+                   AND sr.name = 'ORGANIZATION_ADMIN' AND sr.scope = 'ORGANIZATION'
+                   AND sr.organization_id = o.id AND su.email ILIKE $3))
+          ) AS matching_total
+      `, [search, status, searchPattern]),
+    ]);
+    const summary = totalsResult.rows[0] || {};
+    const matchingTotal = Number(summary.matching_total || 0);
 
-    const totalResult = await pool.query(`
-      SELECT COUNT(*) FILTER (WHERE status <> 'ARCHIVED')::integer AS total,
-        COUNT(*) FILTER (WHERE status = 'ACTIVE')::integer AS active,
-        COUNT(*) FILTER (WHERE status = 'PENDING_SETUP')::integer AS pending,
-        COUNT(*) FILTER (WHERE status = 'SUSPENDED')::integer AS suspended,
-        COUNT(*) FILTER (WHERE status = 'ARCHIVED')::integer AS archived
-      FROM organizations
-    `);
-    const matchingResult = await pool.query(`
-      SELECT COUNT(*)::integer AS total FROM organizations o
-      WHERE ($2::text = 'ALL' OR ($2::text = 'NON_ARCHIVED' AND o.status <> 'ARCHIVED') OR o.status = $2::text)
-        AND ($1::text = '' OR o.name ILIKE $3 OR o.slug ILIKE $3
-          OR COALESCE(o.contact_email, '') ILIKE $3
-          OR COALESCE(o.contact_phone, '') ILIKE $3
-          OR COALESCE(o.address, '') ILIKE $3
-          OR EXISTS (SELECT 1 FROM users su JOIN roles sr ON sr.id = su.role_id
-            WHERE su.organization_id = o.id AND su.account_scope = 'ORGANIZATION'
-              AND sr.name = 'ORGANIZATION_ADMIN' AND sr.scope = 'ORGANIZATION'
-              AND sr.organization_id = o.id AND su.email ILIKE $3))
-    `, [search, status, searchPattern]);
-
-    const summary = totalResult.rows[0] || {};
-    const matchingTotal = Number(matchingResult.rows[0]?.total || 0);
     return NextResponse.json({
       status: "ok",
       count: result.rows.length,

@@ -134,6 +134,10 @@ export async function GET() {
            d.name,
            d.status,
            d.manager_id,
+           COUNT(*) OVER ()::int AS total_departments,
+           COUNT(*) FILTER (WHERE d.status = 'ACTIVE') OVER ()::int AS active_departments,
+           COUNT(*) FILTER (WHERE d.status = 'INACTIVE') OVER ()::int AS inactive_departments,
+           COUNT(*) FILTER (WHERE d.manager_id IS NULL) OVER ()::int AS departments_without_manager,
            NULLIF(TRIM(CONCAT_WS(' ', m.first_name, m.last_name)), '') AS manager_name,
            COUNT(e.id) FILTER (WHERE COALESCE(employee_role.name, 'EMPLOYEE') NOT IN ('ORGANIZATION_ADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR'))::int AS total_employee_count,
            COUNT(e.id) FILTER (WHERE e.employment_status = 'ACTIVE' AND COALESCE(employee_role.name, 'EMPLOYEE') NOT IN ('ORGANIZATION_ADMIN', 'ORG_ADMIN', 'ORGANIZATION_ADMINISTRATOR'))::int AS active_employee_count,
@@ -280,25 +284,18 @@ export async function GET() {
     const queue = queueResult.rows[0] ?? {};
     const today = todayResult.rows[0] ?? {};
     const departments = departmentResult.rows.map((row) => ({
-      ...row,
+      id: row.id,
+      name: row.name,
+      status: row.status,
+      manager_id: row.manager_id,
+      manager_name: row.manager_name,
       total_employee_count: integer(row.total_employee_count),
       active_employee_count: integer(row.active_employee_count),
       inactive_employee_count: integer(row.inactive_employee_count),
       former_employee_count: integer(row.former_employee_count),
       manager_needs_attention: row.manager_needs_attention === true,
     }));
-
-    const departmentCounts = await client.query(
-      `SELECT
-         COUNT(*)::int AS total_departments,
-         COUNT(*) FILTER (WHERE status = 'ACTIVE')::int AS active_departments,
-         COUNT(*) FILTER (WHERE status = 'INACTIVE')::int AS inactive_departments,
-         COUNT(*) FILTER (WHERE manager_id IS NULL)::int AS departments_without_manager
-       FROM public.departments
-       WHERE organization_id = $1`,
-      [user.organizationId],
-    );
-    const departmentTotals = departmentCounts.rows[0] ?? {};
+    const departmentTotals = departmentResult.rows[0] ?? {};
 
     await client.query("COMMIT");
     transactionStarted = false;
