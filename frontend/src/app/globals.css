@@ -4224,3 +4224,152 @@ body {
 @media(prefers-reduced-motion:reduce){
  .myday-progress-track span,.myday-clock-button,.myday-quick-action>svg{transition:none}
 }
+
+
+/* Employee My Day — Step 2 visual refinement */
+.myday-root{gap:20px;padding-top:6px}
+.myday-heading-row{align-items:center}
+.myday-heading-copy h1{font-size:clamp(28px,3.2vw,36px);letter-spacing:-.04em}
+.myday-heading-copy>p:last-child{font-size:14px;line-height:1.5}
+.myday-org-chip,.myday-date-chip{font-size:12px;min-height:37px;padding:8px 12px}
+.myday-alert{font-size:13px;line-height:1.5}
+.myday-primary-grid{gap:18px}
+.myday-attendance-card{padding:28px 30px 25px;border-radius:20px}
+.myday-overline,.myday-section-kicker{font-size:10px;letter-spacing:.12em}
+.myday-live-state{font-size:11px;padding:7px 11px}
+.myday-attendance-main{margin:27px 0 24px;gap:24px}
+.myday-worked-value{font-size:clamp(38px,4.8vw,52px)}
+.myday-attendance-caption{font-size:13px;line-height:1.5}
+.myday-shift-summary{padding:15px 16px}
+.myday-shift-name{font-size:14px}
+.myday-shift-times{margin-top:14px}
+.myday-shift-times span{font-size:9px}
+.myday-shift-times strong{font-size:14px}
+.myday-shift-break{font-size:11px}
+.myday-progress-labels{font-size:11px}
+.myday-progress-labels strong{font-size:12px}
+.myday-progress-foot{font-size:11px}
+.myday-clock-button{min-width:180px;min-height:49px;font-size:14px!important}
+.myday-clock-hint{font-size:11px}
+.myday-quick-card,.myday-panel{padding:22px;border-radius:17px}
+.myday-quick-card h2,.myday-panel-heading h2{font-size:18px}
+.myday-quick-card>div:first-child>p,.myday-panel-heading p{font-size:12px;line-height:1.55}
+.myday-quick-actions{margin-top:15px}
+.myday-quick-action{padding:12px 0;gap:11px}
+.myday-quick-icon,.myday-request-icon{width:37px;height:37px}
+.myday-quick-action strong{font-size:12px}
+.myday-quick-action small{font-size:11px}
+.myday-stat-grid{gap:14px}
+.myday-stat-card{gap:13px;padding:18px;min-height:105px;border-radius:15px}
+.myday-stat-icon{width:39px;height:39px;border-radius:12px}
+.myday-stat-label{font-size:11px}
+.myday-stat-card strong{font-size:clamp(18px,1.9vw,22px)}
+.myday-stat-card small{font-size:10px;line-height:1.45}
+.myday-content-grid,.myday-bottom-grid{gap:18px;align-items:start}
+.myday-panel-heading{margin-bottom:19px}
+.myday-panel-heading h2{font-size:18px}
+.myday-panel-heading p{font-size:12px}
+.myday-text-link{font-size:11px}
+.myday-icon-link{width:35px;height:35px}
+.myday-chart-summary{gap:32px;margin-bottom:18px}
+.myday-chart-summary strong{font-size:21px}
+.myday-chart-summary span{font-size:11px}
+.myday-hours-chart{min-height:160px;gap:14px}
+.myday-chart-track{width:min(100%,40px);height:116px;border-radius:8px}
+.myday-chart-day{gap:7px}
+.myday-chart-day strong{font-size:10px}
+.myday-chart-day small{font-size:10px}
+.myday-chart-legend{margin-top:15px;padding-top:13px}
+.myday-chart-legend span{font-size:10px}
+.myday-upcoming-row{gap:12px;padding:11px 0}
+.myday-upcoming-date{width:42px;min-height:44px;border-radius:10px}
+.myday-upcoming-date strong{font-size:16px}
+.myday-upcoming-date small{font-size:9px}
+.myday-upcoming-copy{gap:4px}
+.myday-upcoming-copy strong{font-size:11px}
+.myday-upcoming-copy small{font-size:10px;line-height:1.4}
+.myday-schedule-tag{font-size:9px;padding:5px 8px}
+.myday-request-row{gap:11px;padding:12px 0}
+.myday-request-copy strong{font-size:12px}
+.myday-request-copy small{font-size:10px}
+.myday-request-row .status-badge{font-size:10px;padding:5px 8px}
+.myday-request-icon{width:36px;height:36px}
+.myday-empty-state{padding:30px 16px;gap:8px}
+.myday-empty-state>span{width:42px;height:42px}
+.myday-empty-state strong{font-size:13px}
+.myday-empty-state small{font-size:11px;line-height:1.5}
+.myday-earnings-icon{width:39px;height:39px}
+.myday-earnings-value{font-size:clamp(27px,3vw,34px)}
+.myday-earnings-note{font-size:10px;line-height:1.5}
+.myday-earnings-breakdown{gap:14px;margin-top:20px;padding:14px 0}
+.myday-earnings-breakdown span{font-size:10px}
+.myday-earnings-breakdown strong{font-size:13px}
+.myday-earnings-warning{font-size:10px;line-height:1.5}
+.myday-earnings-link{font-size:11px}
+.myday-earnings-unavailable{margin-top:16px;padding:13px;border:1px dashed var(--border-strong);border-radius:10px;color:var(--muted);font-size:11px;line-height:1.5;background:var(--surface-muted)}
+.myday-timeline-item{grid-template-columns:32px minmax(0,1fr) auto;gap:12px;padding:11px 0}
+.myday-timeline-marker{width:31px;height:31px;border-radius:10px}
+.myday-timeline-item+.myday-timeline-item:before{left:15px}
+.myday-timeline-item strong{font-size:12px}
+.myday-timeline-item small{font-size:11px}
+.myday-timeline-meta{font-size:10px}
+.myday-timeline-empty{font-size:12px;padding:16px 0}
+.myday-footer-note{font-size:10px;line-height:1.5}
+
+/* Consistent loading skeletons */
+.myday-skeleton{display:inline-block;vertical-align:middle;border-radius:7px;background:linear-gradient(100deg,var(--surface-muted) 20%,color-mix(in srgb,var(--border) 65%,var(--surface)) 42%,var(--surface-muted) 64%);background-size:220% 100%;animation:myday-shimmer 1.35s ease-in-out infinite}
+.myday-skeleton-time{width:158px;height:43px}
+.myday-skeleton-shift{width:175px;height:15px}
+.myday-skeleton-time-small{width:74px;height:14px}
+.myday-skeleton-stat{width:86px;height:23px}
+.myday-skeleton-money{width:125px}
+.myday-skeleton-money-value{width:190px;height:34px;max-width:80%}
+.myday-chart-loading{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-items:end;gap:14px;height:160px;padding:9px 2px 0}
+.myday-chart-loading .myday-chart-day{height:100%;justify-content:flex-end;gap:8px}
+.myday-skeleton-chart-bar{width:min(100%,40px);height:105px;border-radius:8px 8px 5px 5px}
+.myday-skeleton-chart-label{width:28px;height:9px}
+.myday-skeleton-chart-day{width:23px;height:9px}
+.myday-upcoming-skeleton,.myday-request-skeleton{display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--border)}
+.myday-skeleton-date{width:42px;height:44px;border-radius:10px}
+.myday-skeleton-row-title{width:min(190px,90%);height:12px;margin-bottom:7px}
+.myday-skeleton-row-detail{width:min(135px,72%);height:9px}
+.myday-skeleton-tag{width:48px;height:22px;border-radius:7px}
+.myday-loading-rows{display:flex;flex-direction:column}
+.myday-request-skeleton{grid-template-columns:36px minmax(0,1fr) 48px}
+.myday-skeleton-request-icon{width:36px;height:36px;border-radius:10px}
+.myday-earnings-breakdown-loading>div{display:flex;flex-direction:column;gap:8px}
+@keyframes myday-shimmer{0%{background-position:100% 0}100%{background-position:-120% 0}}
+@media(prefers-reduced-motion:reduce){.myday-skeleton{animation:none}}
+@media(max-width:1120px){
+ .myday-attendance-card{padding:25px}
+ .myday-stat-grid{gap:11px}
+ .myday-stat-card{padding:15px}
+}
+@media(max-width:850px){
+ .myday-primary-grid,.myday-content-grid,.myday-bottom-grid{gap:14px}
+ .myday-quick-card,.myday-panel{padding:19px}
+}
+@media(max-width:600px){
+ .myday-root{gap:14px}
+ .myday-heading-copy h1{font-size:29px}
+ .myday-heading-copy>p:last-child{font-size:12px}
+ .myday-attendance-card{padding:20px 17px;border-radius:16px}
+ .myday-worked-value{font-size:39px}
+ .myday-skeleton-time{width:132px;height:37px}
+ .myday-quick-card,.myday-panel{padding:16px}
+ .myday-stat-card{padding:12px 10px;min-height:94px}
+ .myday-stat-label{font-size:10px}
+ .myday-stat-card strong{font-size:16px}
+ .myday-stat-card small{font-size:9px}
+ .myday-hours-chart,.myday-chart-loading{gap:7px}
+ .myday-chart-track,.myday-skeleton-chart-bar{width:min(100%,32px)}
+ .myday-upcoming-row{gap:8px}
+ .myday-upcoming-copy strong{font-size:10px}
+ .myday-upcoming-copy small{font-size:9px}
+ .myday-schedule-tag{font-size:8px;padding:4px 6px}
+ .myday-request-row{gap:7px}
+ .myday-request-copy strong{font-size:11px}
+ .myday-request-copy small{font-size:9px}
+ .myday-request-row .status-badge{font-size:9px;padding:4px 6px}
+ .myday-skeleton-date{width:39px;height:41px}
+}

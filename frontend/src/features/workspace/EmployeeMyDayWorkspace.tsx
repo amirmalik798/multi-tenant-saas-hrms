@@ -30,7 +30,7 @@ interface EarningsSummary {
   estimatedSalary?: number | null; regularMinutes?: number; payableOvertimeMinutes?: number;
   daysWithMissingRates?: number; currencyMismatch?: boolean;
 }
-interface EarningsPayload { month?: string; currencyCode?: string | null; summary?: EarningsSummary }
+interface EarningsPayload { month?: string; currencyCode?: string | null; hasRates?: boolean; summary?: EarningsSummary }
 interface RequestItem extends Record<string, unknown> {
   id?: string; status?: string; createdAt?: string; requestedAt?: string; workDate?: string;
   startDate?: string; endDate?: string; leaveType?: string; eventType?: string; requestedMinutes?: number;
@@ -48,6 +48,10 @@ interface TimelineItem { key: string; kind: "shift" | "event"; label: string; at
 const EMPTY_SNAPSHOT: MyDaySnapshot = {
   calendar: null, punches: null, earnings: null, leave: null, corrections: null, overtime: null, notifications: null,
 };
+
+function MyDaySkeleton({ className = "" }: { className?: string }) {
+  return <span className={"myday-skeleton " + className} aria-hidden="true" />;
+}
 
 function addCalendarDays(value: string, amount: number): string {
   const date = new Date(value + "T12:00:00.000Z");
@@ -212,6 +216,10 @@ export function EmployeeMyDayWorkspace() {
     const date = addCalendarDays(today, index + 1);
     return { date, entry: entriesByDate.get(date) };
   }) : [], [today, entriesByDate]);
+  const hasUpcomingSchedule = upcomingDays.some(({ entry }) =>
+    Boolean(entry?.scheduleName || entry?.leaveRequest || entry?.publicHoliday),
+  );
+  const hasWeeklyActivity = weekDays.some((day) => day.worked > 0 || day.scheduled > 0);
 
   const allRequests = useMemo(() => buildRequests(snapshot), [snapshot]);
   const requestSourcesLoaded = Boolean(snapshot.leave && snapshot.corrections && snapshot.overtime);
@@ -220,6 +228,13 @@ export function EmployeeMyDayWorkspace() {
   const earnings = snapshot.earnings?.summary;
   const earningsAmount = typeof earnings?.estimatedSalary === "number" ? earnings.estimatedSalary : null;
   const earningsCurrency = snapshot.earnings?.currencyCode || currencyCode;
+  const earningsUnavailableLabel = earnings?.currencyMismatch
+    ? "Currency review"
+    : (earnings?.daysWithMissingRates ?? 0) > 0
+      ? "Rates needed"
+      : snapshot.earnings?.hasRates === false
+        ? "Pay rates not set"
+        : "Estimate unavailable";
   const firstName = user.firstName?.trim() || user.displayName?.trim().split(/\s+/)[0] || "there";
   let greeting = "Welcome";
   try {
@@ -227,18 +242,21 @@ export function EmployeeMyDayWorkspace() {
     greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   } catch { greeting = "Welcome"; }
 
-  const statusText = isClockedIn ? "You're currently clocked in"
+  const statusText = loading ? "Loading your attendance..."
+    : isClockedIn ? "You're currently clocked in"
     : approvedLeaveToday ? "You're on approved leave today"
       : holidayToday ? "Today is an organization public holiday"
         : clockInTooEarly ? "Your shift starts at " + timestampLabel(todayEntry?.expectedStart, timeZone)
           : clockInTooLate ? "Your scheduled shift has ended"
             : hasAttendanceEvents ? "Your last recorded action was clock-out"
               : "Your workday has not started";
-  const shiftText = approvedLeaveToday
-    ? humanize(todayEntry?.leaveRequest?.leaveType) + " leave"
-    : holidayToday
-      ? todayEntry?.publicHoliday?.name || "Public holiday"
-      : todayEntry?.scheduleName || (todayEntry?.expectedStart ? "Assigned shift" : "No shift scheduled today");
+  const shiftText = loading
+    ? "Loading your assigned shift..."
+    : approvedLeaveToday
+      ? humanize(todayEntry?.leaveRequest?.leaveType) + " leave"
+      : holidayToday
+        ? todayEntry?.publicHoliday?.name || "Public holiday"
+        : todayEntry?.scheduleName || (todayEntry?.expectedStart ? "Assigned shift" : "No shift scheduled today");
   const heroStatus = loading ? "Checking status"
     : isClockedIn ? "On the clock"
       : approvedLeaveToday ? "On approved leave"
@@ -316,21 +334,21 @@ export function EmployeeMyDayWorkspace() {
         <div className="myday-attendance-card">
           <div className="myday-attendance-topline"><span className="myday-overline">YOUR WORKDAY</span><span className={"myday-live-state" + (isClockedIn ? " is-live" : "")}><span className="myday-live-dot" />{heroStatus}</span></div>
           <div className="myday-attendance-main">
-            <div><p className="myday-overline myday-muted-overline">TIME WORKED TODAY</p><div className="myday-worked-value">{loading ? "—" : minutesLabel(workedMinutes)}</div><p className="myday-attendance-caption">{statusText}</p></div>
-            <div className="myday-shift-summary"><span className="myday-shift-name">{shiftText}</span><div className="myday-shift-times">
-              <div><span>SHIFT START</span><strong>{timestampLabel(todayEntry?.expectedStart, timeZone)}</strong></div><div><span>SHIFT END</span><strong>{timestampLabel(todayEntry?.expectedEnd, timeZone)}</strong></div>
+            <div><p className="myday-overline myday-muted-overline">TIME WORKED TODAY</p><div className="myday-worked-value">{loading ? <MyDaySkeleton className="myday-skeleton-time" /> : minutesLabel(workedMinutes)}</div><p className="myday-attendance-caption">{statusText}</p></div>
+            <div className="myday-shift-summary"><span className="myday-shift-name">{loading ? <MyDaySkeleton className="myday-skeleton-shift" /> : shiftText}</span><div className="myday-shift-times">
+              <div><span>SHIFT START</span><strong>{loading ? <MyDaySkeleton className="myday-skeleton-time-small" /> : timestampLabel(todayEntry?.expectedStart, timeZone)}</strong></div><div><span>SHIFT END</span><strong>{loading ? <MyDaySkeleton className="myday-skeleton-time-small" /> : timestampLabel(todayEntry?.expectedEnd, timeZone)}</strong></div>
             </div>
             {todayEntry?.scheduledBreakMinutes ? <div className="myday-shift-break"><Coffee size={13} />{minutesLabel(todayEntry.scheduledBreakMinutes)} scheduled break</div> : null}
             </div>
           </div>
           <div className="myday-progress-block">
-            <div className="myday-progress-labels"><span>{scheduledMinutes > 0 ? "Scheduled work progress" : "Today's schedule"}</span><strong>{scheduledMinutes > 0 ? progress + "%" : "Not scheduled"}</strong></div>
+            <div className="myday-progress-labels"><span>{loading ? "Checking your schedule" : scheduledMinutes > 0 ? "Scheduled work progress" : "Today's schedule"}</span><strong>{loading ? "—" : scheduledMinutes > 0 ? progress + "%" : "Not scheduled"}</strong></div>
             <div className="myday-progress-track" role="progressbar" aria-label="Scheduled work completed" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><span style={{ width: progress + "%" }} /></div>
-            <div className="myday-progress-foot"><span>{scheduledMinutes > 0 ? minutesLabel(regularMinutes) + " completed" : (todayEntry?.publicHoliday?.name || "Enjoy your day")}</span><span>{scheduledMinutes > 0 && isClockedIn ? minutesLabel(remainingMinutes) + " scheduled time remaining" : ""}</span></div>
+            <div className="myday-progress-foot"><span>{loading ? "Attendance data is loading" : scheduledMinutes > 0 ? minutesLabel(regularMinutes) + " completed" : (todayEntry?.publicHoliday?.name || "Enjoy your day")}</span><span>{!loading && scheduledMinutes > 0 && isClockedIn ? minutesLabel(remainingMinutes) + " scheduled time remaining" : ""}</span></div>
           </div>
           <div className="myday-attendance-actions">
-            <Button type="button" size="lg" className={"myday-clock-button " + (isClockedIn ? "is-clock-out" : "is-clock-in")} busy={savingPunch} disabled={!canPunch || loading} onClick={() => void punch()} leading={<Clock3 size={18} />}>{savingPunch ? "Recording attendance…" : isClockedIn ? "Clock out" : clockInTooEarly ? "Available at " + timestampLabel(todayEntry?.expectedStart, timeZone) : clockInTooLate ? "Shift ended" : approvedLeaveToday ? "On approved leave" : holidayToday ? "Public holiday" : !todayEntry?.expectedStart ? "No shift today" : "Clock in"}</Button>
-            <span className="myday-clock-hint">{isClockedIn ? "Clock-out remains available so an open attendance session can always be closed." : approvedLeaveToday ? "Clock-in is unavailable during approved leave." : holidayToday ? "Clock-in is unavailable on an organization public holiday." : clockInTooEarly ? "Clock-in opens in " + minutesLabel(minutesUntilShift) + " at " + timestampLabel(todayEntry?.expectedStart, timeZone) + "." : clockInTooLate ? "Clock-in is closed because this shift has ended. Contact your manager if your schedule needs correction." : todayEntry?.expectedStart ? "Your shift and attendance rules are verified by HRMS." : "No active shift is assigned for today."}</span>
+            <Button type="button" size="lg" className={"myday-clock-button " + (isClockedIn ? "is-clock-out" : "is-clock-in")} busy={savingPunch} disabled={!canPunch || loading} onClick={() => void punch()} leading={<Clock3 size={18} />}>{savingPunch ? "Recording attendance…" : loading ? "Checking shift..." : isClockedIn ? "Clock out" : clockInTooEarly ? "Available at " + timestampLabel(todayEntry?.expectedStart, timeZone) : clockInTooLate ? "Shift ended" : approvedLeaveToday ? "On approved leave" : holidayToday ? "Public holiday" : !todayEntry?.expectedStart ? "No shift today" : "Clock in"}</Button>
+            <span className="myday-clock-hint">{loading ? "Checking your assigned shift and attendance eligibility." : isClockedIn ? "Clock-out remains available so an open attendance session can always be closed." : approvedLeaveToday ? "Clock-in is unavailable during approved leave." : holidayToday ? "Clock-in is unavailable on an organization public holiday." : clockInTooEarly ? "Clock-in opens in " + minutesLabel(minutesUntilShift) + " at " + timestampLabel(todayEntry?.expectedStart, timeZone) + "." : clockInTooLate ? "Clock-in is closed because this shift has ended. Contact your manager if your schedule needs correction." : todayEntry?.expectedStart ? "Your shift and attendance rules are verified by HRMS." : "No active shift is assigned for today."}</span>
           </div>
           {punchError ? <p className="myday-inline-error" role="alert">{punchError}</p> : null}
           {todayEntry?.calculationStatus === "REVIEW_REQUIRED" ? <Link className="myday-review-link" href="/employee/requests"><AlertCircle size={15} />Your attendance needs review<ChevronRight size={15} /></Link> : null}
@@ -348,33 +366,51 @@ export function EmployeeMyDayWorkspace() {
       </section>
 
       <section className="myday-stat-grid" aria-label="Personal summary">
-        <div className="myday-stat-card"><span className="myday-stat-icon myday-stat-blue"><CalendarClock size={18} /></span><div><span className="myday-stat-label">Hours this week</span><strong>{loading ? "—" : minutesLabel(weekWorked)}</strong><small>{weekScheduled > 0 ? "Of " + minutesLabel(weekScheduled) + " scheduled this week" : "No scheduled hours this week"}</small></div></div>
-        <div className="myday-stat-card"><span className="myday-stat-icon myday-stat-amber"><FileClock size={18} /></span><div><span className="myday-stat-label">Pending requests</span><strong>{requestSourcesLoaded ? String(pendingRequests.length) : "—"}</strong><small>{requestSourcesLoaded ? "Waiting for a decision" : "Request status unavailable"}</small></div></div>
-        <div className="myday-stat-card"><span className="myday-stat-icon myday-stat-violet"><Mail size={18} /></span><div><span className="myday-stat-label">Unread messages</span><strong>{typeof unreadMessages === "number" ? String(unreadMessages) : "—"}</strong><small>{typeof unreadMessages === "number" ? "Personal conversations" : "Message count unavailable"}</small></div></div>
-        <div className="myday-stat-card"><span className="myday-stat-icon myday-stat-green"><Wallet size={18} /></span><div><span className="myday-stat-label">Estimated earnings</span><strong>{earningsAmount !== null ? formatMoney(earningsAmount, earningsCurrency) : earnings?.daysWithMissingRates ? "Rates needed" : "—"}</strong><small>{snapshot.earnings ? "Month to date · not a payment confirmation" : "Earnings unavailable"}</small></div></div>
+        <div className="myday-stat-card"><span className="myday-stat-icon myday-stat-blue"><CalendarClock size={18} /></span><div><span className="myday-stat-label">Hours this week</span><strong>{snapshot.calendar ? minutesLabel(weekWorked) : loading ? <MyDaySkeleton className="myday-skeleton-stat" /> : "Unavailable"}</strong><small>{loading ? "Loading weekly hours..." : snapshot.calendar ? weekScheduled > 0 ? "Of " + minutesLabel(weekScheduled) + " scheduled this week" : "No scheduled hours this week" : "Weekly data unavailable"}</small></div></div>
+        <div className="myday-stat-card"><span className="myday-stat-icon myday-stat-amber"><FileClock size={18} /></span><div><span className="myday-stat-label">Pending requests</span><strong>{requestSourcesLoaded ? String(pendingRequests.length) : loading ? <MyDaySkeleton className="myday-skeleton-stat" /> : "Unavailable"}</strong><small>{requestSourcesLoaded ? "Waiting for a decision" : loading ? "Loading your requests..." : "Request status unavailable"}</small></div></div>
+        <div className="myday-stat-card"><span className="myday-stat-icon myday-stat-violet"><Mail size={18} /></span><div><span className="myday-stat-label">Unread messages</span><strong>{typeof unreadMessages === "number" ? String(unreadMessages) : loading ? <MyDaySkeleton className="myday-skeleton-stat" /> : "Unavailable"}</strong><small>{typeof unreadMessages === "number" ? "Personal conversations" : loading ? "Checking messages..." : "Message count unavailable"}</small></div></div>
+        <div className="myday-stat-card"><span className="myday-stat-icon myday-stat-green"><Wallet size={18} /></span><div><span className="myday-stat-label">Estimated earnings</span><strong>{loading ? <MyDaySkeleton className="myday-skeleton-stat myday-skeleton-money" /> : earningsAmount !== null ? formatMoney(earningsAmount, earningsCurrency) : earningsUnavailableLabel}</strong><small>{loading ? "Calculating month to date..." : earningsAmount !== null ? "Month to date · not a payment confirmation" : "Estimate not available yet"}</small></div></div>
       </section>
 
       <section className="myday-content-grid">
         <div className="myday-panel">
           <div className="myday-panel-heading"><div><span className="myday-section-kicker">YOUR TIME</span><h2>Hours this week</h2><p>Recorded work compared with your assigned shifts.</p></div><Link href="/employee/reports" className="myday-text-link">Attendance report <ArrowRight size={14} /></Link></div>
-          <div className="myday-chart-summary"><div><strong>{minutesLabel(weekWorked)}</strong><span>Worked so far</span></div><div><strong>{minutesLabel(weekScheduled)}</strong><span>Scheduled this week</span></div></div>
-          <div className="myday-hours-chart" role="img" aria-label="Daily worked hours compared with scheduled hours this week">
-            {weekDays.map((day) => {
-              const scheduledHeight = Math.max(0, Math.min(100, day.scheduled / maxChartMinutes * 100));
-              const workedHeight = Math.max(0, Math.min(100, day.worked / maxChartMinutes * 100));
-              return <div className="myday-chart-day" key={day.date} title={dayLabel(day.date) + ": " + minutesLabel(day.worked) + " worked, " + minutesLabel(day.scheduled) + " scheduled"}>
-                <div className="myday-chart-track"><span className="myday-chart-scheduled" style={{ height: scheduledHeight + "%" }} /><span className="myday-chart-worked" style={{ height: workedHeight + "%" }} /></div>
-                <strong>{day.worked > 0 ? day.worked < 60 ? Math.round(day.worked) + "m" : (day.worked / 60).toFixed(1) + "h" : "—"}</strong><small>{day.label}</small>
-              </div>;
-            })}
-          </div>
-          <div className="myday-chart-legend"><span><i className="is-worked" />Worked</span><span><i className="is-scheduled" />Scheduled</span></div>
+          <div className="myday-chart-summary"><div><strong>{loading ? <MyDaySkeleton className="myday-skeleton-stat" /> : minutesLabel(weekWorked)}</strong><span>Worked so far</span></div><div><strong>{loading ? <MyDaySkeleton className="myday-skeleton-stat" /> : minutesLabel(weekScheduled)}</strong><span>Scheduled this week</span></div></div>
+          {loading ? (
+            <div className="myday-chart-loading" role="status" aria-label="Loading weekly attendance chart">
+              {Array.from({ length: 7 }, (_, index) => <div className="myday-chart-day" key={index}><MyDaySkeleton className="myday-skeleton-chart-bar" /><MyDaySkeleton className="myday-skeleton-chart-label" /><MyDaySkeleton className="myday-skeleton-chart-day" /></div>)}
+            </div>
+          ) : !snapshot.calendar ? (
+            <div className="myday-empty-state"><span><AlertCircle size={21} /></span><strong>Attendance chart unavailable</strong><small>Weekly attendance could not be retrieved. It will retry automatically.</small></div>
+          ) : !hasWeeklyActivity ? (
+            <div className="myday-empty-state"><span><CalendarClock size={21} /></span><strong>No scheduled hours this week</strong><small>Your weekly hours will appear here when a shift is assigned or attendance is recorded.</small></div>
+          ) : (
+            <>
+              <div className="myday-hours-chart" role="img" aria-label="Daily worked hours compared with scheduled hours this week">
+                {weekDays.map((day) => {
+                  const scheduledHeight = Math.max(0, Math.min(100, day.scheduled / maxChartMinutes * 100));
+                  const workedHeight = Math.max(0, Math.min(100, day.worked / maxChartMinutes * 100));
+                  return <div className="myday-chart-day" key={day.date} title={dayLabel(day.date) + ": " + minutesLabel(day.worked) + " worked, " + minutesLabel(day.scheduled) + " scheduled"}>
+                    <div className="myday-chart-track"><span className="myday-chart-scheduled" style={{ height: scheduledHeight + "%" }} /><span className="myday-chart-worked" style={{ height: workedHeight + "%" }} /></div>
+                    <strong>{day.worked > 0 ? day.worked < 60 ? Math.round(day.worked) + "m" : (day.worked / 60).toFixed(1) + "h" : "—"}</strong><small>{day.label}</small>
+                  </div>;
+                })}
+              </div>
+              <div className="myday-chart-legend"><span><i className="is-worked" />Worked</span><span><i className="is-scheduled" />Scheduled</span></div>
+            </>
+          )}
         </div>
 
         <div className="myday-panel">
           <div className="myday-panel-heading"><div><span className="myday-section-kicker">PLAN AHEAD</span><h2>Coming up</h2><p>Your next seven calendar days.</p></div><Link href="/employee/schedule" className="myday-icon-link" aria-label="Open full schedule"><ArrowRight size={17} /></Link></div>
           <div className="myday-upcoming-list">
-            {upcomingDays.map(({ date, entry }) => {
+            {loading ? (
+              Array.from({ length: 5 }, (_, index) => <div className="myday-upcoming-skeleton" key={index}><MyDaySkeleton className="myday-skeleton-date" /><div><MyDaySkeleton className="myday-skeleton-row-title" /><MyDaySkeleton className="myday-skeleton-row-detail" /></div><MyDaySkeleton className="myday-skeleton-tag" /></div>)
+            ) : !snapshot.calendar ? (
+              <div className="myday-empty-state"><span><AlertCircle size={21} /></span><strong>Schedule unavailable</strong><small>Your upcoming shifts could not be loaded. Please try again shortly.</small></div>
+            ) : !hasUpcomingSchedule ? (
+              <div className="myday-empty-state"><span><CalendarDays size={21} /></span><strong>No upcoming shifts assigned</strong><small>Your next seven days have no scheduled shifts, approved leave or public holidays.</small></div>
+            ) : upcomingDays.map(({ date, entry }) => {
               const label = entry?.scheduleName || (entry?.leaveRequest?.status === "APPROVED" ? humanize(entry.leaveRequest.leaveType) + " leave" : entry?.publicHoliday?.name || "Rest day");
               const detail = entry?.expectedStart && entry.expectedEnd ? timestampLabel(entry.expectedStart, timeZone) + " – " + timestampLabel(entry.expectedEnd, timeZone)
                 : entry?.leaveRequest?.status === "APPROVED" ? "Approved time off" : entry?.publicHoliday ? "Organization holiday" : "No shift assigned";
@@ -392,17 +428,27 @@ export function EmployeeMyDayWorkspace() {
       <section className="myday-bottom-grid">
         <div className="myday-panel">
           <div className="myday-panel-heading"><div><span className="myday-section-kicker">STAY ON TOP</span><h2>My requests</h2><p>Your latest leave, attendance and overtime requests.</p></div><Link href="/employee/requests" className="myday-text-link">View all <ArrowRight size={14} /></Link></div>
-          {allRequests.length > 0 ? <div className="myday-request-list">{allRequests.slice(0, 4).map((item) => <Link href={item.href} className="myday-request-row" key={item.id}>
+          {loading && !requestSourcesLoaded ? (
+            <div className="myday-loading-rows" role="status" aria-label="Loading requests">
+              {Array.from({ length: 3 }, (_, index) => <div className="myday-request-skeleton" key={index}><MyDaySkeleton className="myday-skeleton-request-icon" /><div><MyDaySkeleton className="myday-skeleton-row-title" /><MyDaySkeleton className="myday-skeleton-row-detail" /></div><MyDaySkeleton className="myday-skeleton-tag" /></div>)}
+            </div>
+          ) : allRequests.length > 0 ? <div className="myday-request-list">{allRequests.slice(0, 4).map((item) => <Link href={item.href} className="myday-request-row" key={item.id}>
             <span className="myday-request-icon"><FileClock size={17} /></span><span className="myday-request-copy"><strong>{item.title}</strong><small>{item.detail}</small></span><StatusBadge value={item.status} /><ChevronRight size={15} className="myday-request-chevron" />
-          </Link>)}</div> : <div className="myday-empty-state"><span><CheckCircle2 size={21} /></span><strong>{requestSourcesLoaded ? "You're all caught up" : "Request activity is unavailable"}</strong><small>{requestSourcesLoaded ? "Your recent requests will appear here when you submit them." : "We couldn't retrieve your request history. It will retry automatically."}</small></div>}
+          </Link>)}</div> : <div className="myday-empty-state"><span>{requestSourcesLoaded ? <CheckCircle2 size={21} /> : <AlertCircle size={21} />}</span><strong>{requestSourcesLoaded ? "You're all caught up" : "Request activity is unavailable"}</strong><small>{requestSourcesLoaded ? "Your recent requests will appear here when you submit them." : "We couldn't retrieve your request history. It will retry automatically."}</small></div>}
         </div>
 
         <div className="myday-panel myday-earnings-panel">
           <div className="myday-panel-heading"><div><span className="myday-section-kicker">YOUR PAY</span><h2>Month to date</h2><p>Estimated earnings from recorded work.</p></div><span className="myday-earnings-icon"><Wallet size={19} /></span></div>
-          <div className="myday-earnings-value">{earningsAmount !== null ? formatMoney(earningsAmount, earningsCurrency) : earnings?.daysWithMissingRates ? "Rates needed" : "—"}</div>
-          <span className="myday-earnings-note">Estimated · Not yet a payment confirmation</span>
-          <div className="myday-earnings-breakdown"><div><span>Regular hours</span><strong>{minutesLabel(earnings?.regularMinutes)}</strong></div><div><span>Payable overtime</span><strong>{minutesLabel(earnings?.payableOvertimeMinutes)}</strong></div></div>
-          {earnings?.currencyMismatch || (earnings?.daysWithMissingRates ?? 0) > 0 ? <p className="myday-earnings-warning"><AlertCircle size={14} />Some dates need rate or currency review before the total can be confirmed.</p> : null}
+          <div className="myday-earnings-value">{loading ? <MyDaySkeleton className="myday-skeleton-money-value" /> : earningsAmount !== null ? formatMoney(earningsAmount, earningsCurrency) : earningsUnavailableLabel}</div>
+          <span className="myday-earnings-note">{loading ? "Calculating your month-to-date estimate..." : earningsAmount !== null ? "Estimated · Not yet a payment confirmation" : "Your estimate is unavailable until pay data is complete."}</span>
+          {loading ? (
+            <div className="myday-earnings-breakdown myday-earnings-breakdown-loading"><div><MyDaySkeleton className="myday-skeleton-row-detail" /><MyDaySkeleton className="myday-skeleton-row-title" /></div><div><MyDaySkeleton className="myday-skeleton-row-detail" /><MyDaySkeleton className="myday-skeleton-row-title" /></div></div>
+          ) : snapshot.earnings ? (
+            <div className="myday-earnings-breakdown"><div><span>Regular hours</span><strong>{minutesLabel(earnings?.regularMinutes)}</strong></div><div><span>Payable overtime</span><strong>{minutesLabel(earnings?.payableOvertimeMinutes)}</strong></div></div>
+          ) : (
+            <div className="myday-earnings-unavailable">We couldn't retrieve your earnings summary. It will retry automatically.</div>
+          )}
+          {!loading && (earnings?.currencyMismatch || (earnings?.daysWithMissingRates ?? 0) > 0) ? <p className="myday-earnings-warning"><AlertCircle size={14} />Some dates need rate or currency review before the total can be confirmed.</p> : null}
           <Link href="/employee/payroll" className="myday-earnings-link">View earnings and payslips <ArrowRight size={15} /></Link>
         </div>
       </section>
@@ -410,7 +456,11 @@ export function EmployeeMyDayWorkspace() {
       <section className="myday-panel myday-punches-panel">
         <div className="myday-panel-heading"><div><span className="myday-section-kicker">TODAY'S ACTIVITY</span><h2>Attendance timeline</h2><p>Your recorded punches and scheduled shift boundaries.</p></div><Link href="/employee/attendance" className="myday-text-link">Attendance history <ArrowRight size={14} /></Link></div>
         <div className="myday-timeline">
-          {timelineItems.map((item) => (
+          {loading ? (
+            <div className="myday-loading-rows" role="status" aria-label="Loading attendance timeline">
+              {Array.from({ length: 3 }, (_, index) => <div className="myday-request-skeleton" key={index}><MyDaySkeleton className="myday-skeleton-request-icon" /><div><MyDaySkeleton className="myday-skeleton-row-title" /><MyDaySkeleton className="myday-skeleton-row-detail" /></div><MyDaySkeleton className="myday-skeleton-tag" /></div>)}
+            </div>
+          ) : timelineItems.map((item) => (
             <div className={"myday-timeline-item" + (item.kind === "shift" ? " is-scheduled" : "")} key={item.key}>
               <span className="myday-timeline-marker">
                 {item.kind === "shift" ? <CalendarClock size={14} /> : item.eventType === "CLOCK_IN" ? <CheckCircle2 size={14} /> : <Clock3 size={14} />}
@@ -422,7 +472,7 @@ export function EmployeeMyDayWorkspace() {
               {item.kind === "event" ? <StatusBadge value="RECORDED" /> : <span className="myday-timeline-meta">Shift</span>}
             </div>
           ))}
-          {!timelineItems.some((item) => item.kind === "event") ? (
+          {!loading && !timelineItems.some((item) => item.kind === "event") ? (
             <div className="myday-timeline-empty"><Clock3 size={16} />No attendance punches recorded today.</div>
           ) : null}
         </div>
