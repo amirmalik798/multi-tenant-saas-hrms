@@ -155,7 +155,7 @@ export function buildPdfPreparationDocument(
       letter-spacing: -.04em;
       transform: rotate(45deg);
     }
-    .spinner-core::first-letter { transform: rotate(-45deg); }
+    .spinner-core > span { transform: rotate(-45deg); }
     .spinner-core { text-shadow: 0 1px 2px rgba(0,0,0,.22); }
     .caption {
       margin: 0;
@@ -181,7 +181,7 @@ export function buildPdfPreparationDocument(
     <div class="spinner-stage" aria-hidden="true">
       <span class="spinner-orbit"></span>
       <span class="spinner-inner"></span>
-      <span class="spinner-core">HR</span>
+      <span class="spinner-core"><span>HR</span></span>
     </div>
     <p class="caption">${label}</p>
   </main>
