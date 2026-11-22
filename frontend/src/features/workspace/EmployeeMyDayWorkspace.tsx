@@ -206,6 +206,7 @@ function buildRequests(snapshot: MyDaySnapshot, paths: PersonalWorkspacePaths): 
 
 export function PersonalMyDayWorkspace() {
   const { user, timeZone, workDate, timeZoneStatus, currencyCode } = useWorkspace();
+  const isPersonalWorkforceRole = user.role === "EMPLOYEE" || user.role === "HR_MANAGER" || user.role === "DEPARTMENT_MANAGER";
   const personalPaths = PERSONAL_WORKSPACE_PATHS[user.role];
   const personalScopeQuery = user.role === "EMPLOYEE" ? "" : "?scope=self";
   const personalScopeParam = user.role === "EMPLOYEE" ? "" : "&scope=self";
@@ -237,7 +238,7 @@ export function PersonalMyDayWorkspace() {
   }, []);
 
   useEffect(() => {
-    if (!activeInsightsMonth || activeInsightsMonth === currentMonth || timeZoneStatus !== "ready") return;
+    if (!isPersonalWorkforceRole || !activeInsightsMonth || activeInsightsMonth === currentMonth || timeZoneStatus !== "ready") return;
     let active = true;
     setMonthlyEarningsState({ month: activeInsightsMonth, payload: null, loading: true, error: "" });
     apiRequest<EarningsPayload>("/employee/earnings?month=" + activeInsightsMonth)
@@ -254,9 +255,16 @@ export function PersonalMyDayWorkspace() {
         });
       });
     return () => { active = false; };
-  }, [activeInsightsMonth, currentMonth, timeZoneStatus]);
+  }, [activeInsightsMonth, currentMonth, timeZoneStatus, isPersonalWorkforceRole, user.role, user.employeeId]);
 
   const load = useCallback(async (silent = false) => {
+    if (!isPersonalWorkforceRole) {
+      setSnapshot(EMPTY_SNAPSHOT);
+      setLoading(false);
+      setCriticalError("This personal workspace is available only to employee, HR Manager, and Department Manager accounts.");
+      setPartialWarning("");
+      return;
+    }
     if (!today || timeZoneStatus !== "ready") {
       if (!silent) {
         setLoading(false);
@@ -300,10 +308,10 @@ export function PersonalMyDayWorkspace() {
       ? "Some personal information is temporarily unavailable. Missing sections will retry automatically."
       : "");
     if (!silent) setLoading(false);
-  }, [today, timeZoneStatus, personalScopeQuery, personalScopeParam]);
+  }, [today, timeZoneStatus, personalScopeQuery, personalScopeParam, isPersonalWorkforceRole, user.role, user.employeeId]);
 
   useEffect(() => { void load(); }, [load]);
-  useSmartRefresh(() => load(true), Boolean(today && timeZoneStatus === "ready"), 30000);
+  useSmartRefresh(() => load(true), Boolean(isPersonalWorkforceRole && today && timeZoneStatus === "ready"), 30000);
   useAttendanceRefresh(() => { void load(true); });
 
   const entries = snapshot.calendar?.entries ?? [];
@@ -1070,5 +1078,6 @@ export function PersonalMyDayWorkspace() {
 }
 
 export function EmployeeMyDayWorkspace() {
-  return <PersonalMyDayWorkspace />;
+  const { user } = useWorkspace();
+  return <PersonalMyDayWorkspace key={user.role + ":" + (user.employeeId ?? "none")} />;
 }
