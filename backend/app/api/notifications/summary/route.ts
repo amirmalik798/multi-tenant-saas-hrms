@@ -55,11 +55,17 @@ export async function GET(request: Request) {
     if (actor.kind === "ORGANIZATION_USER" && selfScope) {
       if (!actor.employeeId) return json({ message: "A linked employee record is required for personal alerts" }, 403);
       values.push(actor.employeeId);
-      employeeScope = ` AND r.employee_id = ${values.length}::uuid`;
+      employeeScope = " AND r.employee_id = $" + values.length + "::uuid";
     } else if (actor.kind === "ORGANIZATION_USER" && isDepartmentManager) {
       values.push(actor.employeeId);
-      const idParam = `${values.length}::uuid`;
-      employeeScope = ` AND r.employee_id <> ${idParam} AND EXISTS (SELECT 1 FROM public.employees scoped_employee JOIN public.departments scoped_department ON scoped_department.id = scoped_employee.department_id AND scoped_department.organization_id = scoped_employee.organization_id WHERE scoped_employee.id = r.employee_id AND scoped_employee.organization_id = r.organization_id AND scoped_department.manager_id = ${idParam})`;
+      const idParam = "$" + values.length + "::uuid";
+      employeeScope = " AND r.employee_id <> " + idParam +
+        " AND EXISTS (SELECT 1 FROM public.employees scoped_employee " +
+        "JOIN public.departments scoped_department ON scoped_department.id = scoped_employee.department_id " +
+        "AND scoped_department.organization_id = scoped_employee.organization_id " +
+        "WHERE scoped_employee.id = r.employee_id " +
+        "AND scoped_employee.organization_id = r.organization_id " +
+        "AND scoped_department.manager_id = " + idParam + ")";
     }
 
     const correctionResult = await pool.query(
@@ -76,14 +82,22 @@ export async function GET(request: Request) {
     if (actor.kind === "ORGANIZATION_USER" && selfScope) {
       if (!actor.employeeId) return json({ message: "A linked employee record is required for personal leave alerts" }, 403);
       leaveValues.push(actor.employeeId);
-      leaveScope = ` AND r.employee_id = ${leaveValues.length}::uuid`;
+      leaveScope = " AND r.employee_id = $" + leaveValues.length + "::uuid";
     } else if (actor.kind === "ORGANIZATION_USER" && isHrManager) {
       // Preserve HR's existing personal leave-alert behavior outside My Day.
       leaveValues.push(actor.employeeId);
-      leaveScope = ` AND r.employee_id = ${leaveValues.length}::uuid`;
+      leaveScope = " AND r.employee_id = $" + leaveValues.length + "::uuid";
     } else if (actor.kind === "ORGANIZATION_USER" && isDepartmentManager) {
       leaveValues.push(actor.employeeId);
-      leaveScope = ` AND r.employee_id <> ${"$"}${leaveValues.length}::uuid AND EXISTS (SELECT 1 FROM public.employees le JOIN public.departments ld ON ld.id = le.department_id AND ld.organization_id = le.organization_id JOIN public.roles lr ON lr.id = le.workforce_role_id AND lr.organization_id = le.organization_id WHERE le.id = r.employee_id AND le.organization_id = r.organization_id AND ld.manager_id = ${leaveValues.length}::uuid AND regexp_replace(UPPER(lr.name), '[^A-Z0-9]+', '_', 'g') NOT LIKE 'HR_MANAGER%' AND regexp_replace(UPPER(lr.name), '[^A-Z0-9]+', '_', 'g') NOT LIKE 'HRMANAGER%')`;
+      const idParam = "$" + leaveValues.length + "::uuid";
+      leaveScope = " AND r.employee_id <> " + idParam +
+        " AND EXISTS (SELECT 1 FROM public.employees le " +
+        "JOIN public.departments ld ON ld.id = le.department_id AND ld.organization_id = le.organization_id " +
+        "JOIN public.roles lr ON lr.id = le.workforce_role_id AND lr.organization_id = le.organization_id " +
+        "WHERE le.id = r.employee_id AND le.organization_id = r.organization_id " +
+        "AND ld.manager_id = " + idParam +
+        " AND regexp_replace(UPPER(lr.name), '[^A-Z0-9]+', '_', 'g') NOT LIKE 'HR_MANAGER%' " +
+        "AND regexp_replace(UPPER(lr.name), '[^A-Z0-9]+', '_', 'g') NOT LIKE 'HRMANAGER%')";
     }
     const leaveResult = await pool.query(
       `SELECT COUNT(*)::int AS count FROM public.leave_requests r WHERE r.organization_id = $1::uuid AND r.status = 'PENDING'${leaveScope}`,
