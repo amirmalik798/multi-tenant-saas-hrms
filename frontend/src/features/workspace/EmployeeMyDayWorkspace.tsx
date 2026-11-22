@@ -150,7 +150,7 @@ export function EmployeeMyDayWorkspace() {
       notifications: results[6].status === "fulfilled" ? results[6].value : null,
     };
     setSnapshot(next);
-    if (next.calendar?.today && /^\\d{4}-\\d{2}-\\d{2}$/.test(next.calendar.today) && next.calendar.today !== today) {
+    if (next.calendar?.today && /^\d{4}-\d{2}-\d{2}$/.test(next.calendar.today) && next.calendar.today !== today) {
       setCalendarToday(next.calendar.today);
     }
     setCriticalError(!next.calendar || !next.punches
