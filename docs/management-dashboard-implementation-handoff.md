@@ -400,7 +400,7 @@ Do not replace these data sources until the replacement has been verified agains
 
 ## 9. Verification status at this handoff
 
-- Steps 2–12 are committed on `main`. Step 10 implementation commit: `5fa195a6f6158e0d1d70aa32d8f34d61ab79b954`. Step 11 implementation commit: `7d11a2b0ef0b1909acd283c2bb2cdfcd36e8f508`. Step 12 implementation commit: `<STEP12_COMMIT_SHA>`.
+- Steps 2–12 are committed on `main`. Step 10 implementation commit: `5fa195a6f6158e0d1d70aa32d8f34d61ab79b954`. Step 11 implementation commit: `7d11a2b0ef0b1909acd283c2bb2cdfcd36e8f508`. Step 12 implementation commit: `c47f7651548a2e86b880b23cab72c7773746370a`.
 - Step 6's shared workforce-summary source and component remain exported but are not mounted in the existing dashboards.
 - Step 7 adds the role-scoped attendance summary and reusable attendance analytics component; the UI is mounted in Step 12 with the shared 31-day reporting-range validation.
 - Step 8 adds workforce-composition analytics using the Step 6 population, with current status, department, unassigned and role totals reconciled to the shared workforce KPI source.
@@ -431,5 +431,5 @@ Do not replace these data sources until the replacement has been verified agains
 - Step 9 — align actionable review counts with the existing approval scope: [ddf3339275cb9c6090247b189d5ce6a0aba60971](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/ddf3339275cb9c6090247b189d5ce6a0aba60971)
 - Step 10 — overtime and payroll intelligence: [5fa195a6f6158e0d1d70aa32d8f34d61ab79b954](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/5fa195a6f6158e0d1d70aa32d8f34d61ab79b954)
 - Step 11 — Management Action Center: [7d11a2b0ef0b1909acd283c2bb2cdfcd36e8f508](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/7d11a2b0ef0b1909acd283c2bb2cdfcd36e8f508)
-- Step 12 — role-specific management dashboard integration: [<STEP12_COMMIT_SHA>](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/<STEP12_COMMIT_SHA>)
+- Step 12 — role-specific management dashboard integration: [c47f7651548a2e86b880b23cab72c7773746370a](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/c47f7651548a2e86b880b23cab72c7773746370a)
 Step 1 was completed as source audit and UX blueprint work and did not create a repository commit.
