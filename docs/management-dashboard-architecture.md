@@ -1,0 +1,100 @@
+# Management Dashboard Architecture
+
+**Status:** Step 3 of 14 — unified, secure management-dashboard data architecture  
+**Applies to:** Organization Admin, HR Manager, Department Manager  
+**Rollout rule:** Additive foundation. Existing dashboard endpoints, response contracts, business logic, and personal My Day remain unchanged.
+
+## 1. Architecture goals
+
+The three management workspaces should share one data architecture and consistent metric definitions while retaining their different authority:
+
+- **Organization Admin:** organization-wide administrative oversight inside the authenticated tenant.
+- **HR Manager:** organization-wide people-operations data within the existing HR permissions and review workflow.
+- **Department Manager:** only the departments assigned to the authenticated manager's employee record.
+
+The shared architecture centralizes identity-to-scope mapping, tenant metadata, and read-snapshot handling. It does not grant a role broader permissions than its existing workflows.
+
+## 2. Server-side layers
+
+| Layer | Responsibility | Rule |
+|---|---|---|
+| Route boundary | Per-request execution, authenticated actor resolution, HTTP status and response shape | Never trust browser-supplied organization, employee, manager, or department IDs |
+| Scope mapper | Convert the authenticated permission actor to a management-dashboard scope | Allow only Organization Admin, HR Manager, and Department Manager; all other roles fail closed |
+| Snapshot runner | Open one PostgreSQL **REPEATABLE READ READ ONLY** transaction for a dashboard read | Commit on success; roll back on failure; always release the connection |
+| Context loader | Load active organization metadata, validated time zone, work date, week-start setting, and authorized department context | All queries use the tenant ID and manager identity from the server-derived scope |
+| Metric services (subsequent steps) | Produce typed workforce, attendance, availability, overtime, payroll, and action-center datasets | Reuse authoritative domain calculations and existing permission rules; never duplicate business calculations in React |
+| Presentation layer (subsequent steps) | Render shared cards, charts, filters, and drill-downs with role-aware content | Client-side presentation does not constitute authorization |
+
+## 3. Access-scope contract
+
+The server builds one of two scope forms:
+
+- **ORGANIZATION:** Organization Admin and HR Manager, constrained to the tenant from the authenticated session. HR Manager scope also retains the actor's employee identity for workflow rules such as excluding the actor's own requests.
+- **ASSIGNED_DEPARTMENTS:** Department Manager, constrained by the actor's authenticated employee ID and the departments.manager_id relationship.
+
+The scope mapper rejects Employee and any unrecognized role. It does not accept IDs or scope overrides from request parameters.
+
+Every later Department Manager aggregate must use the authenticated organization and manager identity. For workforce aggregation, use an EXISTS relationship to the authorized departments (or an equivalent distinct employee set) so employees are not double-counted if multiple assigned-department relationships can match. A browser-supplied department selection may narrow this server-derived set only after explicit validation in a later step.
+
+## 4. Shared bootstrap endpoint
+
+**GET /api/management-dashboard/context**
+
+The endpoint is a small, additive bootstrap contract for later dashboard sections. It returns:
+
+- schema version and generation timestamp;
+- authenticated management role and scope kind;
+- department count within that scope;
+- assigned department identifiers/names/statuses for Department Managers only;
+- organization name, validated time zone, configured week start, and organization-local work date.
+
+It does not return employee records, payroll values, personal attendance, review queue contents, or aggregate metrics. Those datasets are added by subsequent steps through permission-aware services.
+
+The endpoint uses the existing getTenantPermissionActor session/tenant/licensing boundary and jsonResponse no-cache headers. Employee access is rejected. No organization or department identifier is accepted from the browser.
+
+## 5. Snapshot and data consistency
+
+All future unified dashboard aggregation services should execute through withManagementDashboardSnapshot:
+
+1. Acquire one pooled PostgreSQL client.
+2. Begin **REPEATABLE READ READ ONLY**.
+3. Load all datasets needed for that response through the same client.
+4. Commit only after every required read succeeds.
+5. Roll back on an exception and release the client in all cases.
+
+A failed source must remain an error/unavailable state. Do not coerce a failed query into zero. If a future metric is optional, isolate its failure explicitly and mark that metric unavailable while preserving the rest of the response.
+
+## 6. Existing functionality intentionally preserved
+
+- /api/org/dashboard/stats and /api/org/dashboard/activity remain unchanged.
+- /api/hr-manager/overview remains unchanged.
+- /api/department-manager/overview remains unchanged.
+- Existing leave, attendance, correction, overtime, payroll, licensing, invitations, audit, and approval routes remain unchanged.
+- The existing dashboard UI continues using its current data sources during this foundation step.
+- Employee My Day and the personal My Day views for HR Manager and Department Manager are untouched.
+- No database migration, schema change, new permission, or business-rule change is introduced.
+
+The new context endpoint is not yet wired into the visible dashboards. It establishes the shared, server-controlled foundation; subsequent steps add reusable presentation components and metric services incrementally.
+
+## 7. Required rules for subsequent services
+
+1. Receive a ManagementDashboardScope created from the authenticated actor; do not reconstruct it from request input.
+2. Reuse the same transaction client for related queries.
+3. Keep Organization Admin/HR organization scope separate from Department Manager assigned-department scope.
+4. Preserve workflow-specific exclusions, including the actor's own requests from their actionable review queue.
+5. Keep a manager's personal My Day data separate from management aggregates.
+6. Reuse calculateDailyAttendance and other authoritative server-side domain logic. Do not recreate attendance or payroll calculations in frontend code.
+7. Preserve existing endpoint contracts while new data is introduced additively.
+8. Use organization-local dates and the configured time zone/week start.
+9. Distinguish zero, unavailable, and not-applicable values.
+10. Do not introduce staffing, absence, lateness, payroll, or turnover interpretations before their authoritative inputs and definitions are verified.
+
+## 8. Step 3 completion criteria
+
+- A shared, typed scope exists for all three management roles.
+- Employee and unknown roles fail closed.
+- Department Manager scope originates only from the authenticated employee identity.
+- A reusable read-only snapshot helper exists.
+- The context loader returns only tenant metadata and role-authorized department context.
+- The new endpoint does not replace or modify any existing endpoint.
+- No visible dashboard or personal My Day workflow is changed.
