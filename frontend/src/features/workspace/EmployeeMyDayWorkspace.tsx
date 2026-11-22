@@ -43,6 +43,7 @@ interface MyDaySnapshot {
   notifications: NotificationPayload | null;
 }
 interface HomeRequest { id: string; title: string; detail: string; status: string; href: string; createdAt: string }
+interface TimelineItem { key: string; kind: "shift" | "event"; label: string; at: string; eventType?: string; source?: string }
 
 const EMPTY_SNAPSHOT: MyDaySnapshot = {
   calendar: null, punches: null, earnings: null, leave: null, corrections: null, overtime: null, notifications: null,
@@ -116,6 +117,12 @@ export function EmployeeMyDayWorkspace() {
   const [partialWarning, setPartialWarning] = useState("");
   const [savingPunch, setSavingPunch] = useState(false);
   const [punchError, setPunchError] = useState("");
+  const [clockNow, setClockNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 15000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const load = useCallback(async (silent = false) => {
     if (!today || timeZoneStatus !== "ready") {
@@ -182,8 +189,14 @@ export function EmployeeMyDayWorkspace() {
   const remainingMinutes = Math.max(0, scheduledMinutes - regularMinutes);
   const approvedLeaveToday = todayEntry?.leaveRequest?.status === "APPROVED";
   const holidayToday = Boolean(todayEntry?.publicHoliday);
+  const shiftStartTime = todayEntry?.expectedStart ? Date.parse(todayEntry.expectedStart) : NaN;
+  const shiftEndTime = todayEntry?.expectedEnd ? Date.parse(todayEntry.expectedEnd) : NaN;
+  const clockInTooEarly = !isClockedIn && Number.isFinite(shiftStartTime) && clockNow < shiftStartTime;
+  const clockInTooLate = !isClockedIn && Number.isFinite(shiftEndTime) && clockNow >= shiftEndTime;
+  const minutesUntilShift = clockInTooEarly ? Math.ceil((shiftStartTime - clockNow) / 60000) : 0;
   const canPunch = statusKnown && !savingPunch && (isClockedIn || (
-    Boolean(todayEntry?.expectedStart && todayEntry.expectedEnd) && !approvedLeaveToday && !holidayToday
+    Boolean(todayEntry?.expectedStart && todayEntry.expectedEnd) &&
+    !approvedLeaveToday && !holidayToday && !clockInTooEarly && !clockInTooLate
   ));
 
   const weekStart = today ? mondayOf(today) : "";
@@ -193,7 +206,7 @@ export function EmployeeMyDayWorkspace() {
     return { date, label: dayLabel(date).split(" ")[0], worked: Number(entry?.workedMinutes ?? 0), scheduled: scheduledWorkMinutes(entry) };
   }) : [], [weekStart, entriesByDate]);
   const weekWorked = weekDays.filter((day) => day.date <= today).reduce((sum, day) => sum + day.worked, 0);
-  const weekScheduledToDate = weekDays.filter((day) => day.date <= today).reduce((sum, day) => sum + day.scheduled, 0);
+  const weekScheduled = weekDays.reduce((sum, day) => sum + day.scheduled, 0);
   const maxChartMinutes = Math.max(600, ...weekDays.map((day) => Math.max(day.worked, day.scheduled)));
   const upcomingDays = useMemo(() => today ? Array.from({ length: 7 }, (_, index) => {
     const date = addCalendarDays(today, index + 1);
@@ -215,10 +228,23 @@ export function EmployeeMyDayWorkspace() {
   } catch { greeting = "Welcome"; }
 
   const statusText = isClockedIn ? "You're currently clocked in"
-    : hasAttendanceEvents ? "Your last recorded action was clock-out" : "Your workday has not started";
+    : approvedLeaveToday ? "You're on approved leave today"
+      : holidayToday ? "Today is an organization public holiday"
+        : clockInTooEarly ? "Your shift starts at " + timestampLabel(todayEntry?.expectedStart, timeZone)
+          : clockInTooLate ? "Your scheduled shift has ended"
+            : hasAttendanceEvents ? "Your last recorded action was clock-out"
+              : "Your workday has not started";
   const shiftText = todayEntry?.scheduleName || (approvedLeaveToday
     ? humanize(todayEntry?.leaveRequest?.leaveType) + " leave"
     : todayEntry?.publicHoliday?.name || (todayEntry?.expectedStart ? "Assigned shift" : "No shift scheduled today"));
+  const heroStatus = loading ? "Checking status"
+    : isClockedIn ? "On the clock"
+      : approvedLeaveToday ? "On approved leave"
+        : holidayToday ? "Public holiday"
+          : clockInTooEarly ? "Shift upcoming"
+            : clockInTooLate ? "Shift ended"
+              : todayEntry?.expectedStart ? hasAttendanceEvents ? "Clocked out" : "Not started"
+                : "Day off";
 
   async function refreshClockStatus(): Promise<PunchPayload> {
     return apiRequest<PunchPayload>("/attendance/events");
@@ -252,9 +278,27 @@ export function EmployeeMyDayWorkspace() {
     } finally { setSavingPunch(false); }
   }
 
-  const recentEvents = [...todaysEvents].sort((a, b) =>
-    (Date.parse(b.recordedAt ?? "") || 0) - (Date.parse(a.recordedAt ?? "") || 0),
-  ).slice(0, 4);
+  const timelineItems = useMemo(() => {
+    const items: TimelineItem[] = [];
+    if (todayEntry?.expectedStart) {
+      items.push({ key: "scheduled-start", kind: "shift", label: "Scheduled start", at: todayEntry.expectedStart });
+    }
+    for (const event of todaysEvents) {
+      if (!event.recordedAt) continue;
+      items.push({
+        key: event.id || "punch-" + event.recordedAt,
+        kind: "event",
+        label: humanize(event.eventType),
+        at: event.recordedAt,
+        eventType: event.eventType,
+        source: event.source,
+      });
+    }
+    if (todayEntry?.expectedEnd) {
+      items.push({ key: "scheduled-finish", kind: "shift", label: "Scheduled finish", at: todayEntry.expectedEnd });
+    }
+    return items.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  }, [todayEntry, todaysEvents]);
 
   return (
     <main className="myday-root">
@@ -268,21 +312,23 @@ export function EmployeeMyDayWorkspace() {
 
       <section className="myday-primary-grid">
         <div className="myday-attendance-card">
-          <div className="myday-attendance-topline"><span className="myday-overline">YOUR WORKDAY</span><span className={"myday-live-state" + (isClockedIn ? " is-live" : "")}><span className="myday-live-dot" />{loading ? "Checking status" : isClockedIn ? "On the clock" : hasAttendanceEvents ? "Clocked out" : "Not started"}</span></div>
+          <div className="myday-attendance-topline"><span className="myday-overline">YOUR WORKDAY</span><span className={"myday-live-state" + (isClockedIn ? " is-live" : "")}><span className="myday-live-dot" />{heroStatus}</span></div>
           <div className="myday-attendance-main">
             <div><p className="myday-overline myday-muted-overline">TIME WORKED TODAY</p><div className="myday-worked-value">{loading ? "—" : minutesLabel(workedMinutes)}</div><p className="myday-attendance-caption">{statusText}</p></div>
             <div className="myday-shift-summary"><span className="myday-shift-name">{shiftText}</span><div className="myday-shift-times">
               <div><span>SHIFT START</span><strong>{timestampLabel(todayEntry?.expectedStart, timeZone)}</strong></div><div><span>SHIFT END</span><strong>{timestampLabel(todayEntry?.expectedEnd, timeZone)}</strong></div>
-            </div></div>
+            </div>
+            {todayEntry?.scheduledBreakMinutes ? <div className="myday-shift-break"><Coffee size={13} />{minutesLabel(todayEntry.scheduledBreakMinutes)} scheduled break</div> : null}
+            </div>
           </div>
           <div className="myday-progress-block">
             <div className="myday-progress-labels"><span>{scheduledMinutes > 0 ? "Scheduled work progress" : "Today's schedule"}</span><strong>{scheduledMinutes > 0 ? progress + "%" : "Not scheduled"}</strong></div>
             <div className="myday-progress-track" role="progressbar" aria-label="Scheduled work completed" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><span style={{ width: progress + "%" }} /></div>
-            <div className="myday-progress-foot"><span>{scheduledMinutes > 0 ? minutesLabel(regularMinutes) + " completed" : (todayEntry?.publicHoliday?.name || "Enjoy your day")}</span><span>{scheduledMinutes > 0 && isClockedIn ? minutesLabel(remainingMinutes) + " scheduled time remaining" : todayEntry?.scheduledBreakMinutes ? minutesLabel(todayEntry.scheduledBreakMinutes) + " scheduled break" : ""}</span></div>
+            <div className="myday-progress-foot"><span>{scheduledMinutes > 0 ? minutesLabel(regularMinutes) + " completed" : (todayEntry?.publicHoliday?.name || "Enjoy your day")}</span><span>{scheduledMinutes > 0 && isClockedIn ? minutesLabel(remainingMinutes) + " scheduled time remaining" : ""}</span></div>
           </div>
           <div className="myday-attendance-actions">
-            <Button type="button" size="lg" className={"myday-clock-button " + (isClockedIn ? "is-clock-out" : "is-clock-in")} busy={savingPunch} disabled={!canPunch || loading} onClick={() => void punch()} leading={<Clock3 size={18} />}>{savingPunch ? "Recording attendance…" : isClockedIn ? "Clock out" : "Clock in"}</Button>
-            <span className="myday-clock-hint">{isClockedIn ? "Clock-out remains available so an open attendance session can always be closed." : approvedLeaveToday || holidayToday ? "Clock-in is unavailable for approved leave or a public holiday." : todayEntry?.expectedStart ? "Your shift and attendance rules are verified by HRMS." : "No active shift is assigned for today."}</span>
+            <Button type="button" size="lg" className={"myday-clock-button " + (isClockedIn ? "is-clock-out" : "is-clock-in")} busy={savingPunch} disabled={!canPunch || loading} onClick={() => void punch()} leading={<Clock3 size={18} />}>{savingPunch ? "Recording attendance…" : isClockedIn ? "Clock out" : clockInTooEarly ? "Available at " + timestampLabel(todayEntry?.expectedStart, timeZone) : clockInTooLate ? "Shift ended" : approvedLeaveToday ? "On approved leave" : holidayToday ? "Public holiday" : !todayEntry?.expectedStart ? "No shift today" : "Clock in"}</Button>
+            <span className="myday-clock-hint">{isClockedIn ? "Clock-out remains available so an open attendance session can always be closed." : approvedLeaveToday ? "Clock-in is unavailable during approved leave." : holidayToday ? "Clock-in is unavailable on an organization public holiday." : clockInTooEarly ? "Clock-in opens in " + minutesLabel(minutesUntilShift) + " at " + timestampLabel(todayEntry?.expectedStart, timeZone) + "." : clockInTooLate ? "Clock-in is closed because this shift has ended. Contact your manager if your schedule needs correction." : todayEntry?.expectedStart ? "Your shift and attendance rules are verified by HRMS." : "No active shift is assigned for today."}</span>
           </div>
           {punchError ? <p className="myday-inline-error" role="alert">{punchError}</p> : null}
           {todayEntry?.calculationStatus === "REVIEW_REQUIRED" ? <Link className="myday-review-link" href="/employee/requests"><AlertCircle size={15} />Your attendance needs review<ChevronRight size={15} /></Link> : null}
@@ -300,7 +346,7 @@ export function EmployeeMyDayWorkspace() {
       </section>
 
       <section className="myday-stat-grid" aria-label="Personal summary">
-        <div className="myday-stat-card"><span className="myday-stat-icon myday-stat-blue"><CalendarClock size={18} /></span><div><span className="myday-stat-label">Hours this week</span><strong>{loading ? "—" : minutesLabel(weekWorked)}</strong><small>{weekScheduledToDate > 0 ? "Of " + minutesLabel(weekScheduledToDate) + " scheduled to date" : "No scheduled hours yet"}</small></div></div>
+        <div className="myday-stat-card"><span className="myday-stat-icon myday-stat-blue"><CalendarClock size={18} /></span><div><span className="myday-stat-label">Hours this week</span><strong>{loading ? "—" : minutesLabel(weekWorked)}</strong><small>{weekScheduled > 0 ? "Of " + minutesLabel(weekScheduled) + " scheduled this week" : "No scheduled hours this week"}</small></div></div>
         <div className="myday-stat-card"><span className="myday-stat-icon myday-stat-amber"><FileClock size={18} /></span><div><span className="myday-stat-label">Pending requests</span><strong>{requestSourcesLoaded ? String(pendingRequests.length) : "—"}</strong><small>{requestSourcesLoaded ? "Waiting for a decision" : "Request status unavailable"}</small></div></div>
         <div className="myday-stat-card"><span className="myday-stat-icon myday-stat-violet"><Mail size={18} /></span><div><span className="myday-stat-label">Unread messages</span><strong>{typeof unreadMessages === "number" ? String(unreadMessages) : "—"}</strong><small>{typeof unreadMessages === "number" ? "Personal conversations" : "Message count unavailable"}</small></div></div>
         <div className="myday-stat-card"><span className="myday-stat-icon myday-stat-green"><Wallet size={18} /></span><div><span className="myday-stat-label">Estimated earnings</span><strong>{earningsAmount !== null ? formatMoney(earningsAmount, earningsCurrency) : earnings?.daysWithMissingRates ? "Rates needed" : "—"}</strong><small>{snapshot.earnings ? "Month to date · not a payment confirmation" : "Earnings unavailable"}</small></div></div>
@@ -309,14 +355,14 @@ export function EmployeeMyDayWorkspace() {
       <section className="myday-content-grid">
         <div className="myday-panel">
           <div className="myday-panel-heading"><div><span className="myday-section-kicker">YOUR TIME</span><h2>Hours this week</h2><p>Recorded work compared with your assigned shifts.</p></div><Link href="/employee/reports" className="myday-text-link">Attendance report <ArrowRight size={14} /></Link></div>
-          <div className="myday-chart-summary"><div><strong>{minutesLabel(weekWorked)}</strong><span>Worked so far</span></div><div><strong>{minutesLabel(weekScheduledToDate)}</strong><span>Scheduled to date</span></div></div>
+          <div className="myday-chart-summary"><div><strong>{minutesLabel(weekWorked)}</strong><span>Worked so far</span></div><div><strong>{minutesLabel(weekScheduled)}</strong><span>Scheduled this week</span></div></div>
           <div className="myday-hours-chart" role="img" aria-label="Daily worked hours compared with scheduled hours this week">
             {weekDays.map((day) => {
               const scheduledHeight = Math.max(0, Math.min(100, day.scheduled / maxChartMinutes * 100));
               const workedHeight = Math.max(0, Math.min(100, day.worked / maxChartMinutes * 100));
               return <div className="myday-chart-day" key={day.date} title={dayLabel(day.date) + ": " + minutesLabel(day.worked) + " worked, " + minutesLabel(day.scheduled) + " scheduled"}>
                 <div className="myday-chart-track"><span className="myday-chart-scheduled" style={{ height: scheduledHeight + "%" }} /><span className="myday-chart-worked" style={{ height: workedHeight + "%" }} /></div>
-                <strong>{day.worked > 0 ? (day.worked / 60).toFixed(1) : "—"}</strong><small>{day.label}</small>
+                <strong>{day.worked > 0 ? day.worked < 60 ? Math.round(day.worked) + "m" : (day.worked / 60).toFixed(1) + "h" : "—"}</strong><small>{day.label}</small>
               </div>;
             })}
           </div>
@@ -362,13 +408,21 @@ export function EmployeeMyDayWorkspace() {
       <section className="myday-panel myday-punches-panel">
         <div className="myday-panel-heading"><div><span className="myday-section-kicker">TODAY'S ACTIVITY</span><h2>Attendance timeline</h2><p>Your recorded punches and scheduled shift boundaries.</p></div><Link href="/employee/attendance" className="myday-text-link">Attendance history <ArrowRight size={14} /></Link></div>
         <div className="myday-timeline">
-          {todayEntry?.expectedStart ? <div className="myday-timeline-item is-scheduled"><span className="myday-timeline-marker"><CalendarClock size={14} /></span><div><strong>Scheduled start</strong><small>{timestampLabel(todayEntry.expectedStart, timeZone)}</small></div><span className="myday-timeline-meta">Shift</span></div> : null}
-          {recentEvents.length > 0 ? recentEvents.slice().reverse().map((event, index) => <div className="myday-timeline-item" key={event.id || String(event.recordedAt) + index}>
-            <span className="myday-timeline-marker">{event.eventType === "CLOCK_IN" ? <CheckCircle2 size={14} /> : <Clock3 size={14} />}</span>
-            <div><strong>{humanize(event.eventType)}</strong><small>{timestampLabel(event.recordedAt, timeZone)}{event.source ? " · " + humanize(event.source) : ""}</small></div><StatusBadge value="RECORDED" />
-          </div>) : <div className="myday-timeline-empty"><Clock3 size={16} />No attendance punches recorded today.</div>}
-          {todayEntry?.expectedEnd ? <div className="myday-timeline-item is-scheduled"><span className="myday-timeline-marker"><CalendarClock size={14} /></span><div><strong>Scheduled finish</strong><small>{timestampLabel(todayEntry.expectedEnd, timeZone)}</small></div><span className="myday-timeline-meta">Shift</span></div> : null}
-          {todayEntry?.scheduledBreakMinutes ? <div className="myday-timeline-break"><Coffee size={14} />{minutesLabel(todayEntry.scheduledBreakMinutes)} scheduled break · timing follows your assigned shift policy.</div> : null}
+          {timelineItems.map((item) => (
+            <div className={"myday-timeline-item" + (item.kind === "shift" ? " is-scheduled" : "")} key={item.key}>
+              <span className="myday-timeline-marker">
+                {item.kind === "shift" ? <CalendarClock size={14} /> : item.eventType === "CLOCK_IN" ? <CheckCircle2 size={14} /> : <Clock3 size={14} />}
+              </span>
+              <div>
+                <strong>{item.label}</strong>
+                <small>{timestampLabel(item.at, timeZone)}{item.source ? " · " + humanize(item.source) : ""}</small>
+              </div>
+              {item.kind === "event" ? <StatusBadge value="RECORDED" /> : <span className="myday-timeline-meta">Shift</span>}
+            </div>
+          ))}
+          {!timelineItems.some((item) => item.kind === "event") ? (
+            <div className="myday-timeline-empty"><Clock3 size={16} />No attendance punches recorded today.</div>
+          ) : null}
         </div>
       </section>
       <footer className="myday-footer-note"><Sparkles size={14} />Your attendance and earnings use your organization's verified work calendar and approved records.<span>{snapshot.calendar?.timeZone || timeZone}</span></footer>

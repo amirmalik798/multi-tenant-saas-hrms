@@ -4087,6 +4087,7 @@ body {
 .myday-shift-times div{display:flex;flex-direction:column;gap:3px}
 .myday-shift-times span{color:#9eb4ca;font-size:8px;font-weight:780;letter-spacing:.09em}
 .myday-shift-times strong{color:#f1f6fd;font-size:13px;font-weight:720;font-variant-numeric:tabular-nums}
+.myday-shift-break{display:flex;align-items:center;gap:7px;margin-top:10px;color:#b6cbe0;font-size:10px;font-weight:600}
 .myday-progress-block{margin-top:8px}.myday-progress-labels{color:#c9d9e9;font-size:10px}
 .myday-progress-labels strong{color:#f3f7fc;font-size:11px;font-variant-numeric:tabular-nums}
 .myday-progress-track{height:8px;overflow:hidden;margin-top:8px;border-radius:99px;background:rgba(255,255,255,.15)}
@@ -4183,7 +4184,6 @@ body {
 .myday-timeline-item>div{display:flex;flex-direction:column;gap:2px;min-width:0}
 .myday-timeline-item strong{color:var(--text-strong);font-size:11px;font-weight:700}.myday-timeline-item small{color:var(--muted);font-size:10px}
 .myday-timeline-meta{color:var(--muted);font-size:9px}
-.myday-timeline-break{display:flex;align-items:center;gap:7px;margin:8px 0 0 38px;color:var(--muted);font-size:9px}
 .myday-timeline-empty{display:flex;align-items:center;gap:8px;padding:13px 0;color:var(--muted);font-size:11px}
 .myday-footer-note{display:flex;align-items:center;flex-wrap:wrap;gap:7px;color:var(--subtle);font-size:9px}
 .myday-footer-note svg{color:var(--accent)}.myday-footer-note span{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums}
