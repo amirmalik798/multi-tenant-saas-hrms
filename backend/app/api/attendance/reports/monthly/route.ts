@@ -70,9 +70,13 @@ function permittedTarget(actor: Actor, employeeId: string, roleValue: unknown): 
   if (admin) return ["EMPLOYEE", "DEPARTMENT_MANAGER", "DEPARTMENTMANAGER", "HR_MANAGER", "HRMANAGER"].includes(role);
   if (actor.kind !== "ORGANIZATION_USER") return false;
   if (actor.roleName === "HR_MANAGER") {
-    return employeeId !== actor.employeeId && ["EMPLOYEE", "DEPARTMENT_MANAGER", "DEPARTMENTMANAGER"].includes(role);
+    if (employeeId === actor.employeeId) return role === "HR_MANAGER" || role === "HRMANAGER";
+    return ["EMPLOYEE", "DEPARTMENT_MANAGER", "DEPARTMENTMANAGER"].includes(role);
   }
-  if (actor.roleName === "DEPARTMENT_MANAGER") return role === "EMPLOYEE";
+  if (actor.roleName === "DEPARTMENT_MANAGER") {
+    if (employeeId === actor.employeeId) return role === "DEPARTMENT_MANAGER" || role === "DEPARTMENTMANAGER";
+    return role === "EMPLOYEE";
+  }
   if (actor.roleName === "EMPLOYEE") return employeeId === actor.employeeId && role === "EMPLOYEE";
   return false;
 }
@@ -145,7 +149,7 @@ async function resolveTarget(actor: Actor, employeeId: string): Promise<TargetRo
   const target = result.rows[0];
   if (!target || target.isOrganizationAdmin) return null;
   if (!permittedTarget(actor, target.employeeId, target.workforceRole)) return null;
-  if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "DEPARTMENT_MANAGER") {
+  if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "DEPARTMENT_MANAGER" && employeeId !== actor.employeeId) {
     const membership = await pool.query(
       `SELECT 1
        FROM public.departments
@@ -166,8 +170,8 @@ async function resolveTarget(actor: Actor, employeeId: string): Promise<TargetRo
  *
  * The endpoint enforces the workforce target matrix on the server:
  * Organization Admin -> HR Managers, Department Managers and Employees.
- * HR Manager -> Department Managers and Employees (never their own record).
- * Department Manager -> Employees in assigned departments.
+ * HR Manager -> their own record, plus Department Managers and Employees.
+ * Department Manager -> their own record, plus Employees in assigned departments.
  * Employee -> their own record only.
  */
 export async function GET(request: Request) {
@@ -220,7 +224,10 @@ export async function GET(request: Request) {
            LIMIT 1
          ) AS account_role ON TRUE
          WHERE e.organization_id = $1::uuid
-           AND regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g') = ANY($2::text[])
+           AND (
+             regexp_replace(UPPER(COALESCE(account_role.name, workforce_role.name, 'EMPLOYEE')), '[^A-Z0-9]+', '_', 'g') = ANY($2::text[])
+             OR (($3::boolean OR $6::boolean) AND e.id = $4::uuid)
+           )
            AND NOT EXISTS (
              SELECT 1
              FROM public.users AS admin_account
@@ -245,10 +252,10 @@ export async function GET(request: Request) {
                  OR regexp_replace(UPPER(admin_role.name), '[^A-Z0-9]+', '_', 'g') LIKE 'ADMINISTRATOR_%'
                )
            )
-           AND (NOT $3::boolean OR e.id <> $4::uuid)
            AND (NOT $5::boolean OR e.id = $4::uuid)
            AND (
              NOT $6::boolean
+             OR e.id = $4::uuid
              OR EXISTS (
                SELECT 1
                FROM public.departments AS managed_department
@@ -257,7 +264,8 @@ export async function GET(request: Request) {
                  AND managed_department.manager_id = $4::uuid
              )
            )
-         ORDER BY e.last_name NULLS LAST, e.first_name NULLS LAST, e.employee_code NULLS LAST
+         ORDER BY CASE WHEN e.id = $4::uuid THEN 0 ELSE 1 END,
+                  e.last_name NULLS LAST, e.first_name NULLS LAST, e.employee_code NULLS LAST
          LIMIT 5000`,
         [
           actor.organizationId,
