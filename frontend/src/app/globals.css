@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./super-admin.css";
+@import "../features/management-dashboard/management-dashboard.css";
 
 :root {
   color-scheme: light;
