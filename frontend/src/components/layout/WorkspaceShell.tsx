@@ -158,7 +158,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             <button type="button" className="search-trigger" aria-haspopup="dialog" aria-expanded={commandOpen} onClick={() => setCommandOpen(true)}><Search size={15} /><span>Search workspace</span></button>
           </div>
           <div className="topbar-actions">
-            <WorkspaceClock timeZone={timeZone} timeZoneStatus={timeZoneStatus} showAttendanceStatus={user.role !== "ORGANIZATION_ADMIN"} />
+            <WorkspaceClock timeZone={timeZone} timeZoneStatus={timeZoneStatus} showAttendanceStatus={user.role !== "ORGANIZATION_ADMIN"} employeeId={user.employeeId} role={user.role} />
             <button type="button" className="icon-button" onClick={toggleTheme} aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}>{theme === "light" ? <Moon size={17} /> : <Sun size={17} />}</button>
             <button type="button" className="icon-button" aria-label={`Notifications, ${unreadCount} pending`} onClick={() => router.push(user.role === "EMPLOYEE" ? "/employee/requests" : user.role === "DEPARTMENT_MANAGER" ? "/dm/reviews" : user.role === "HR_MANAGER" ? "/hr/work-queue" : "/org/attendance")} style={{ position: "relative" }}><Bell size={17} />{unreadCount > 0 ? <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, background: "#e05b5b", borderRadius: 99, border: "1px solid var(--surface)" }} /> : null}</button>
             <span className="topbar-divider" />

@@ -12,6 +12,7 @@ import { Drawer } from "@/components/ui/Drawer";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useWorkspace } from "@/components/layout/WorkspaceGate";
 import { apiRequest } from "@/lib/api-client";
+import { getAttendanceClockEligibility } from "@/lib/attendance-clock-eligibility";
 import { formatDate, formatMoney, getISODateInTimeZone, humanize } from "@/lib/format";
 import { useAttendanceRefresh, notifyAttendanceStatusChanged } from "@/lib/attendance-events";
 import { useSmartRefresh } from "@/lib/smart-refresh";
@@ -234,15 +235,18 @@ export function EmployeeMyDayWorkspace() {
   const remainingMinutes = Math.max(0, scheduledMinutes - regularMinutes);
   const approvedLeaveToday = todayEntry?.leaveRequest?.status === "APPROVED";
   const holidayToday = Boolean(todayEntry?.publicHoliday);
-  const shiftStartTime = todayEntry?.expectedStart ? Date.parse(todayEntry.expectedStart) : NaN;
-  const shiftEndTime = todayEntry?.expectedEnd ? Date.parse(todayEntry.expectedEnd) : NaN;
-  const clockInTooEarly = !isClockedIn && Number.isFinite(shiftStartTime) && clockNow < shiftStartTime;
-  const clockInTooLate = !isClockedIn && Number.isFinite(shiftEndTime) && clockNow >= shiftEndTime;
-  const minutesUntilShift = clockInTooEarly ? Math.ceil((shiftStartTime - clockNow) / 60000) : 0;
-  const canPunch = statusKnown && !savingPunch && (isClockedIn || (
-    Boolean(todayEntry?.expectedStart && todayEntry.expectedEnd) &&
-    !approvedLeaveToday && !holidayToday && !clockInTooEarly && !clockInTooLate
-  ));
+  const clockEligibility = getAttendanceClockEligibility({
+    status: clockStatus,
+    expectedStart: todayEntry?.expectedStart,
+    expectedEnd: todayEntry?.expectedEnd,
+    approvedLeave: approvedLeaveToday,
+    publicHoliday: holidayToday,
+    now: clockNow,
+  });
+  const clockInTooEarly = clockEligibility.blockReason === "BEFORE_SHIFT";
+  const clockInTooLate = clockEligibility.blockReason === "SHIFT_ENDED";
+  const minutesUntilShift = clockEligibility.minutesUntilShift;
+  const canPunch = !savingPunch && (clockEligibility.canClockIn || clockEligibility.canClockOut);
 
   const weekStart = today ? mondayOf(today) : "";
   const weekDays = useMemo(() => weekStart ? Array.from({ length: 7 }, (_, index) => {
