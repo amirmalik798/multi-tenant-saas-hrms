@@ -8,6 +8,7 @@ import {
   MessageCircle, Sparkles, Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Drawer } from "@/components/ui/Drawer";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useWorkspace } from "@/components/layout/WorkspaceGate";
 import { apiRequest } from "@/lib/api-client";
@@ -34,6 +35,8 @@ interface EarningsPayload { month?: string; currencyCode?: string | null; hasRat
 interface RequestItem extends Record<string, unknown> {
   id?: string; status?: string; createdAt?: string; requestedAt?: string; workDate?: string;
   startDate?: string; endDate?: string; leaveType?: string; eventType?: string; requestedMinutes?: number;
+  approvedMinutes?: number | null; reason?: string; reviewerNote?: string | null; decisionAt?: string | null;
+  originalRecordedAt?: string | null; isPaid?: boolean; requestType?: string;
 }
 interface RequestPayload { requests?: RequestItem[] }
 interface NotificationPayload { unreadMessages?: number }
@@ -42,8 +45,20 @@ interface MyDaySnapshot {
   leave: RequestPayload | null; corrections: RequestPayload | null; overtime: RequestPayload | null;
   notifications: NotificationPayload | null;
 }
-interface HomeRequest { id: string; title: string; detail: string; status: string; href: string; createdAt: string }
-interface TimelineItem { key: string; kind: "shift" | "event"; label: string; at: string; eventType?: string; source?: string }
+type HomeRequestKind = "leave" | "correction" | "overtime";
+interface HomeRequest {
+  id: string; recordId: string; kind: HomeRequestKind; title: string; detail: string;
+  status: string; href: string; createdAt: string; reason?: string; reviewerNote?: string | null;
+  decisionAt?: string | null; workDate?: string; startDate?: string; endDate?: string;
+  leaveType?: string; isPaid?: boolean; eventType?: string; requestedAt?: string;
+  originalRecordedAt?: string | null; requestedMinutes?: number; approvedMinutes?: number | null;
+  requestType?: string;
+}
+interface TimelineItem {
+  key: string; kind: "shift" | "event"; label: string; at: string;
+  eventType?: string; source?: string; elapsedMinutes?: number;
+}
+interface SelectedShift { date: string; entry?: AttendanceDay }
 
 const EMPTY_SNAPSHOT: MyDaySnapshot = {
   calendar: null, punches: null, earnings: null, leave: null, corrections: null, overtime: null, notifications: null,
@@ -78,6 +93,17 @@ function timestampLabel(value: string | null | undefined, timeZone: string): str
 function dayLabel(value: string): string {
   return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(value + "T12:00:00.000Z"));
 }
+function dateTimeLabel(value: string | null | undefined, timeZone: string): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      weekday: "short", day: "numeric", month: "short", year: "numeric",
+      hour: "numeric", minute: "2-digit", hour12: true, timeZone,
+    }).format(date);
+  } catch { return "—"; }
+}
 function scheduledWorkMinutes(entry: AttendanceDay | undefined): number {
   if (!entry?.expectedStart || !entry.expectedEnd) return 0;
   const start = new Date(entry.expectedStart).getTime();
@@ -89,26 +115,39 @@ function createdAt(item: RequestItem): string {
   return typeof item.createdAt === "string" ? item.createdAt : typeof item.requestedAt === "string" ? item.requestedAt : "";
 }
 function buildRequests(snapshot: MyDaySnapshot): HomeRequest[] {
-  const leave = (snapshot.leave?.requests ?? []).map((item, index) => ({
-    id: "leave-" + String(item.id ?? index),
+  const leave = (snapshot.leave?.requests ?? []).map((item, index): HomeRequest => ({
+    id: "leave-" + String(item.id ?? index), recordId: String(item.id ?? ""),
+    kind: "leave",
     title: humanize(item.leaveType) + " leave",
     detail: item.startDate && item.endDate
       ? formatDate(String(item.startDate)) + (item.startDate === item.endDate ? "" : " – " + formatDate(String(item.endDate)))
       : "Leave request",
     status: String(item.status ?? "UNKNOWN"), href: "/employee/leave", createdAt: createdAt(item),
+    reason: item.reason, reviewerNote: item.reviewerNote, decisionAt: item.decisionAt,
+    startDate: item.startDate, endDate: item.endDate, leaveType: item.leaveType, isPaid: item.isPaid,
   }));
-  const corrections = (snapshot.corrections?.requests ?? []).map((item, index) => ({
-    id: "correction-" + String(item.id ?? index), title: humanize(item.eventType) + " correction",
+  const corrections = (snapshot.corrections?.requests ?? []).map((item, index): HomeRequest => ({
+    id: "correction-" + String(item.id ?? index), recordId: String(item.id ?? ""),
+    kind: "correction", title: humanize(item.eventType) + " correction",
     detail: item.workDate ? formatDate(String(item.workDate)) : "Attendance correction",
     status: String(item.status ?? "UNKNOWN"), href: "/employee/requests", createdAt: createdAt(item),
+    reason: item.reason, reviewerNote: item.reviewerNote, decisionAt: item.decisionAt,
+    workDate: item.workDate, eventType: item.eventType, requestedAt: item.requestedAt,
+    originalRecordedAt: item.originalRecordedAt,
   }));
-  const overtime = (snapshot.overtime?.requests ?? []).map((item, index) => ({
-    id: "overtime-" + String(item.id ?? index), title: "Overtime request",
+  const overtime = (snapshot.overtime?.requests ?? []).map((item, index): HomeRequest => ({
+    id: "overtime-" + String(item.id ?? index), recordId: String(item.id ?? ""),
+    kind: "overtime", title: "Overtime request",
     detail: (item.workDate ? formatDate(String(item.workDate)) : "Scheduled work") +
       (typeof item.requestedMinutes === "number" ? " · " + minutesLabel(item.requestedMinutes) : ""),
     status: String(item.status ?? "UNKNOWN"), href: "/employee/requests", createdAt: createdAt(item),
+    reason: item.reason, reviewerNote: item.reviewerNote, decisionAt: item.decisionAt,
+    workDate: item.workDate, requestedAt: item.requestedAt, requestedMinutes: item.requestedMinutes,
+    approvedMinutes: item.approvedMinutes, requestType: item.requestType,
   }));
-  return [...leave, ...corrections, ...overtime].sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0));
+  return [...leave, ...corrections, ...overtime].sort((a, b) =>
+    (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0),
+  );
 }
 
 export function EmployeeMyDayWorkspace() {
@@ -121,6 +160,8 @@ export function EmployeeMyDayWorkspace() {
   const [partialWarning, setPartialWarning] = useState("");
   const [savingPunch, setSavingPunch] = useState(false);
   const [punchError, setPunchError] = useState("");
+  const [selectedShift, setSelectedShift] = useState<SelectedShift | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<HomeRequest | null>(null);
   const [clockNow, setClockNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -303,7 +344,30 @@ export function EmployeeMyDayWorkspace() {
     if (todayEntry?.expectedStart) {
       items.push({ key: "scheduled-start", kind: "shift", label: "Scheduled start", at: todayEntry.expectedStart });
     }
-    for (const event of todaysEvents) {
+
+    const orderedEvents = [...todaysEvents]
+      .filter((event) => Boolean(event.recordedAt))
+      .sort((a, b) => Date.parse(a.recordedAt ?? "") - Date.parse(b.recordedAt ?? ""));
+    let openClockInAt: number | null = null;
+    const elapsedByEvent = new Map<string, number>();
+
+    for (const event of orderedEvents) {
+      const eventTime = Date.parse(event.recordedAt ?? "");
+      if (!Number.isFinite(eventTime)) continue;
+
+      if (event.eventType === "CLOCK_IN") {
+        openClockInAt = openClockInAt === null ? eventTime : null;
+        continue;
+      }
+
+      if (event.eventType === "CLOCK_OUT" && openClockInAt !== null && eventTime > openClockInAt) {
+        const elapsed = Math.floor((eventTime - openClockInAt) / 60000);
+        if (event.id) elapsedByEvent.set(event.id, elapsed);
+        openClockInAt = null;
+      }
+    }
+
+    for (const event of orderedEvents) {
       if (!event.recordedAt) continue;
       items.push({
         key: event.id || "punch-" + event.recordedAt,
@@ -312,8 +376,10 @@ export function EmployeeMyDayWorkspace() {
         at: event.recordedAt,
         eventType: event.eventType,
         source: event.source,
+        elapsedMinutes: event.id ? elapsedByEvent.get(event.id) : undefined,
       });
     }
+
     if (todayEntry?.expectedEnd) {
       items.push({ key: "scheduled-finish", kind: "shift", label: "Scheduled finish", at: todayEntry.expectedEnd });
     }
@@ -415,11 +481,18 @@ export function EmployeeMyDayWorkspace() {
               const detail = entry?.expectedStart && entry.expectedEnd ? timestampLabel(entry.expectedStart, timeZone) + " – " + timestampLabel(entry.expectedEnd, timeZone)
                 : entry?.leaveRequest?.status === "APPROVED" ? "Approved time off" : entry?.publicHoliday ? "Organization holiday" : "No shift assigned";
               const state = entry?.scheduleName ? "Shift" : entry?.leaveRequest?.status === "APPROVED" ? "Leave" : entry?.publicHoliday ? "Holiday" : "Rest";
-              return <div className="myday-upcoming-row" key={date}>
-                <div className="myday-upcoming-date"><strong>{new Date(date + "T12:00:00.000Z").getUTCDate()}</strong><small>{dayLabel(date).split(" ")[0]}</small></div>
-                <div className="myday-upcoming-copy"><strong>{label}</strong><small>{detail}</small></div>
+              return <button
+                type="button"
+                className="myday-upcoming-row myday-upcoming-button"
+                key={date}
+                onClick={() => setSelectedShift({ date, entry })}
+                aria-label={"View " + label + " details for " + dayLabel(date)}
+              >
+                <span className="myday-upcoming-date"><strong>{new Date(date + "T12:00:00.000Z").getUTCDate()}</strong><small>{dayLabel(date).split(" ")[0]}</small></span>
+                <span className="myday-upcoming-copy"><strong>{label}</strong><small>{detail}</small></span>
                 <span className={"myday-schedule-tag " + (state === "Leave" || state === "Holiday" ? "is-timeoff" : state === "Rest" ? "is-rest" : "")}>{state}</span>
-              </div>;
+                <ChevronRight className="myday-upcoming-chevron" size={15} aria-hidden="true" />
+              </button>;
             })}
           </div>
         </div>
@@ -432,9 +505,9 @@ export function EmployeeMyDayWorkspace() {
             <div className="myday-loading-rows" role="status" aria-label="Loading requests">
               {Array.from({ length: 3 }, (_, index) => <div className="myday-request-skeleton" key={index}><MyDaySkeleton className="myday-skeleton-request-icon" /><div><MyDaySkeleton className="myday-skeleton-row-title" /><MyDaySkeleton className="myday-skeleton-row-detail" /></div><MyDaySkeleton className="myday-skeleton-tag" /></div>)}
             </div>
-          ) : allRequests.length > 0 ? <div className="myday-request-list">{allRequests.slice(0, 4).map((item) => <Link href={item.href} className="myday-request-row" key={item.id}>
+          ) : allRequests.length > 0 ? <div className="myday-request-list">{allRequests.slice(0, 4).map((item) => <button type="button" className="myday-request-row myday-request-button" key={item.id} onClick={() => setSelectedRequest(item)} aria-label={"View details for " + item.title}>
             <span className="myday-request-icon"><FileClock size={17} /></span><span className="myday-request-copy"><strong>{item.title}</strong><small>{item.detail}</small></span><StatusBadge value={item.status} /><ChevronRight size={15} className="myday-request-chevron" />
-          </Link>)}</div> : <div className="myday-empty-state"><span>{requestSourcesLoaded ? <CheckCircle2 size={21} /> : <AlertCircle size={21} />}</span><strong>{requestSourcesLoaded ? "You're all caught up" : "Request activity is unavailable"}</strong><small>{requestSourcesLoaded ? "Your recent requests will appear here when you submit them." : "We couldn't retrieve your request history. It will retry automatically."}</small></div>}
+          </button>)}</div> : <div className="myday-empty-state"><span>{requestSourcesLoaded ? <CheckCircle2 size={21} /> : <AlertCircle size={21} />}</span><strong>{requestSourcesLoaded ? "You're all caught up" : "Request activity is unavailable"}</strong><small>{requestSourcesLoaded ? "Your recent requests will appear here when you submit them." : "We couldn't retrieve your request history. It will retry automatically."}</small></div>}
         </div>
 
         <div className="myday-panel myday-earnings-panel">
@@ -468,6 +541,7 @@ export function EmployeeMyDayWorkspace() {
               <div>
                 <strong>{item.label}</strong>
                 <small>{timestampLabel(item.at, timeZone)}{item.source ? " · " + humanize(item.source) : ""}</small>
+                {typeof item.elapsedMinutes === "number" ? <small className="myday-session-duration">Elapsed session: {minutesLabel(item.elapsedMinutes)}</small> : null}
               </div>
               {item.kind === "event" ? <StatusBadge value="RECORDED" /> : <span className="myday-timeline-meta">Shift</span>}
             </div>
@@ -478,6 +552,112 @@ export function EmployeeMyDayWorkspace() {
         </div>
       </section>
       <footer className="myday-footer-note"><Sparkles size={14} />Your attendance and earnings use your organization's verified work calendar and approved records.<span>{snapshot.calendar?.timeZone || timeZone}</span></footer>
+
+      <Drawer
+        open={Boolean(selectedShift)}
+        title={selectedShift ? "Shift details" : "Shift details"}
+        description={selectedShift ? dayLabel(selectedShift.date) : undefined}
+        onClose={() => setSelectedShift(null)}
+        width="standard"
+        footer={<div className="myday-drawer-footer"><Link href="/employee/schedule" className="myday-drawer-link" onClick={() => setSelectedShift(null)}>Open my full schedule <ArrowRight size={15} /></Link></div>}
+      >
+        {selectedShift ? (() => {
+          const entry = selectedShift.entry;
+          const shiftMinutes = scheduledWorkMinutes(entry);
+          const isLeave = entry?.leaveRequest?.status === "APPROVED";
+          const holiday = entry?.publicHoliday;
+          const hasShift = Boolean(entry?.scheduleName || entry?.expectedStart || entry?.expectedEnd);
+          return (
+            <div className="myday-detail-stack">
+              <div className="myday-detail-status">
+                <div><span className="myday-detail-eyebrow">WORK DATE</span><strong>{formatDate(selectedShift.date)}</strong></div>
+                <StatusBadge value={isLeave ? "APPROVED" : holiday ? "HOLIDAY" : hasShift ? "SCHEDULED" : "REST DAY"} />
+              </div>
+              <div className="myday-detail-card">
+                <span className="myday-detail-eyebrow">ASSIGNMENT</span>
+                <h3>{isLeave ? humanize(entry?.leaveRequest?.leaveType) + " leave" : holiday ? holiday.name || "Public holiday" : entry?.scheduleName || "No shift assigned"}</h3>
+                <p>{isLeave ? "Your leave is approved for this date." : holiday ? (holiday.isPaid ? "This is a paid public holiday." : "This is an unpaid public holiday.") : hasShift ? "These are the scheduled working hours assigned to you." : "There is no working shift assigned to you on this date."}</p>
+              </div>
+              {hasShift ? (
+                <div className="myday-detail-metrics">
+                  <div className="myday-detail-metric"><span>Shift starts</span><strong>{timestampLabel(entry?.expectedStart, timeZone)}</strong></div>
+                  <div className="myday-detail-metric"><span>Shift ends</span><strong>{timestampLabel(entry?.expectedEnd, timeZone)}</strong></div>
+                  <div className="myday-detail-metric"><span>Scheduled work</span><strong>{minutesLabel(shiftMinutes)}</strong></div>
+                  <div className="myday-detail-metric"><span>Scheduled break</span><strong>{minutesLabel(entry?.scheduledBreakMinutes ?? 0)}</strong></div>
+                </div>
+              ) : null}
+              {isLeave ? (
+                <div className="myday-detail-section"><h4>Leave information</h4><div className="myday-detail-row"><span>Leave type</span><strong>{humanize(entry?.leaveRequest?.leaveType)}</strong></div><div className="myday-detail-row"><span>Payment</span><strong>{entry?.leaveRequest?.isPaid ? "Paid leave" : "Unpaid leave"}</strong></div></div>
+              ) : null}
+              {holiday ? (
+                <div className="myday-detail-section"><h4>Holiday information</h4><div className="myday-detail-row"><span>Holiday</span><strong>{holiday.name || "Public holiday"}</strong></div><div className="myday-detail-row"><span>Payment</span><strong>{holiday.isPaid ? "Paid holiday" : "Unpaid holiday"}</strong></div></div>
+              ) : null}
+              {entry && (Number(entry.workedMinutes ?? 0) > 0 || (entry.events?.length ?? 0) > 0) ? (
+                <div className="myday-detail-section">
+                  <h4>Recorded attendance</h4>
+                  <div className="myday-detail-row"><span>Worked time</span><strong>{minutesLabel(entry.workedMinutes)}</strong></div>
+                  <div className="myday-detail-row"><span>Regular time</span><strong>{minutesLabel(entry.regularWorkedMinutes)}</strong></div>
+                  <div className="myday-detail-row"><span>Payable overtime</span><strong>{minutesLabel(entry.payableOvertimeMinutes)}</strong></div>
+                  {entry.events?.length ? <div className="myday-detail-event-list">{[...entry.events].sort((a,b) => Date.parse(a.recordedAt ?? "") - Date.parse(b.recordedAt ?? "")).map((event,index) => <div className="myday-detail-event" key={event.id || String(event.recordedAt) + index}><span>{humanize(event.eventType)}</span><strong>{timestampLabel(event.recordedAt,timeZone)}</strong></div>)}</div> : null}
+                </div>
+              ) : null}
+              {entry?.leaveRequest?.status === "PENDING" ? <div className="myday-detail-note">A leave request is pending for this date. Check My Leave for its latest decision.</div> : null}
+            </div>
+          );
+        })() : null}
+      </Drawer>
+
+      <Drawer
+        open={Boolean(selectedRequest)}
+        title={selectedRequest?.title || "Request details"}
+        description={selectedRequest ? selectedRequest.kind === "leave" ? "Leave request" : selectedRequest.kind === "correction" ? "Attendance correction" : "Overtime pre-authorization" : undefined}
+        onClose={() => setSelectedRequest(null)}
+        width="standard"
+        footer={<div className="myday-drawer-footer"><Link href={selectedRequest?.href || "/employee/requests"} className="myday-drawer-link" onClick={() => setSelectedRequest(null)}>{selectedRequest?.kind === "leave" ? "Open leave and holidays" : "Open my requests"} <ArrowRight size={15} /></Link></div>}
+      >
+        {selectedRequest ? (
+          <div className="myday-detail-stack">
+            <div className="myday-detail-status">
+              <div><span className="myday-detail-eyebrow">REQUEST STATUS</span><strong>{humanize(selectedRequest.status)}</strong></div>
+              <StatusBadge value={selectedRequest.status} />
+            </div>
+            <div className="myday-detail-card">
+              <span className="myday-detail-eyebrow">REQUEST SUMMARY</span>
+              <h3>{selectedRequest.title}</h3>
+              <p>{selectedRequest.detail}</p>
+            </div>
+            <div className="myday-detail-section">
+              <h4>Request information</h4>
+              {selectedRequest.kind === "leave" ? (
+                <>
+                  <div className="myday-detail-row"><span>Leave type</span><strong>{humanize(selectedRequest.leaveType)}</strong></div>
+                  <div className="myday-detail-row"><span>Start date</span><strong>{selectedRequest.startDate ? formatDate(selectedRequest.startDate) : "—"}</strong></div>
+                  <div className="myday-detail-row"><span>End date</span><strong>{selectedRequest.endDate ? formatDate(selectedRequest.endDate) : "—"}</strong></div>
+                  <div className="myday-detail-row"><span>Payment</span><strong>{selectedRequest.isPaid ? "Paid leave" : "Unpaid leave"}</strong></div>
+                </>
+              ) : selectedRequest.kind === "correction" ? (
+                <>
+                  <div className="myday-detail-row"><span>Work date</span><strong>{selectedRequest.workDate ? formatDate(selectedRequest.workDate) : "—"}</strong></div>
+                  <div className="myday-detail-row"><span>Punch type</span><strong>{humanize(selectedRequest.eventType)}</strong></div>
+                  <div className="myday-detail-row"><span>Requested punch time</span><strong>{dateTimeLabel(selectedRequest.requestedAt, timeZone)}</strong></div>
+                  {selectedRequest.originalRecordedAt ? <div className="myday-detail-row"><span>Original recorded time</span><strong>{dateTimeLabel(selectedRequest.originalRecordedAt, timeZone)}</strong></div> : null}
+                </>
+              ) : (
+                <>
+                  <div className="myday-detail-row"><span>Work date</span><strong>{selectedRequest.workDate ? formatDate(selectedRequest.workDate) : "—"}</strong></div>
+                  <div className="myday-detail-row"><span>Request type</span><strong>{humanize(selectedRequest.requestType)}</strong></div>
+                  <div className="myday-detail-row"><span>Requested overtime</span><strong>{minutesLabel(selectedRequest.requestedMinutes)}</strong></div>
+                  {typeof selectedRequest.approvedMinutes === "number" ? <div className="myday-detail-row"><span>Approved overtime</span><strong>{minutesLabel(selectedRequest.approvedMinutes)}</strong></div> : null}
+                </>
+              )}
+              <div className="myday-detail-row"><span>Submitted</span><strong>{dateTimeLabel(selectedRequest.createdAt, timeZone)}</strong></div>
+              {selectedRequest.decisionAt ? <div className="myday-detail-row"><span>Decision date</span><strong>{dateTimeLabel(selectedRequest.decisionAt, timeZone)}</strong></div> : null}
+            </div>
+            {selectedRequest.reason ? <div className="myday-detail-section"><h4>Your reason</h4><p className="myday-detail-prose">{selectedRequest.reason}</p></div> : null}
+            {selectedRequest.reviewerNote ? <div className="myday-detail-section myday-reviewer-note"><h4>Reviewer feedback</h4><p className="myday-detail-prose">{selectedRequest.reviewerNote}</p></div> : selectedRequest.status.toUpperCase() === "PENDING" ? <div className="myday-detail-note">This request is awaiting review. You'll see the decision and any reviewer feedback here.</div> : null}
+          </div>
+        ) : null}
+      </Drawer>
     </main>
   );
 }
