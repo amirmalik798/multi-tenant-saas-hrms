@@ -195,6 +195,60 @@ function buildScopedActiveWorkforce(
   return { sql, values };
 }
 
+function buildScopedReviewWorkforce(
+  scope: ManagementDashboardScope,
+  input: {
+    fromDate: string;
+    toDate: string;
+    organizationToday: string;
+    departmentId?: string | null;
+  },
+): { sql: string; values: unknown[] } {
+  const values: unknown[] = [
+    scope.organizationId,
+    input.fromDate,
+    input.toDate,
+    input.organizationToday,
+  ];
+
+  let managerFilter = "";
+  if (scope.kind === "ASSIGNED_DEPARTMENTS") {
+    values.push(scope.managerEmployeeId);
+    managerFilter = [
+      "AND EXISTS (",
+      "  SELECT 1",
+      "  FROM public.departments AS managed_department",
+      "  WHERE managed_department.organization_id = e.organization_id",
+      "    AND managed_department.id = e.department_id",
+      "    AND managed_department.manager_id = $" + values.length + "::uuid",
+      ")",
+    ].join("\n");
+  }
+
+  let departmentFilter = "";
+  if (input.departmentId) {
+    values.push(input.departmentId);
+    departmentFilter = "AND e.department_id = $" + values.length + "::uuid";
+  }
+
+  const sql = [
+    "WITH reviewable_workforce AS (",
+    "  SELECT",
+    "    e.id,",
+    "    COALESCE(workforce_role.name, 'EMPLOYEE') AS workforce_role",
+    "  FROM public.employees AS e",
+    "  LEFT JOIN public.roles AS workforce_role",
+    "    ON workforce_role.id = e.workforce_role_id",
+    "   AND workforce_role.organization_id = e.organization_id",
+    "  WHERE e.organization_id = $1::uuid",
+    "    " + managerFilter,
+    "    " + departmentFilter,
+    ")",
+  ].join("\n");
+
+  return { sql, values };
+}
+
 /**
  * Calculates leave and schedule availability in one read-only snapshot.
  *
@@ -268,9 +322,11 @@ export async function loadManagementDashboardLeaveAvailabilitySummary(
         "LEFT JOIN public.leave_requests AS lr",
         "  ON lr.organization_id = $1::uuid",
         " AND lr.employee_id = sw.id",
-        " AND lr.status IN ('APPROVED', 'PENDING')",
-        " AND lr.end_date >= LEAST($2::date, $4::date)",
-        " AND lr.start_date <= GREATEST($3::date, $4::date)",
+        " AND lr.status = 'APPROVED'",
+        " AND (",
+        "   (lr.start_date <= $3::date AND lr.end_date >= $2::date)",
+        "   OR (lr.start_date <= $4::date AND lr.end_date >= $4::date)",
+        " )",
       ].join("\n"),
       values,
     ),
@@ -294,12 +350,16 @@ export async function loadManagementDashboardLeaveAvailabilitySummary(
     "employee on approved leave today",
   );
 
+  const { sql: reviewCte, values: reviewValues } = buildScopedReviewWorkforce(
+    scope,
+    input,
+  );
   const pendingResult = await client.query<PendingReviewRow>(
-    scopedCte + "\n" + [
+    reviewCte + "\n" + [
       "SELECT",
       "  lr.employee_id AS \"employeeId\",",
       "  sw.workforce_role AS \"workforceRole\"",
-      "FROM scoped_active_workforce AS sw",
+      "FROM reviewable_workforce AS sw",
       "JOIN public.leave_requests AS lr",
       "  ON lr.organization_id = $1::uuid",
       " AND lr.employee_id = sw.id",
@@ -309,7 +369,7 @@ export async function loadManagementDashboardLeaveAvailabilitySummary(
       "ORDER BY lr.created_at, lr.id",
       "LIMIT " + (MAX_LEAVE_AVAILABILITY_ROWS + 1),
     ].join("\n"),
-    values,
+    reviewValues,
   );
 
   if (pendingResult.rows.length > MAX_LEAVE_AVAILABILITY_ROWS) {
