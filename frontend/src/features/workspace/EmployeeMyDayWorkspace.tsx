@@ -340,6 +340,21 @@ export function EmployeeMyDayWorkspace() {
   const allRequests = useMemo(() => buildRequests(snapshot), [snapshot]);
   const requestSourcesLoaded = Boolean(snapshot.leave && snapshot.corrections && snapshot.overtime);
   const pendingRequests = allRequests.filter((item) => item.status.toUpperCase() === "PENDING");
+  const leaveRequests = useMemo(() => allRequests.filter((item) => item.kind === "leave"), [allRequests]);
+  const pendingLeaveRequests = leaveRequests.filter((item) => item.status.toUpperCase() === "PENDING");
+  const currentYearStart = today ? today.slice(0, 4) + "-01-01" : "";
+  const currentYearEnd = today ? today.slice(0, 4) + "-12-31" : "";
+  const approvedLeaveThisYear = leaveRequests.filter((item) =>
+    item.status.toUpperCase() === "APPROVED" && Boolean(item.startDate && item.endDate) &&
+    item.startDate! <= currentYearEnd && item.endDate! >= currentYearStart,
+  );
+  const upcomingApprovedLeave = leaveRequests
+    .filter((item) => item.status.toUpperCase() === "APPROVED" && Boolean(item.endDate && today && item.endDate >= today))
+    .sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""));
+  const recentLeaveDecisions = leaveRequests
+    .filter((item) => ["APPROVED", "REJECTED"].includes(item.status.toUpperCase()))
+    .sort((a, b) => (Date.parse(b.decisionAt ?? b.createdAt) || 0) - (Date.parse(a.decisionAt ?? a.createdAt) || 0))
+    .slice(0, 2);
   const unreadMessages = snapshot.notifications?.unreadMessages;
   const earnings = snapshot.earnings?.summary;
   const earningsAmount = typeof earnings?.estimatedSalary === "number" ? earnings.estimatedSalary : null;
@@ -748,6 +763,77 @@ export function EmployeeMyDayWorkspace() {
             {monthUnapprovedOvertime > 0 ? (
               <div className="myday-month-overtime-note"><AlertCircle size={15} /><span>{minutesLabel(monthUnapprovedOvertime)} of additional overtime is awaiting approval and is not included in payable overtime.</span></div>
             ) : null}
+          </>
+        )}
+      </section>
+
+      <section className="myday-panel myday-leave-overview">
+        <div className="myday-panel-heading">
+          <div>
+            <span className="myday-section-kicker">TIME OFF</span>
+            <h2>My leave overview</h2>
+            <p>Your leave requests, review progress and upcoming approved time away.</p>
+          </div>
+          <Link href="/employee/leave" className="myday-text-link">Leave & holidays <ArrowRight size={14} /></Link>
+        </div>
+
+        {!snapshot.leave && loading ? (
+          <div className="myday-leave-metrics" role="status" aria-label="Loading leave overview">
+            {Array.from({ length: 3 }, (_, index) => <div className="myday-leave-metric-skeleton" key={index}><MyDaySkeleton className="myday-skeleton-row-detail" /><MyDaySkeleton className="myday-skeleton-stat" /></div>)}
+          </div>
+        ) : !snapshot.leave ? (
+          <div className="myday-empty-state">
+            <span><AlertCircle size={21} /></span>
+            <strong>Leave information unavailable</strong>
+            <small>Your leave requests could not be retrieved. Please try again shortly.</small>
+          </div>
+        ) : (
+          <>
+            <div className="myday-leave-metrics">
+              <div className="myday-leave-metric">
+                <span className="myday-leave-metric-icon is-pending"><FileClock size={17} /></span>
+                <div><span>Awaiting a decision</span><strong>{pendingLeaveRequests.length}</strong></div>
+              </div>
+              <div className="myday-leave-metric">
+                <span className="myday-leave-metric-icon is-approved"><CheckCircle2 size={17} /></span>
+                <div><span>Approved this year</span><strong>{approvedLeaveThisYear.length}</strong><small>Requests overlapping {today.slice(0, 4)}</small></div>
+              </div>
+              <div className="myday-leave-metric">
+                <span className="myday-leave-metric-icon is-upcoming"><CalendarCheck size={17} /></span>
+                <div><span>Upcoming approved leave</span><strong>{upcomingApprovedLeave.length}</strong><small>Approved requests from today onward</small></div>
+              </div>
+            </div>
+
+            <div className="myday-leave-lists">
+              <div className="myday-leave-list">
+                <div className="myday-leave-list-heading"><strong>Coming up</strong><span>{upcomingApprovedLeave.length} approved</span></div>
+                {upcomingApprovedLeave.length ? upcomingApprovedLeave.slice(0, 3).map((item) => (
+                  <button type="button" className="myday-leave-row" key={item.id} onClick={() => setSelectedRequest(item)}>
+                    <span className="myday-leave-row-icon"><CalendarDays size={16} /></span>
+                    <span className="myday-leave-row-copy"><strong>{item.title}</strong><small>{item.detail}</small></span>
+                    <StatusBadge value={item.isPaid ? "PAID" : "UNPAID"} />
+                    <ChevronRight size={14} />
+                  </button>
+                )) : <div className="myday-leave-empty">No upcoming approved leave.</div>}
+              </div>
+
+              <div className="myday-leave-list">
+                <div className="myday-leave-list-heading"><strong>Awaiting review</strong><span>{pendingLeaveRequests.length} pending</span></div>
+                {pendingLeaveRequests.length ? pendingLeaveRequests.slice(0, 3).map((item) => (
+                  <button type="button" className="myday-leave-row" key={item.id} onClick={() => setSelectedRequest(item)}>
+                    <span className="myday-leave-row-icon is-pending"><FileClock size={16} /></span>
+                    <span className="myday-leave-row-copy"><strong>{item.title}</strong><small>{item.detail}</small></span>
+                    <StatusBadge value={item.status} />
+                    <ChevronRight size={14} />
+                  </button>
+                )) : <div className="myday-leave-empty">You have no leave requests awaiting review.</div>}
+              </div>
+            </div>
+
+            <div className="myday-leave-footnote">
+              <AlertCircle size={14} />
+              <span>These figures count leave requests, not leave days or remaining entitlement. Your organization's leave allocation and accrual rules are not yet available in this HRMS.</span>
+            </div>
           </>
         )}
       </section>
