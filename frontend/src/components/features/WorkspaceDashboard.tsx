@@ -14,6 +14,7 @@ import { roleLabels } from "@/lib/workspace-config";
 import { useSmartRefresh } from "@/lib/smart-refresh";
 import { notifyAttendanceStatusChanged, useAttendanceRefresh } from "@/lib/attendance-events";
 import type { WorkspaceRole } from "@/types/workspace";
+import { EmployeeMyDayWorkspace } from "@/features/workspace/EmployeeMyDayWorkspace";
 
 interface DashboardData {
   stats?: Record<string, unknown>;
@@ -92,8 +93,8 @@ export function WorkspaceDashboard({ role }: { role: WorkspaceRole }) {
           reviewCounts: { ...overview.reviewCounts, leave: pendingLeaveCountRef.current },
         };
       } else {
-        const resultEvents = await apiRequest<DashboardData>("/attendance/events");
-        result = resultEvents;
+        // Employee My Day owns its own consolidated personal data snapshot.
+        result = {};
       }
       if (requestId === loadSequenceRef.current) setData(result);
     } catch (caught) {
@@ -104,8 +105,8 @@ export function WorkspaceDashboard({ role }: { role: WorkspaceRole }) {
   }, [role, user.employeeId]);
 
   useEffect(() => { void load(); }, [load]);
-  useSmartRefresh(() => load(true));
-  useAttendanceRefresh(() => { void load(true); });
+  useSmartRefresh(() => load(true), role !== "EMPLOYEE");
+  useAttendanceRefresh(() => { if (role !== "EMPLOYEE") void load(true); });
 
   const stats = data?.stats ?? {};
   const team = data?.team ?? {};
@@ -140,6 +141,8 @@ export function WorkspaceDashboard({ role }: { role: WorkspaceRole }) {
   const heading = role === "EMPLOYEE" ? "Good to see you" : role === "DEPARTMENT_MANAGER" ? "Your team at a glance" : role === "HR_MANAGER" ? "People operations overview" : "Organization overview";
   const description = role === "EMPLOYEE" ? "A quick view of your day, your time, and what needs your attention." : role === "DEPARTMENT_MANAGER" ? "Stay close to your assigned teams and the work that needs review." : role === "HR_MANAGER" ? "Understand workforce health and move the important work forward." : "Understand the health of your workforce and organization setup.";
 
+
+  if (role === "EMPLOYEE") return <EmployeeMyDayWorkspace />;
   return <>
     <PageHeader eyebrow={roleLabels[role]} title={heading} description={description} />
     <div className="dashboard-intro" style={{ marginBottom: 18 }}>
