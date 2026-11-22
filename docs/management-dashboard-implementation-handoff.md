@@ -4,7 +4,7 @@
 **Repository:** amirmalik798/multi-tenant-saas-hrms  
 **Active branch:** main  
 **Roadmap:** 14 steps  
-**Current status:** Step 9 complete; Steps 1–9 complete; Steps 10–14 remain
+**Current status:** Step 10 complete; Steps 1–10 complete; Steps 11–14 remain
 
 ## 1. Objective
 
@@ -285,7 +285,7 @@ Do not replace these data sources until the replacement has been verified agains
 
 **Acceptance:** team/org metrics reconcile with authorized leave data; personal and management data stay separate; no unauthorized leave records or workflow changes.
 
-### Step 10 of 14 — Overtime and payroll intelligence
+### Step 10 of 14 — Overtime and payroll intelligence (implemented)
 
 **Goal:** Provide reliable overtime and permitted payroll summaries.
 
@@ -371,21 +371,20 @@ Do not replace these data sources until the replacement has been verified agains
 
 ## 9. Verification status at this handoff
 
-- GitHub confirms Steps 2–9 are committed on `main`; the implementation, scope-correction and handoff commits are listed in Section 10.
-- Step 6's shared workforce-summary source and component remain exported but not mounted in the existing dashboards.
-- Step 7 adds a role-scoped, snapshot-consistent attendance summary endpoint and a reusable attendance analytics component. The new UI remains opt-in and is not mounted into `WorkspaceDashboard.tsx`.
-- Step 8 adds a workforce-composition endpoint and opt-in component using the exact Step 6 workforce population. Status, department, unassigned and role totals are reconciled to the shared workforce KPI source before returning.
-- Step 8 audited employee-history event writers. Because `effective_at` semantics and authoritative rehire/separation dates could not be verified, joiner/departure/reactivation/turnover metrics are explicitly deferred.
-
-- Step 9 adds `GET /api/management-dashboard/leave-availability` and the snapshot-backed `loadManagementDashboardLeaveAvailabilitySummary` service. It separates approved requests, distinct people, inclusive calendar days, upcoming approved leave (including leave already in progress today), and current-day values.
-- Actionable pending-review counts use a separate reviewable population matching the existing leave decision route across employment statuses. They exclude the actor's own requests and the HR-target roles excluded for HR Managers and Department Managers; Department Managers remain restricted to their assigned departments.
-- Availability includes only active workforce members with an effective assignment to an ACTIVE schedule and a matching weekday. Approved leave reduces available scheduled employee-days; public-holiday scheduled employee-days are shown separately and excluded from the availability-rate denominator. Employees without a qualifying schedule are not assumed available.
-- `ManagementDashboardLeaveAvailability` is exported with the shared component system but remains unmounted until Step 12. No live dashboard composition or personal My Day file was changed.
-- Department Manager scope is derived from the authenticated manager employee ID and assigned-department relationship; optional department filters are validated within that existing scope.
-- Step 7 reuses `calculateDailyAttendance`, handles effective approved attendance corrections, approved missing punches, approved preauthorization overtime, active shift schedules, approved leave and public holidays.
-- Steps 7–9 have source-level checks only. Step 9 passed 25/25 targeted source checks. No frontend/backend build, database/API runtime verification, browser testing or full regression suite has been run; do not describe these changes as runtime-certified.
-- Step 9 adds no database migration or dependency. Steps 6–9 remain additive; existing leave APIs, approval actions, dashboards and personal My Day are unchanged.
-- Full regression testing remains gated until the user says **"lets test now"**.
+- Steps 2–10 are committed on `main`. Step 10 implementation commit: `5fa195a6f6158e0d1d70aa32d8f34d61ab79b954`.
+- Step 6's shared workforce-summary source and component remain exported but are not mounted in the existing dashboards.
+- Step 7 adds the role-scoped attendance summary and reusable attendance analytics component; the new UI remains opt-in and unmounted.
+- Step 8 adds workforce-composition analytics using the Step 6 population, with current status, department, unassigned and role totals reconciled to the shared workforce KPI source.
+- Step 8's employee-history audit did not establish authoritative effective dates for joining, departure or rehire; movement and turnover remain deferred rather than inferred.
+- Step 9 adds the snapshot-backed leave-availability endpoint and exported opt-in component. It distinguishes approved requests, distinct people, inclusive calendar days, upcoming approved leave and scheduled availability.
+- Step 10 adds `GET /api/management-dashboard/payroll-overtime?month=YYYY-MM` and the snapshot-backed `loadManagementDashboardPayrollOvertimeSummary` service.
+- Payroll amount scope mirrors the existing salary-payment GET route: Organization Admin sees eligible Employees, Department Managers and HR Managers; HR Manager sees eligible Employees and Department Managers excluding self and HR targets; Department Manager sees eligible Employee-role members in assigned departments only.
+- Department Managers do not gain workforce payslip access. The endpoint returns aggregate amounts only, grouped by currency; estimated payable, recorded PAID and recorded UNPAID amounts remain separate.
+- Overtime preauthorization requests follow the existing overtime-request GET scope; worked actual/payable/unapproved minutes use the Step 7 active scheduled workforce and attendance calculation; persisted excess-review cases follow the existing excess-review GET scope and are read without triggering its materialization behavior.
+- `ManagementDashboardPayrollOvertime` is exported but remains unmounted until Step 12. No live dashboard composition, personal My Day, existing payment action, payslip route or approval workflow was changed.
+- Steps 7–10 have source-level checks only. Step 10 passed 31/31 targeted source checks. No frontend/backend build, database/API runtime verification, browser testing or full regression suite has been run; do not describe these changes as runtime-certified.
+- Step 10 adds no database migration, new dependency, new permission or write operation. Existing payroll and overtime routes remain unchanged.
+- Full regression testing remains gated until the user says **`lets test now`**.
 
 ## 10. Relevant commits
 
@@ -400,4 +399,5 @@ Do not replace these data sources until the replacement has been verified agains
 - Step 9 — leave and workforce availability: [5a886962f08b6f49dcec1502e1f63c529dffab54](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/5a886962f08b6f49dcec1502e1f63c529dffab54)
 - Step 9 — include ongoing approved leave in upcoming availability: [f96a27d17611a15882f9eb8514626951866929d9](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/f96a27d17611a15882f9eb8514626951866929d9)
 - Step 9 — align actionable review counts with the existing approval scope: [ddf3339275cb9c6090247b189d5ce6a0aba60971](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/ddf3339275cb9c6090247b189d5ce6a0aba60971)
+- Step 10 — overtime and payroll intelligence: [5fa195a6f6158e0d1d70aa32d8f34d61ab79b954](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/5fa195a6f6158e0d1d70aa32d8f34d61ab79b954)
 Step 1 was completed as source audit and UX blueprint work and did not create a repository commit.
