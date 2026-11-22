@@ -88,7 +88,16 @@ function isQueue(value: unknown): value is Queue {
 
 function isResponse(value: unknown): value is ActionCenterResponse {
   if (!isRecord(value) || value.status !== "ok" || value.schemaVersion !== 1) return false;
-  if (!isRecord(value.scope) || !isRecord(value.organization) || !isRecord(value.queues)) return false;
+
+  // Keep the narrowed record in a local constant so TypeScript retains its
+  // Record<string, unknown> type inside the array callbacks below.
+  const queues = value.queues;
+  if (
+    !isRecord(value.scope) ||
+    !isRecord(value.organization) ||
+    !isRecord(queues)
+  ) return false;
+
   const role = value.scope.roleName;
   const kind = value.scope.kind;
   if (
@@ -100,12 +109,15 @@ function isResponse(value: unknown): value is ActionCenterResponse {
     typeof value.organization.workDate !== "string" ||
     !(value.total === null || (typeof value.total === "number" && Number.isSafeInteger(value.total) && value.total >= 0))
   ) return false;
-  const keys = ["invitations", "corrections", "overtime", "leave"];
-  if (!keys.every((key) => isQueue(value.queues[key]))) return false;
+
+  const keys = ["invitations", "corrections", "overtime", "leave"] as const;
+  if (!keys.every((key) => isQueue(queues[key]))) return false;
+
   const hasUnavailable = keys.some((key) => {
-    const queue = value.queues[key];
+    const queue = queues[key];
     return isRecord(queue) && queue.status === "unavailable";
   });
+
   return hasUnavailable ? value.total === null : value.total !== null;
 }
 
