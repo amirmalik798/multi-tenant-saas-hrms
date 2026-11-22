@@ -234,9 +234,11 @@ export function EmployeeMyDayWorkspace() {
           : clockInTooLate ? "Your scheduled shift has ended"
             : hasAttendanceEvents ? "Your last recorded action was clock-out"
               : "Your workday has not started";
-  const shiftText = todayEntry?.scheduleName || (approvedLeaveToday
+  const shiftText = approvedLeaveToday
     ? humanize(todayEntry?.leaveRequest?.leaveType) + " leave"
-    : todayEntry?.publicHoliday?.name || (todayEntry?.expectedStart ? "Assigned shift" : "No shift scheduled today"));
+    : holidayToday
+      ? todayEntry?.publicHoliday?.name || "Public holiday"
+      : todayEntry?.scheduleName || (todayEntry?.expectedStart ? "Assigned shift" : "No shift scheduled today");
   const heroStatus = loading ? "Checking status"
     : isClockedIn ? "On the clock"
       : approvedLeaveToday ? "On approved leave"
