@@ -32,6 +32,7 @@
 - Use a unique employee population when a manager owns multiple departments. A person assigned to more than one authorized grouping must not be double-counted.
 - Workforce managers are employees too. Include an HR Manager or Department Manager in workforce/attendance measures when their employee record, employment status, schedule and the metric definition qualify. Their personal My Day remains separate from aggregate management statistics.
 - Organization Admin accounts are not automatically workforce members. Use the canonical organization/workforce role and existing account-linkage rules; do not infer employee status from a display label.
+- The shared workforce KPI population excludes employees whose organization-scoped workforce role is `ORGANIZATION_ADMIN`, `ORG_ADMIN`, or `ORGANIZATION_ADMINISTRATOR`. A missing linked role continues to use the established `EMPLOYEE` fallback. Existing dashboard endpoints retain their historical definitions and must not be silently changed.
 - Management review counts must follow the same eligibility rules as the corresponding review workflow. Never count an actor's own request as an item they can approve.
 - An HR Manager's own personal requests and an HR Manager's authorized review queue are different datasets. Do not mix them.
 - Department Manager team metrics may include the manager's own workforce record when that record belongs to an assigned department and the metric is a team-population metric. The manager's own requests are excluded from their actionable review queue.
@@ -43,7 +44,7 @@ The definitions below are the intended definitions for new management-dashboard 
 
 | Metric | Definition / calculation | Source and current readiness | Visibility |
 |---|---|---|---|
-| Total workforce | Count of distinct workforce employee records in the selected scope, with employment-status breakdown. Do not mix invitation records with employees. | Existing employee records and the current Org Admin, HR Manager and Department Manager overview APIs. Confirm canonical exclusions before sharing a common aggregate. | All three, role-scoped |
+| Total workforce | Count of distinct employee records in the selected scope, with employment-status breakdown. Exclude organization-administrator role records (`ORGANIZATION_ADMIN`, `ORG_ADMIN`, `ORGANIZATION_ADMINISTRATOR`) from the shared workforce population; do not mix invitation records with employees. | New `GET /api/management-dashboard/workforce-summary`; role and tenant scope come from the authenticated actor, and Department Manager scope uses an `EXISTS` relationship to assigned departments. | All three, role-scoped |
 | Active workforce | Distinct in-scope employee records with `employment_status = 'ACTIVE'`. | Existing employee records and overview APIs. | All three, role-scoped |
 | Inactive workforce | Distinct in-scope employee records with `employment_status = 'INACTIVE'`. | Existing employee records and overview APIs. | All three, role-scoped |
 | Former workforce | Distinct in-scope employee records with `employment_status = 'FORMER'`. This is a headcount status, not a termination rate. | Existing employee records and overview APIs. | All three, role-scoped |

@@ -703,3 +703,33 @@
     padding: 3px 0 0;
   }
 }
+
+
+/* Workforce KPI feature section. */
+.md-workforce-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.md-workforce-asof {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 9px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.md-workforce-definition {
+  margin: -4px 0 0;
+  color: var(--subtle);
+  font-size: 9px;
+  line-height: 1.5;
+}

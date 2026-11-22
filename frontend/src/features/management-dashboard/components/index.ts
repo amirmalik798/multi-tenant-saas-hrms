@@ -9,6 +9,8 @@ export type {
   ManagementDashboardShellProps,
 } from "./ManagementDashboardShell";
 
+export { ManagementDashboardWorkforceKpis } from "./ManagementDashboardWorkforceKpis";
+
 export {
   ManagementDashboardChartLegend,
   ManagementDashboardChartPanel,
