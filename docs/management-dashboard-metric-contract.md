@@ -242,3 +242,19 @@ The dashboard intentionally does not reuse the salary-payment population for eve
 - **Persisted excess-time review cases:** Organization Admin and HR Manager see tenant-wide cases; Department Manager sees cases in assigned departments only, matching GET /api/attendance/excess-overtime. The dashboard reads the existing review table without triggering the source endpoint's materialization/upsert operation. These cases are discovery-dependent and do not represent every instance of unapproved excess overtime.
 
 The monthly payroll roster is capped at 500 authorized employees and over-limit results fail explicitly rather than return a partial aggregate. The attendance source retains its existing 100,000 scheduled employee-day safety cap. The component returns aggregate-only data: no employee identities, individual rates, payment references or payslip detail. It remains unmounted until Step 12. No migration, new permission or payroll write is introduced.
+
+
+## 13. Step 11 management action queues
+
+The additive endpoint `GET /api/management-dashboard/action-center` reports actionable queue counts without exposing request-level private data or duplicating approval logic.
+
+- **Pending invitations:** records with `status = 'PENDING'` and `expires_at` later than the snapshot timestamp. The viewer must have the existing `invitation.view` permission.
+- **Attendance corrections:** PENDING records. Organization Admin and HR Manager follow existing tenant-wide review visibility; Department Manager is limited to employees in departments assigned to the authenticated manager. The actor's own employee record is excluded.
+- **Advance overtime requests:** PENDING records, using the current role-specific scope of the existing overtime review list and excluding the viewer's own employee record.
+- **Leave requests:** PENDING records. Organization Admin has tenant scope; HR Manager follows its current HR-target exclusion; Department Manager is restricted to assigned departments and excludes HR-target roles. The viewer's own employee record is excluded.
+- **Scope is server-derived:** no organization, employee or manager ID is accepted from the browser.
+- **Source state:** each queue is independently represented as ready, unavailable or not-applicable. A query failure is not coerced to zero. The overall total is unavailable while any permitted queue is unavailable. Only successful queries can display zero.
+- **No age/SLA claims:** the endpoint does not label requests old, late or overdue; no authoritative SLA contract was found.
+- **No approval mutation:** links open existing role-specific pages. Approval continues through existing routes and their current checks.
+- **Consistency:** all queue reads use one `REPEATABLE READ READ ONLY` transaction. No writes, new permissions or schema changes are introduced.
+- `ManagementDashboardActionCenter` remains exported and is not mounted until Step 12.

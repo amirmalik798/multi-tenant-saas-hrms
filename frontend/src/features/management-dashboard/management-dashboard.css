@@ -1685,3 +1685,132 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+
+/* Step 11 — actionable management work queues. */
+.md-action-center {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.md-action-center-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.md-action-center-summary > div:first-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.md-action-center-overline {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.md-action-center-summary strong {
+  color: var(--text-strong);
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 850;
+  letter-spacing: -.045em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.md-action-center-summary small {
+  color: var(--subtle);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.md-action-center-updated {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 5px;
+  text-align: right;
+}
+
+.md-action-center-updated span {
+  color: var(--subtle);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.md-action-center-updated time {
+  color: var(--text-strong);
+  font-size: 10px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.md-action-center-link,
+.md-action-center-retry {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.md-action-center-link:hover,
+.md-action-center-retry:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.md-action-center-link:focus-visible,
+.md-action-center-retry:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.md-action-center-retry {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.md-action-center-status {
+  color: var(--subtle);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.md-action-center-empty-panel {
+  border-style: dashed;
+}
+
+@media (max-width: 620px) {
+  .md-action-center-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .md-action-center-updated {
+    align-items: flex-start;
+    text-align: left;
+  }
+}

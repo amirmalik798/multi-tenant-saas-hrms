@@ -57,3 +57,7 @@ export { ManagementDashboardPayrollOvertime } from "./ManagementDashboardPayroll
 export type {
   ManagementDashboardPayrollOvertimeProps,
 } from "./ManagementDashboardPayrollOvertime";
+
+export { ManagementDashboardActionCenter } from "./ManagementDashboardActionCenter";
+
+export type { ManagementDashboardActionCenterProps } from "./ManagementDashboardActionCenter";

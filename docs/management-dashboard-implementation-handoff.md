@@ -4,7 +4,7 @@
 **Repository:** amirmalik798/multi-tenant-saas-hrms  
 **Active branch:** main  
 **Roadmap:** 14 steps  
-**Current status:** Step 10 complete; Steps 1–10 complete; Steps 11–14 remain
+**Current status:** Step 11 complete; Steps 1–11 complete; Steps 12–14 remain
 
 ## 1. Objective
 
@@ -265,6 +265,7 @@ The current dashboard implementation is in `frontend/src/components/features/Wor
 - HR Manager and Department Manager render `PersonalMyDayWorkspace` before the management overview.
 - Employee route renders `EmployeeMyDayWorkspace`.
 - The shared workforce KPI section is available as an opt-in component backed by `/management-dashboard/workforce-summary`; it is not yet mounted into any live role dashboard.
+- The Step 11 Management Action Center is exported and opt-in; it remains unmounted until Step 12.
 - Existing role-specific KPI labels, departments, attention links, activity panels and review queue destinations must remain functional during the gradual rollout.
 
 Do not replace these data sources until the replacement has been verified against the existing behavior and contracts.
@@ -299,19 +300,27 @@ Do not replace these data sources until the replacement has been verified agains
 
 **Acceptance:** each amount is tied to a period, currency, source state and role permission; employee-level salary details do not leak through aggregates.
 
-### Step 11 of 14 — Management Action Center
+### Step 11 of 14 — Management Action Center (implemented)
 
-**Goal:** Give each role one focused place for its actionable management work.
+**Goal:** Give Organization Admins, HR Managers and Department Managers one focused place for management work they are authorized to review.
 
-**Implementation approach:**
-1. Read existing permissions and review eligibility for invitations, attendance corrections, overtime and leave.
-2. Count only work items the signed-in role can act on.
-3. Exclude the actor's own requests from the same actor's review queue.
-4. Keep existing approval actions and their current destination routes; add links rather than duplicating approval logic.
-5. Show age bands only if timestamps are reliable; call an item overdue only when an SLA policy exists.
-6. Handle source errors independently so one failed queue does not become a false zero.
+**Implemented:**
+- New authenticated endpoint: `GET /api/management-dashboard/action-center`.
+- New snapshot-backed service: `loadManagementActionCenterSummary`, using one `REPEATABLE READ READ ONLY` transaction and tenant identity from the authenticated session.
+- Four independent queue metrics: unexpired pending invitations, attendance corrections, advance overtime requests and leave requests.
+- Invitations use the existing database-backed `invitation.view` permission and the same expiry rule as the invitation registry.
+- Organization Admin and HR Manager review scopes follow the existing review pages; Department Manager counts are restricted to assigned departments derived from the authenticated manager employee ID.
+- The current actor's own requests are excluded from every actionable review queue.
+- Leave review counts preserve the existing HR-target exclusions for HR Managers and Department Managers. Attendance corrections and overtime retain their distinct existing role rules.
+- Each source is isolated. A failed source renders **Unavailable**, a queue outside the role's authority renders **N/A**, and the overall total becomes unavailable if any permitted queue could not be read. A real zero remains zero.
+- Queue links use existing navigation destinations: `/org/invitations`, `/hr/invitations`, `/org/attendance`, `/hr/work-queue`, `/dm/reviews`, `/org/leave`, `/hr/modules/leave`, and `/dm/leave`.
+- The component does not implement approval actions; it links to the existing workflows. No SLA or overdue labels are invented because no authoritative SLA policy was found.
+- New reusable `ManagementDashboardActionCenter` component, exported from the shared component entry point, with loading, retry/error, unavailable, not-applicable, accurate-zero and all-caught-up states.
+- The component remains opt-in and unmounted in live dashboards until Step 12. Existing dashboards and personal My Day are unchanged.
 
-**Acceptance:** counts match the actual queue after applying the same server-side role and tenant filters.
+**Files:** `backend/lib/management-dashboard/action-center.ts`, `backend/app/api/management-dashboard/action-center/route.ts`, `frontend/src/features/management-dashboard/components/ManagementDashboardActionCenter.tsx`, shared component export and stylesheet, plus updated architecture, metric-contract, component-system and implementation-handoff documentation.
+
+**Verification boundary:** Source-level checks only. No frontend/backend build, database/API runtime verification or browser test was run. No database migration, new dependency, new permission or write operation was introduced.
 
 ### Step 12 of 14 — Role-specific management sections
 
@@ -371,18 +380,19 @@ Do not replace these data sources until the replacement has been verified agains
 
 ## 9. Verification status at this handoff
 
-- Steps 2–10 are committed on `main`. Step 10 implementation commit: `5fa195a6f6158e0d1d70aa32d8f34d61ab79b954`.
+- Steps 2–11 are committed on `main`. Step 10 implementation commit: `5fa195a6f6158e0d1d70aa32d8f34d61ab79b954`. Step 11 implementation commit: `<STEP11_COMMIT_SHA>`.
 - Step 6's shared workforce-summary source and component remain exported but are not mounted in the existing dashboards.
 - Step 7 adds the role-scoped attendance summary and reusable attendance analytics component; the new UI remains opt-in and unmounted.
 - Step 8 adds workforce-composition analytics using the Step 6 population, with current status, department, unassigned and role totals reconciled to the shared workforce KPI source.
 - Step 8's employee-history audit did not establish authoritative effective dates for joining, departure or rehire; movement and turnover remain deferred rather than inferred.
 - Step 9 adds the snapshot-backed leave-availability endpoint and exported opt-in component. It distinguishes approved requests, distinct people, inclusive calendar days, upcoming approved leave and scheduled availability.
 - Step 10 adds `GET /api/management-dashboard/payroll-overtime?month=YYYY-MM` and the snapshot-backed `loadManagementDashboardPayrollOvertimeSummary` service.
+- Step 11 adds `GET /api/management-dashboard/action-center` and `loadManagementActionCenterSummary`, with independently resilient counts for pending invitations, attendance corrections, advance overtime and leave. Counts apply existing tenant/role/self-exclusion rules; a failed queue is unavailable rather than zero. Existing workflow routes remain the action destinations. The component is exported but unmounted until Step 12.
 - Payroll amount scope mirrors the existing salary-payment GET route: Organization Admin sees eligible Employees, Department Managers and HR Managers; HR Manager sees eligible Employees and Department Managers excluding self and HR targets; Department Manager sees eligible Employee-role members in assigned departments only.
 - Department Managers do not gain workforce payslip access. The endpoint returns aggregate amounts only, grouped by currency; estimated payable, recorded PAID and recorded UNPAID amounts remain separate.
 - Overtime preauthorization requests follow the existing overtime-request GET scope; worked actual/payable/unapproved minutes use the Step 7 active scheduled workforce and attendance calculation; persisted excess-review cases follow the existing excess-review GET scope and are read without triggering its materialization behavior.
 - `ManagementDashboardPayrollOvertime` is exported but remains unmounted until Step 12. No live dashboard composition, personal My Day, existing payment action, payslip route or approval workflow was changed.
-- Steps 7–10 have source-level checks only. Step 10 passed 31/31 targeted source checks. No frontend/backend build, database/API runtime verification, browser testing or full regression suite has been run; do not describe these changes as runtime-certified.
+- Steps 7–11 have source-level checks only. Step 10 passed 31/31 targeted source checks. Step 11 received source-contract review; no frontend/backend build, database/API runtime verification, browser testing or full regression suite has been run. Do not describe these changes as runtime-certified.
 - Step 10 adds no database migration, new dependency, new permission or write operation. Existing payroll and overtime routes remain unchanged.
 - Full regression testing remains gated until the user says **`lets test now`**.
 
@@ -400,4 +410,5 @@ Do not replace these data sources until the replacement has been verified agains
 - Step 9 — include ongoing approved leave in upcoming availability: [f96a27d17611a15882f9eb8514626951866929d9](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/f96a27d17611a15882f9eb8514626951866929d9)
 - Step 9 — align actionable review counts with the existing approval scope: [ddf3339275cb9c6090247b189d5ce6a0aba60971](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/ddf3339275cb9c6090247b189d5ce6a0aba60971)
 - Step 10 — overtime and payroll intelligence: [5fa195a6f6158e0d1d70aa32d8f34d61ab79b954](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/5fa195a6f6158e0d1d70aa32d8f34d61ab79b954)
+- Step 11 — Management Action Center: [<STEP11_COMMIT_SHA>](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/<STEP11_COMMIT_SHA>)
 Step 1 was completed as source audit and UX blueprint work and did not create a repository commit.

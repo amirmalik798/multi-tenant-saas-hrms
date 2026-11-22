@@ -171,3 +171,16 @@ Only these authorized employee IDs are passed to calculateOrganizationMonthlyPay
 Payroll output separates estimated payable values, monthly salary-ledger PAID values, monthly salary-ledger UNPAID values, employees without a payment record, employees without payable hours, missing-rate cases and currency mismatches. Amounts are grouped by currency code; no currency conversion or cross-currency summation occurs. PAID is the stored HRMS ledger status, not independent bank-transfer verification. Estimates are not labelled paid or finalized.
 
 The endpoint returns aggregate counts and currency totals only. It exposes no employee identities, individual hourly rates, payment references or payslips. It rejects future payroll months, caps the authorized payroll roster at 500 employees and returns an explicit error instead of a partial amount. No migration, new permission, write operation or dashboard mount is added. ManagementDashboardPayrollOvertime is exported but remains unmounted until Step 12.
+
+
+## 11. Management Action Center (Step 11)
+
+`GET /api/management-dashboard/action-center` adds a read-only view of actionable invitation, attendance-correction, overtime and leave queues. The service reads source tables used by existing workflows within the shared `REPEATABLE READ READ ONLY` snapshot.
+
+Invitation count requires the same `invitation.view` permission as the invitation registry and counts only pending, unexpired invitations. Corrections and overtime follow the existing request-list scope: Organization Admin and HR Manager have tenant-wide review visibility; Department Manager is limited to assigned departments derived from the authenticated manager employee ID. The actor's own employee record is excluded from actionable counts.
+
+Leave follows the current leave-list rules: tenant-wide Organization Admin; HR Manager review excludes HR-target roles; Department Manager is restricted to assigned departments and excludes HR-target roles. Own requests are excluded.
+
+Each queue is independently resilient. A permitted query failure becomes unavailable and the overall total becomes unavailable rather than a misleading partial total. A role that cannot use a queue sees N/A, and a successful empty queue displays zero. No SLA age or overdue label is invented. Cards link to existing role-specific pages and leave decision behavior in the current approval workspaces.
+
+The reusable `ManagementDashboardActionCenter` component is exported but deliberately remains unmounted until Step 12. Existing role dashboards, their current overview APIs, and personal My Day remain unchanged. No migration, write, permission, new dependency, or new approval action is introduced.

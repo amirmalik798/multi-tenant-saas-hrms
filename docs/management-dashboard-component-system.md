@@ -104,3 +104,12 @@ ManagementDashboardPayrollOvertime reads one monthly period from GET /api/manage
 The section displays payroll-population and calculation-readiness counts; separate currency breakdowns for estimated payable, ledger-recorded PAID and ledger-recorded UNPAID values; counts of records without a payment status; advance PREAUTHORIZATION request counts/minutes; actual, payable and unapproved overtime; and persisted excess-review cases separately from calculated unapproved excess.
 
 The backend preserves distinct access scopes for salary-payment records, overtime requests, actual worked overtime and excess-review cases. The UI exposes no employee-level pay, individual rates, payment references or payslip detail. It is exported but deliberately unmounted until Step 12. No live dashboard, personal My Day or existing payroll/approval workflow changes in this step.
+
+
+## 11. Management Action Center (Step 11)
+
+`ManagementDashboardActionCenter` reads only the additive authenticated `/api/management-dashboard/action-center` endpoint. It uses the existing section heading, metric card/grid, panel, skeleton, empty-state and error/retry primitives.
+
+The four queue cards show invitations, attendance corrections, advance overtime and leave. Each item displays a number only when its source succeeded; N/A is used for a queue outside the role's authority and Unavailable for a source failure. The headline total is withheld when any permitted queue fails. A genuine zero displays as zero, and the all-caught-up state appears only when all applicable source counts are known to be zero.
+
+Every available queue links to an existing role-specific page. The component contains no decision buttons, new approval behavior, SLA labels or request-level private data. It is exported but remains unmounted until Step 12, preserving current dashboards and personal My Day.
