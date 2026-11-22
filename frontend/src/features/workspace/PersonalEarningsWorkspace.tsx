@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CalendarDays, ChevronDown, CircleDollarSign, Clock3, FileDown, LoaderCircle, Printer, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { PdfPreparationIndicator } from "@/components/ui/PdfPreparationIndicator";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -10,6 +11,7 @@ import { useWorkspace } from "@/components/layout/WorkspaceGate";
 import { apiRequest } from "@/lib/api-client";
 import { formatDate, formatMoney, getISODateInTimeZone, humanize } from "@/lib/format";
 import { buildSalarySlipDocument, type SalarySlipPayload } from "@/features/payroll/salary-slip-document";
+import { buildPdfPreparationDocument } from "@/features/payroll/pdf-preparation-document";
 import { useAttendanceRefresh } from "@/lib/attendance-events";
 import { useSmartRefresh } from "@/lib/smart-refresh";
 import { assertSalarySlipUsesOrganizationCurrency, normalizeCurrencyCode } from "@/lib/payroll-currency";
@@ -125,7 +127,7 @@ export function PersonalEarningsWorkspace({ embedded = false, monthOverride }: {
     const printWindow = window.open("", "_blank");
     if (!printWindow) { setSlipError("Your browser blocked the salary-slip window. Allow pop-ups for this site and try again."); return; }
     printWindow.document.open();
-    printWindow.document.write("<!doctype html><html><head><title>Preparing your salary slip</title></head><body style='font-family:Arial,sans-serif;padding:32px;color:#24354a'><h2>Preparing your salary slip…</h2><p>Loading your attendance, effective pay rates and current payment statuses.</p></body></html>");
+    printWindow.document.write(buildPdfPreparationDocument("payslip", document.documentElement.dataset.theme === "dark" ? "dark" : "light"));
     printWindow.document.close();
     setSlipGenerating(true); setSlipError(""); setSlipNotice("");
     try {
@@ -152,9 +154,9 @@ export function PersonalEarningsWorkspace({ embedded = false, monthOverride }: {
   return <>
     {!embedded ? <PageHeader eyebrow="My account · Compensation" title="My earnings" description="Your personal earnings estimate from recorded working time and approved overtime." /> : null}
     {!embedded ? <div className="toolbar" style={{ marginBottom: 14 }}>
-      <label className="field" style={{ maxWidth: 190 }}><span className="field-label">Pay period</span><input className="text-input" type="month" value={month} onChange={(event) => { setOwnMonth(event.target.value); setMonthChanged(true); }} /></label>
-      <span className="date-chip"><CalendarDays size={13} /> {zone}</span><span className="date-chip"><CircleDollarSign size={13} /> {organizationCurrencyCode || "Currency not configured"}</span><span style={{ marginLeft: "auto" }} />
-      <span style={{ color: "var(--muted)", fontSize: 12 }}>{data?.employeeName || user.displayName}</span>
+      <div className="personal-earnings-period-controls"><label className="field personal-earnings-period-field"><span className="field-label">Pay period</span><input className="text-input" type="month" value={month} max={organizationMonth} onChange={(event) => { setOwnMonth(event.target.value); setMonthChanged(true); }} /></label>
+      <span className="date-chip"><CalendarDays size={13} /> {zone}</span><span className="date-chip"><CircleDollarSign size={13} /> {organizationCurrencyCode || "Currency not configured"}</span></div>
+      <span className="personal-earnings-period-employee">{data?.employeeName || user.displayName}</span>
     </div> : null}
     {error ? <div role="alert" className="form-error" style={{ marginBottom: 14 }}>{error}</div> : null}
     {!error && summary ? <>
@@ -190,7 +192,8 @@ export function PersonalEarningsWorkspace({ embedded = false, monthOverride }: {
     </Panel>
     {user.employeeId ? <Panel className="panel-pad" style={{ marginTop: 16 }}>
       <div className="payslip-generator-heading"><span className="metric-icon"><FileDown size={18} /></span><div><h2>Generate my payslip</h2><p>Select a From month and To month. Each month in the range is included as its own monthly payslip with attendance, effective pay rates and the latest payment status.</p></div></div>
-      <div className="payslip-generator-controls"><label className="field"><span className="field-label">From month</span><input className="text-input" type="month" min="2000-01" max={slipToMonth || organizationMonth} value={slipFromMonth} disabled={slipGenerating} onChange={(event) => { setSlipRangeTouched(true); setSlipFromMonth(event.target.value); setSlipError(""); setSlipNotice(""); }} /></label><label className="field"><span className="field-label">To month</span><input className="text-input" type="month" min={slipFromMonth || "2000-01"} max={organizationMonth} value={slipToMonth} disabled={slipGenerating} onChange={(event) => { setSlipRangeTouched(true); setSlipToMonth(event.target.value); setSlipError(""); setSlipNotice(""); }} /></label><Button variant="primary" leading={slipGenerating ? <LoaderCircle size={14} /> : <Printer size={14} />} busy={slipGenerating} disabled={!slipFromMonth || !slipToMonth || slipFromMonth > slipToMonth} onClick={() => void generateMyPayslip()}>Generate payslip</Button></div>
+      <div className="payslip-generator-controls"><label className="field"><span className="field-label">From month</span><input className="text-input" type="month" min="2000-01" max={slipToMonth || organizationMonth} value={slipFromMonth} disabled={slipGenerating} onChange={(event) => { setSlipRangeTouched(true); setSlipFromMonth(event.target.value); setSlipError(""); setSlipNotice(""); }} /></label><label className="field"><span className="field-label">To month</span><input className="text-input" type="month" min={slipFromMonth || "2000-01"} max={organizationMonth} value={slipToMonth} disabled={slipGenerating} onChange={(event) => { setSlipRangeTouched(true); setSlipToMonth(event.target.value); setSlipError(""); setSlipNotice(""); }} /></label><Button className="personal-earnings-generate-payslip" variant="primary" leading={<Printer size={14} />} busy={slipGenerating} disabled={!slipFromMonth || !slipToMonth || slipFromMonth > slipToMonth} onClick={() => void generateMyPayslip()}>Generate payslip</Button></div>
+      {slipGenerating ? <PdfPreparationIndicator label="Generating payslip(s)" className="personal-earnings-payslip-loader" /> : null}
       <div className="payslip-generator-footer"><p>Up to 24 months per request. Future organization payroll months are not available. Payslips are read-only statements and never create, edit or mark payments as paid.</p><span className="payslip-month-count">{slipFromMonth && slipToMonth && slipFromMonth <= slipToMonth ? `${monthOrdinal(slipToMonth) - monthOrdinal(slipFromMonth) + 1} monthly statement(s)` : "Choose a valid month range"}</span></div>
       {slipError ? <div className="form-error" role="alert" style={{ marginTop: 12 }}>{slipError}</div> : null}
       {slipNotice ? <div className="success-callout" role="status" style={{ marginTop: 12 }}>{slipNotice}</div> : null}

@@ -23,7 +23,7 @@ type ReportPayload = AttendanceReportPayload;
 export function ReportsWorkspace() {
   const { user, workDate, timeZone } = useWorkspace();
   const [targets, setTargets] = useState<ReportTarget[]>([]);
-  const [targetId, setTargetId] = useState(user.role === "EMPLOYEE" ? user.employeeId || "" : "");
+  const [targetId, setTargetId] = useState(["EMPLOYEE", "HR_MANAGER", "DEPARTMENT_MANAGER"].includes(user.role) ? user.employeeId || "" : "");
   const [fromDate, setFromDate] = useState(monthStart(workDate || todayISO(timeZone)));
   const [toDate, setToDate] = useState(workDate || todayISO(timeZone));
   const [report, setReport] = useState<ReportPayload | null>(null);
@@ -262,7 +262,7 @@ export function ReportsWorkspace() {
         </div>
       </div>
       <div className="report-filter-grid individual-report-fields">
-        {user.role !== "EMPLOYEE" ? <Field label="Workforce member"><SelectInput required value={targetId} onChange={(event) => { setTargetId(event.target.value); setReport(null); }}><option value="">Select a person</option>{targets.map((target) => <option key={target.employeeId} value={target.employeeId}>{target.firstName} {target.lastName} · {target.employeeCode} · {target.departmentName || "No department"}</option>)}</SelectInput></Field> : <Field label="Report subject"><TextInput disabled value="My attendance" /></Field>}
+        {user.role !== "EMPLOYEE" ? <Field label="Workforce member"><SelectInput required value={targetId} onChange={(event) => { setTargetId(event.target.value); setReport(null); }}><option value="">Select a person</option>{targets.map((target) => <option key={target.employeeId} value={target.employeeId}>{target.employeeId === user.employeeId ? "My attendance · " : ""}{target.firstName} {target.lastName} · {target.employeeCode} · {target.departmentName || "No department"}</option>)}</SelectInput></Field> : <Field label="Report subject"><TextInput disabled value="My attendance" /></Field>}
         <Field label="From date"><TextInput type="date" value={fromDate} max={toDate} onChange={(event) => { setFromDate(event.target.value); setSelectedDatePreset(null); setReport(null); setError(""); setAutoPreviewRevision((revision) => revision + 1); }} /></Field>
         <Field label="To date"><TextInput type="date" value={toDate} min={fromDate} onChange={(event) => { setToDate(event.target.value); setSelectedDatePreset(null); setReport(null); setError(""); setAutoPreviewRevision((revision) => revision + 1); }} /></Field>
       </div>
@@ -276,7 +276,7 @@ export function ReportsWorkspace() {
       </div>
       {selectedTarget ? <div className="report-selected-person">
         <div className="report-selected-person-label">Selected report subject</div>
-        <ProfilePhoto name={`${selectedTarget.firstName} ${selectedTarget.lastName}`} employeeId={selectedTarget.employeeId} currentUser={user.role === "EMPLOYEE" && selectedTarget.employeeId === user.employeeId} />
+        <ProfilePhoto name={`${selectedTarget.firstName} ${selectedTarget.lastName}`} employeeId={selectedTarget.employeeId} currentUser={selectedTarget.employeeId === user.employeeId} />
         <span><strong>{selectedTarget.firstName} {selectedTarget.lastName}</strong><small>{selectedTarget.employeeCode} <i>·</i> {selectedTarget.departmentName || "No department"}</small></span>
         <StatusBadge value={selectedTarget.employmentStatus} />
       </div> : null}
