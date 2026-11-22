@@ -7,6 +7,8 @@ import {
   AlertCircle,
   ArrowRight,
   Building2,
+  CalendarCheck,
+  ChartNoAxesCombined,
   Users,
 } from "lucide-react";
 
@@ -187,12 +189,48 @@ export function WorkspaceDashboard({ role }: { role: WorkspaceRole }) {
 
   const managementRole = role as ManagementRole;
 
+  const hasManagerQuickNavigation = role === "HR_MANAGER" || role === "DEPARTMENT_MANAGER";
+
   return (
     <>
-      {role === "HR_MANAGER" || role === "DEPARTMENT_MANAGER" ? (
-        <PersonalMyDayWorkspace key={user.role + ":" + (user.employeeId ?? "none")} />
+      {hasManagerQuickNavigation ? (
+        <nav className="workspace-dashboard-quick-nav" aria-label="Dashboard quick navigation">
+          <div className="workspace-dashboard-quick-nav-copy">
+            <span>QUICK NAVIGATION</span>
+            <strong>Go directly to a workspace area</strong>
+          </div>
+          <div className="workspace-dashboard-quick-nav-actions">
+            <Link href="#my-day-area" className="workspace-dashboard-quick-link">
+              <span className="workspace-dashboard-quick-link-icon"><CalendarCheck size={17} /></span>
+              <span className="workspace-dashboard-quick-link-copy">
+                <strong>My Day</strong>
+                <small>Your attendance and daily activity</small>
+              </span>
+              <ArrowRight size={15} />
+            </Link>
+            <Link href="#management-stats-area" className="workspace-dashboard-quick-link">
+              <span className="workspace-dashboard-quick-link-icon"><ChartNoAxesCombined size={17} /></span>
+              <span className="workspace-dashboard-quick-link-copy">
+                <strong>Management stats</strong>
+                <small>Workforce, attendance, leave and payroll insights</small>
+              </span>
+              <ArrowRight size={15} />
+            </Link>
+          </div>
+        </nav>
       ) : null}
 
+      {hasManagerQuickNavigation ? (
+        <section id="my-day-area" className="workspace-dashboard-anchor" aria-label="My Day">
+          <PersonalMyDayWorkspace key={user.role + ":" + (user.employeeId ?? "none")} />
+        </section>
+      ) : null}
+
+      <section
+        id={hasManagerQuickNavigation ? "management-stats-area" : undefined}
+        className="workspace-dashboard-anchor"
+        aria-label={hasManagerQuickNavigation ? "Management stats" : undefined}
+      >
       <ManagementDashboardShell
         role={managementRole}
         title={title}
@@ -355,6 +393,7 @@ export function WorkspaceDashboard({ role }: { role: WorkspaceRole }) {
           )}
         </div>
       </ManagementDashboardShell>
+      </section>
     </>
   );
 }
