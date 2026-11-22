@@ -55,8 +55,8 @@ export function MyRequestsWorkspace() {
         apiRequest<{ entries?: CalendarEntry[] }>(makeCalendarUrl(user.role, organizationToday)),
       ]);
       if (requestId !== loadSequenceRef.current) return;
-      const ownCorrections = (correctionResult.requests ?? []).filter((item) => user.role === "DEPARTMENT_MANAGER" ? item.employeeId === user.employeeId : true);
-      const ownOvertime = (overtimeResult.requests ?? []).filter((item) => user.role === "DEPARTMENT_MANAGER" ? item.employeeId === user.employeeId : true);
+      const ownCorrections = (correctionResult.requests ?? []).filter((item) => Boolean(user.employeeId) && item.employeeId === user.employeeId);
+      const ownOvertime = (overtimeResult.requests ?? []).filter((item) => Boolean(user.employeeId) && item.employeeId === user.employeeId);
       setCorrections(ownCorrections);
       setOvertime(ownOvertime);
       const events = (calendarResult.entries ?? []).filter((entry) => entry.employeeId === user.employeeId).flatMap((entry) => (entry.events ?? []).filter((event) => event.source === "ATTENDANCE_EVENT" && event.id && event.recordedAt).map((event) => ({ id: event.id, eventType: event.eventType, recordedAt: event.recordedAt, workDate: entry.workDate }))).sort((left, right) => Date.parse(right.recordedAt) - Date.parse(left.recordedAt));
