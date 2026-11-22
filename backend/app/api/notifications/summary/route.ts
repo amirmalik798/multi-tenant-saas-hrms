@@ -7,7 +7,7 @@ function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache", Expires: "0", "X-Content-Type-Options": "nosniff" } });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   // This authenticated endpoint must run per request. Keep the
   // prerender boundary outside the handler try/catch so Next.js
   // does not cache a build-time authentication error response.
@@ -22,6 +22,14 @@ export async function GET() {
     const isOrganizationAdmin = actor.kind === "ORGANIZATION_ADMIN";
     const isHrManager = actor.kind === "ORGANIZATION_USER" && actor.roleName === "HR_MANAGER";
     if (!isEmployee && !isDepartmentManager && !isHrManager && !isOrganizationAdmin) return json({ message: "You do not have permission to view alerts" }, 403);
+
+    // My Day is a personal workspace for every workforce role. A manager's
+    // default notification feed remains team/organization-scoped for review
+    // workflows, while scope=self must count only the authenticated employee's
+    // own requests. Employees are always self-scoped.
+    const requestedSelfScope = new URL(request.url).searchParams.get("scope") === "self";
+    const selfScope = actor.kind === "ORGANIZATION_USER" &&
+      (isEmployee || ((isDepartmentManager || isHrManager) && requestedSelfScope));
 
     let unreadMessages = 0;
     try {
@@ -44,12 +52,14 @@ export async function GET() {
 
     const values: unknown[] = [actor.organizationId];
     let employeeScope = "";
-    if (actor.kind === "ORGANIZATION_USER" && (isEmployee || isDepartmentManager)) {
+    if (actor.kind === "ORGANIZATION_USER" && selfScope) {
+      if (!actor.employeeId) return json({ message: "A linked employee record is required for personal alerts" }, 403);
       values.push(actor.employeeId);
-      const idParam = `$${values.length}::uuid`;
-      employeeScope = isEmployee
-        ? ` AND r.employee_id = ${idParam}`
-        : ` AND r.employee_id <> ${idParam} AND EXISTS (SELECT 1 FROM public.employees scoped_employee JOIN public.departments scoped_department ON scoped_department.id = scoped_employee.department_id AND scoped_department.organization_id = scoped_employee.organization_id WHERE scoped_employee.id = r.employee_id AND scoped_employee.organization_id = r.organization_id AND scoped_department.manager_id = ${idParam})`;
+      employeeScope = ` AND r.employee_id = ${values.length}::uuid`;
+    } else if (actor.kind === "ORGANIZATION_USER" && isDepartmentManager) {
+      values.push(actor.employeeId);
+      const idParam = `${values.length}::uuid`;
+      employeeScope = ` AND r.employee_id <> ${idParam} AND EXISTS (SELECT 1 FROM public.employees scoped_employee JOIN public.departments scoped_department ON scoped_department.id = scoped_employee.department_id AND scoped_department.organization_id = scoped_employee.organization_id WHERE scoped_employee.id = r.employee_id AND scoped_employee.organization_id = r.organization_id AND scoped_department.manager_id = ${idParam})`;
     }
 
     const correctionResult = await pool.query(
@@ -63,19 +73,24 @@ export async function GET() {
 
     const leaveValues: unknown[] = [actor.organizationId];
     let leaveScope = "";
-    if (actor.kind === "ORGANIZATION_USER" && (isEmployee || isHrManager)) {
+    if (actor.kind === "ORGANIZATION_USER" && selfScope) {
+      if (!actor.employeeId) return json({ message: "A linked employee record is required for personal leave alerts" }, 403);
       leaveValues.push(actor.employeeId);
-      leaveScope = ` AND r.employee_id = $${leaveValues.length}::uuid`;
+      leaveScope = ` AND r.employee_id = ${leaveValues.length}::uuid`;
+    } else if (actor.kind === "ORGANIZATION_USER" && isHrManager) {
+      // Preserve HR's existing personal leave-alert behavior outside My Day.
+      leaveValues.push(actor.employeeId);
+      leaveScope = ` AND r.employee_id = ${leaveValues.length}::uuid`;
     } else if (actor.kind === "ORGANIZATION_USER" && isDepartmentManager) {
       leaveValues.push(actor.employeeId);
-      leaveScope = ` AND r.employee_id <> ${"$"}${leaveValues.length}::uuid AND EXISTS (SELECT 1 FROM public.employees le JOIN public.departments ld ON ld.id = le.department_id AND ld.organization_id = le.organization_id JOIN public.roles lr ON lr.id = le.workforce_role_id AND lr.organization_id = le.organization_id WHERE le.id = r.employee_id AND le.organization_id = r.organization_id AND ld.manager_id = $${leaveValues.length}::uuid AND regexp_replace(UPPER(lr.name), '[^A-Z0-9]+', '_', 'g') NOT LIKE 'HR_MANAGER%' AND regexp_replace(UPPER(lr.name), '[^A-Z0-9]+', '_', 'g') NOT LIKE 'HRMANAGER%')`;
+      leaveScope = ` AND r.employee_id <> ${"$"}${leaveValues.length}::uuid AND EXISTS (SELECT 1 FROM public.employees le JOIN public.departments ld ON ld.id = le.department_id AND ld.organization_id = le.organization_id JOIN public.roles lr ON lr.id = le.workforce_role_id AND lr.organization_id = le.organization_id WHERE le.id = r.employee_id AND le.organization_id = r.organization_id AND ld.manager_id = ${leaveValues.length}::uuid AND regexp_replace(UPPER(lr.name), '[^A-Z0-9]+', '_', 'g') NOT LIKE 'HR_MANAGER%' AND regexp_replace(UPPER(lr.name), '[^A-Z0-9]+', '_', 'g') NOT LIKE 'HRMANAGER%')`;
     }
     const leaveResult = await pool.query(
       `SELECT COUNT(*)::int AS count FROM public.leave_requests r WHERE r.organization_id = $1::uuid AND r.status = 'PENDING'${leaveScope}`,
       leaveValues,
     );
     let recentLeaveDecisions = 0;
-    if ((isEmployee || isHrManager) && actor.kind === "ORGANIZATION_USER") {
+    if (actor.kind === "ORGANIZATION_USER" && (isEmployee || isHrManager || (isDepartmentManager && selfScope))) {
       const decisions = await pool.query(
         `SELECT COUNT(*)::int AS count FROM public.leave_requests r WHERE r.organization_id = $1::uuid AND r.employee_id = $2::uuid AND r.status IN ('APPROVED', 'REJECTED') AND r.decision_at >= now() - interval '7 days'`,
         [actor.organizationId, actor.employeeId],
@@ -84,7 +99,7 @@ export async function GET() {
     }
 
     let unpaidSalaryPayments = 0;
-    if (isHrManager || isOrganizationAdmin) {
+    if ((isHrManager || isOrganizationAdmin) && !selfScope) {
       try {
         const salaryResult = await pool.query(
           `SELECT COUNT(*)::int AS count
@@ -106,14 +121,17 @@ export async function GET() {
     const overtime = Number(overtimeResult.rows[0]?.count ?? 0);
     const leave = Number(leaveResult.rows[0]?.count ?? 0);
     const alerts = [] as { id: string; title: string; count: number; href: string; tone: "warning" | "info" }[];
-    if (corrections > 0) alerts.push({ id: "corrections", title: isEmployee ? "Your correction requests awaiting review" : isOrganizationAdmin ? "Attendance corrections awaiting your review" : "Attendance corrections awaiting review", count: corrections, href: isEmployee ? "/employee/requests" : isOrganizationAdmin ? "/org/attendance?section=corrections" : isHrManager ? "/hr/work-queue" : "/dm/reviews", tone: "warning" });
-    if (overtime > 0) alerts.push({ id: "overtime", title: isEmployee ? "Your overtime requests awaiting review" : isOrganizationAdmin ? "Overtime requests awaiting your review" : "Overtime requests awaiting review", count: overtime, href: isEmployee ? "/employee/requests" : isOrganizationAdmin ? "/org/attendance?section=overtime" : isHrManager ? "/hr/work-queue" : "/dm/reviews", tone: "warning" });
+    const personalWorkforceView = selfScope && actor.kind === "ORGANIZATION_USER";
+    const personalRequestsHref = isEmployee ? "/employee/requests" : isHrManager ? "/hr/requests" : "/dm/requests";
+    const personalLeaveHref = isEmployee ? "/employee/leave" : isHrManager ? "/hr/modules/leave" : "/dm/leave";
+    if (corrections > 0) alerts.push({ id: "corrections", title: isEmployee || personalWorkforceView ? "Your correction requests awaiting review" : isOrganizationAdmin ? "Attendance corrections awaiting your review" : "Attendance corrections awaiting review", count: corrections, href: isEmployee ? "/employee/requests" : personalWorkforceView ? personalRequestsHref : isOrganizationAdmin ? "/org/attendance?section=corrections" : isHrManager ? "/hr/work-queue" : "/dm/reviews", tone: "warning" });
+    if (overtime > 0) alerts.push({ id: "overtime", title: isEmployee || personalWorkforceView ? "Your overtime requests awaiting review" : isOrganizationAdmin ? "Overtime requests awaiting your review" : "Overtime requests awaiting review", count: overtime, href: isEmployee ? "/employee/requests" : personalWorkforceView ? personalRequestsHref : isOrganizationAdmin ? "/org/attendance?section=overtime" : isHrManager ? "/hr/work-queue" : "/dm/reviews", tone: "warning" });
     if (leave > 0) {
       if (isOrganizationAdmin) alerts.push({ id: "leave", title: "Leave requests awaiting review", count: leave, href: "/org/leave", tone: "warning" });
-      else if (isEmployee || isHrManager) alerts.push({ id: "leave", title: "Your leave requests awaiting review", count: leave, href: isEmployee ? "/employee/leave" : "/hr/modules/leave", tone: "warning" });
+      else if (isEmployee || isHrManager || personalWorkforceView) alerts.push({ id: "leave", title: "Your leave requests awaiting review", count: leave, href: personalLeaveHref, tone: "warning" });
       else if (isDepartmentManager) alerts.push({ id: "leave", title: "Leave requests awaiting review", count: leave, href: "/dm/leave", tone: "warning" });
     }
-    if (recentLeaveDecisions > 0 && (isEmployee || isHrManager)) alerts.push({ id: "leave-decisions", title: "Your leave requests recently approved or declined", count: recentLeaveDecisions, href: isEmployee ? "/employee/leave" : "/hr/modules/leave", tone: "info" });
+    if (recentLeaveDecisions > 0 && (isEmployee || isHrManager || personalWorkforceView)) alerts.push({ id: "leave-decisions", title: "Your leave requests recently approved or declined", count: recentLeaveDecisions, href: personalLeaveHref, tone: "info" });
     if (unpaidSalaryPayments > 0) alerts.push({ id: "salary", title: "Unpaid salary records for this month", count: unpaidSalaryPayments, href: isOrganizationAdmin ? "/org/payroll" : "/hr/modules/payroll", tone: "info" });
     if (unreadMessages > 0) alerts.push({ id: "messages", title: "Unread messages", count: unreadMessages, href: isEmployee ? "/employee/communications" : isDepartmentManager ? "/dm/communications" : isHrManager ? "/hr/communications" : "/org/communications", tone: "info" });
 
