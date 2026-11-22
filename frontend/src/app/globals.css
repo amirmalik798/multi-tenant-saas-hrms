@@ -4518,3 +4518,91 @@ body {
  .myday-month-nav-button{width:29px;height:29px}
  .myday-month-current-button{min-height:29px;padding:0 7px;font-size:9px}
 }
+
+
+/* Attendance clock dialog — assigned shift layout correction */
+.workspace-clock-shift-card{
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:10px;
+  min-width:0;
+  margin:12px 22px 0;
+  padding:13px 14px;
+  border:1px solid rgba(117,199,255,.17);
+  border-radius:11px;
+  background:linear-gradient(125deg,rgba(56,139,199,.09),rgba(255,255,255,.025));
+}
+.workspace-clock-shift-copy{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:4px;
+  min-width:0;
+}
+.workspace-clock-shift-label{
+  display:block;
+  color:#8ea8c2;
+  font-size:9px;
+  font-weight:800;
+  line-height:1.35;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.workspace-clock-shift-copy strong{
+  display:block;
+  max-width:100%;
+  color:#f1f6fd;
+  font-size:13px;
+  font-weight:750;
+  line-height:1.45;
+  letter-spacing:-.01em;
+  overflow-wrap:anywhere;
+}
+.workspace-clock-shift-hours{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  color:#c0d0e1;
+  font-size:11px;
+  font-weight:650;
+  line-height:1.5;
+  font-variant-numeric:tabular-nums;
+}
+.workspace-clock-shift-hours svg{
+  flex:0 0 auto;
+  color:#8fcdf5;
+}
+.workspace-clock-shift-missing{
+  margin:0;
+  color:#aebed0;
+  font-size:10px;
+  line-height:1.5;
+}
+.workspace-clock-guidance{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  margin:12px 22px 16px;
+  line-height:1.55;
+}
+.workspace-clock-guidance svg{
+  flex:0 0 auto;
+  margin-top:2px;
+}
+.workspace-clock-dialog{
+  overflow:hidden;
+}
+@media(max-width:520px){
+  .workspace-clock-dialog-header{padding:18px 17px 15px}
+  .workspace-clock-current{margin:15px 17px;padding:14px}
+  .workspace-clock-status-line{margin-inline:17px}
+  .workspace-clock-shift-card{margin-inline:17px;padding:12px}
+  .workspace-clock-guidance{margin-inline:17px}
+  .workspace-clock-alert,.workspace-clock-success{margin-inline:17px}
+  .workspace-clock-dialog-footer{padding-inline:17px}
+}
+@media(prefers-reduced-motion:reduce){
+  .workspace-clock-shift-card{transition:none}
+}

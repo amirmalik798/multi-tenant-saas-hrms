@@ -343,7 +343,22 @@ export function WorkspaceClock({
         <header className="workspace-clock-dialog-header"><div><span className="workspace-clock-eyebrow">Attendance terminal</span><h2 id="workspace-clock-title">Your working time</h2></div><button type="button" className="workspace-clock-close" aria-label="Close attendance clock" disabled={submitting} onClick={() => setOpen(false)}><X size={18} /></button></header>
         <div className="workspace-clock-current"><div className="workspace-clock-current-icon"><Clock3 size={20} /></div><div><strong>{timeZoneStatus === "ready" ? clock.time : "--:--:--"}</strong><span>{organizationTimeLabel}</span></div></div>
         <div className="workspace-clock-status-line"><span className={"workspace-clock-dot " + (status === "CLOCKED_IN" ? "is-in" : status === "CLOCKED_OUT" ? "is-out" : "is-unknown")} /><span>Current status</span><strong>{statusLabel}</strong></div>
-        {shiftData?.entry?.scheduleName ? <div className="workspace-clock-shift-line"><span>Assigned shift</span><strong>{shiftData.entry.scheduleName}</strong>{shiftData.entry.expectedStart && shiftData.entry.expectedEnd ? <small>{formatActionTime(shiftData.entry.expectedStart, timeZone)} – {formatActionTime(shiftData.entry.expectedEnd, timeZone)}</small> : null}</div> : null}
+        {shiftData?.entry ? (
+          <div className="workspace-clock-shift-card">
+            <div className="workspace-clock-shift-copy">
+              <span className="workspace-clock-shift-label">Assigned shift</span>
+              <strong>{shiftData.entry.scheduleName || "Assigned shift"}</strong>
+            </div>
+            {shiftData.entry.expectedStart && shiftData.entry.expectedEnd ? (
+              <div className="workspace-clock-shift-hours">
+                <Clock3 size={14} aria-hidden="true" />
+                <span>{formatActionTime(shiftData.entry.expectedStart, timeZone)} – {formatActionTime(shiftData.entry.expectedEnd, timeZone)}</span>
+              </div>
+            ) : (
+              <p className="workspace-clock-shift-missing">Shift hours are not available. Contact your manager if this looks incorrect.</p>
+            )}
+          </div>
+        ) : null}
         {actionError ? <div className="workspace-clock-alert" role="alert"><AlertCircle size={15} /><span>{actionError}</span></div> : null}
         {actionNotice ? <div className="workspace-clock-success" role="status"><CheckCircle2 size={15} /><span>{actionNotice}</span></div> : null}
         <div className={"workspace-clock-guidance " + (canPerformClockAction ? "is-available" : "is-restricted")}>
