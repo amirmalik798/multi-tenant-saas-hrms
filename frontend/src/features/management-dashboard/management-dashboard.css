@@ -733,3 +733,212 @@
   font-size: 9px;
   line-height: 1.5;
 }
+
+/* Attendance analytics: compact live pulse and a horizontally scrollable,
+   readable daily rate chart. All colours use the active application theme. */
+.md-attendance-section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 15px;
+}
+
+.md-attendance-heading {
+  margin-bottom: 0;
+}
+
+.md-attendance-period-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.md-attendance-period-meta span:last-child {
+  color: var(--subtle);
+  text-align: right;
+}
+
+.md-attendance-panels {
+  align-items: stretch;
+}
+
+.md-attendance-trend {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+  min-height: 230px;
+  overflow-x: auto;
+  padding: 3px 2px 8px;
+  scrollbar-width: thin;
+}
+
+.md-attendance-trend-item {
+  display: flex;
+  flex: 1 0 43px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  min-width: 0;
+  max-width: 74px;
+}
+
+.md-attendance-trend-track {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: 145px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-muted);
+}
+
+.md-attendance-trend-fill {
+  display: block;
+  width: 68%;
+  max-height: 100%;
+  border-radius: 5px 5px 2px 2px;
+  background: var(--accent);
+  transition: height .18s ease;
+}
+
+.md-attendance-trend-rate {
+  color: var(--text-strong);
+  font-size: 9px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.md-attendance-trend-date {
+  color: var(--muted);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.md-attendance-no-data {
+  display: grid;
+  min-height: 205px;
+  place-items: center;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.md-attendance-live-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.md-attendance-live-stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 94px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-muted);
+}
+
+.md-attendance-live-stat > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.md-attendance-live-stat > strong {
+  margin-top: 8px;
+  color: var(--text-strong);
+  font-size: 23px;
+  font-weight: 780;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.045em;
+  line-height: 1.1;
+}
+
+.md-attendance-live-stat > small {
+  margin-top: 6px;
+  color: var(--subtle);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.md-attendance-live-warning {
+  border-color: color-mix(in srgb, var(--warning) 32%, var(--border));
+  background: color-mix(in srgb, var(--warning) 5%, var(--surface));
+}
+
+.md-attendance-live-warning > strong {
+  color: var(--warning);
+}
+
+.md-attendance-live-rate {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+  margin: 14px 0 0;
+  padding-top: 13px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.md-attendance-live-rate strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.md-attendance-live-rate span {
+  color: var(--subtle);
+  font-size: 9px;
+}
+
+.md-attendance-definition {
+  margin: 0;
+  color: var(--subtle);
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+@media (max-width: 620px) {
+  .md-attendance-live-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .md-attendance-period-meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .md-attendance-period-meta span:last-child {
+    text-align: left;
+  }
+
+  .md-attendance-trend-item {
+    flex-basis: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-attendance-trend-fill {
+    transition: none;
+  }
+}

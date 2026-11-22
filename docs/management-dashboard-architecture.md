@@ -65,6 +65,20 @@ For Department Managers, employee scope is an `EXISTS` relationship to departmen
 The new endpoint does not change the existing Organization Admin, HR Manager or Department Manager overview endpoints. The opt-in `ManagementDashboardWorkforceKpis` component uses the shared metric cards and loading/error states but is not yet mounted into the visible dashboards. Existing KPI cards remain until actual tenant figures have been reconciled.
 
 
+### Attendance and working-hours summary (Step 7)
+
+**GET /api/management-dashboard/attendance-summary**
+
+The Step 7 endpoint is an additive source for role-scoped attendance pulse, working-hours totals and a daily trend. It uses the existing actor-to-scope mapper and one `REPEATABLE READ READ ONLY` snapshot transaction. Tenant identity and the Department Manager employee identity are never accepted from request parameters.
+
+The request requires inclusive organization-local `fromDate` / `toDate` values, limited to 31 calendar days and not beyond the server-derived organization work date. An optional department filter can only narrow scope and is validated against the authenticated tenant and, for Department Managers, the authenticated manager's assigned departments.
+
+The service builds distinct employee-day rows from active workforce records, effective schedule assignments, active work schedules, weekday definitions and organization timezone. It resolves approved attendance corrections and approved missing-punch corrections as of the snapshot time. It also loads approved leave, public holidays and approved preauthorization minutes.
+
+For each scheduled employee-day, the service calls the existing `calculateDailyAttendance` helper and aggregates its authoritative worked, regular, potential-overtime and payable-overtime outputs. Attendance eligibility excludes approved leave and public holidays, consistent with the current clock-in route, which blocks clock-in on both. The rate is weighted across eligible scheduled employee-days and returns N/A when its denominator is zero. Current-day states include not-yet-due shifts and missing clock-ins only while the assigned shift is actively in progress; no confirmed absence or lateness is inferred.
+
+The endpoint enforces a 31-day date limit and a 100,000-row calculation limit. It returns an error when the row limit is exceeded rather than silently truncating the result. The corresponding `ManagementDashboardAttendanceAnalytics` frontend section is exported but remains opt-in and is not mounted into the live dashboards in Step 7.
+
 ## 5. Snapshot and data consistency
 
 All future unified dashboard aggregation services should execute through withManagementDashboardSnapshot:

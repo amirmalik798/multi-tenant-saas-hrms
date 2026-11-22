@@ -163,3 +163,19 @@ This map is not permission to change an endpoint's existing contract. New dashbo
 - Personal data and management aggregates remain separate.
 - The next step can design shared data aggregation without changing existing functionality.
 
+## 9. Step 7 attendance implementation notes
+
+The additive attendance source is `GET /api/management-dashboard/attendance-summary`, backed by `backend/lib/management-dashboard/attendance-summary.ts`.
+
+- The endpoint accepts inclusive organization-local `fromDate` and `toDate` values for up to 31 calendar days. The end date cannot be after the organization's current work date.
+- An optional `departmentId` is only a narrowing filter. The backend validates that it belongs to the authenticated organization and, for Department Managers, is assigned to the authenticated manager.
+- The population contains active employee records with eligible schedules, excluding organization-administrator role records and linked organization-admin accounts. Department Manager scope is enforced with an `EXISTS` relationship to managed departments.
+- A scheduled employee-day requires an effective employee schedule assignment, an active schedule and a matching weekday in the organization's configured timezone. One employee is counted at most once per work date.
+- Present means at least one valid effective `CLOCK_IN` event. Approved correction replacements and approved missing-punch corrections are included only as of the snapshot generation timestamp.
+- Approved leave and public holidays are excluded from the attendance-rate denominator because the existing attendance clock-in route blocks clock-in on those dates. Pending leave does not remove a scheduled day from the denominator.
+- Attendance rate is the weighted ratio of present eligible scheduled employee-days to eligible scheduled employee-days. A zero denominator is N/A, represented by `null` in the API.
+- The service calls `calculateDailyAttendance` for every scheduled employee-day. Worked, regular worked, potential overtime and payable overtime minutes come from that authoritative calculation, not frontend formulas.
+- The live pulse distinguishes not-yet-started shifts from missing clock-ins during an active shift. This endpoint does not declare a confirmed absence or calculate lateness.
+- The query has an explicit 100,000 scheduled employee-day safety limit; exceeding it returns an error rather than a partial or silently truncated result.
+- The reusable `ManagementDashboardAttendanceAnalytics` section is exported but intentionally remains unmounted until the role-specific integration step. Existing attendance routes, reports, clocking workflows and personal My Day are unchanged.
+

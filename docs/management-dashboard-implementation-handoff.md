@@ -4,7 +4,7 @@
 **Repository:** amirmalik798/multi-tenant-saas-hrms  
 **Active branch:** main  
 **Roadmap:** 14 steps  
-**Current status:** Step 6 complete; Steps 1–6 complete; Steps 7–14 remain
+**Current status:** Step 7 complete; Steps 1–7 complete; Steps 8–14 remain
 
 ## 1. Objective
 
@@ -188,6 +188,37 @@ Implemented:
 
 **Verification:** Source-level checks confirmed role resolution, tenant scoping, administrator-role exclusions, Department Manager `EXISTS` scope, snapshot usage, versioned response, shared component export, loading/error behavior, and that the existing dashboard was not wired to the new section. No build or runtime test was run.
 
+### Step 7 of 14 — Attendance and working-hours analytics
+
+**Status:** Implemented as an additive, opt-in source and component.
+
+**Files:**
+- `backend/lib/management-dashboard/attendance-summary.ts`
+- `backend/app/api/management-dashboard/attendance-summary/route.ts`
+- `frontend/src/features/management-dashboard/components/ManagementDashboardAttendanceAnalytics.tsx`
+- Updated `frontend/src/features/management-dashboard/components/index.ts`
+- Appended attendance-specific styles to `frontend/src/features/management-dashboard/management-dashboard.css`
+- Updated the metric contract, architecture, component-system and implementation-handoff documents.
+
+**Implemented:**
+- New authenticated endpoint `GET /api/management-dashboard/attendance-summary` with inclusive organization-local `fromDate` / `toDate` filters (maximum 31 calendar days) and optional department narrowing.
+- Role and tenant scope comes from the authenticated actor and the existing management-dashboard scope mapper. Department Manager queries use an `EXISTS` relationship to departments managed by the authenticated manager employee ID. A selected department is revalidated server-side.
+- All data is read inside the existing `REPEATABLE READ READ ONLY` snapshot transaction.
+- Scheduled employee-days are built from active workforce records, effective schedule assignments, active schedules and the assigned weekday in the organization's configured timezone. Overnight shift end times are supported.
+- The effective attendance event stream includes approved correction replacements and approved missing-punch corrections as of the snapshot generation timestamp.
+- Each scheduled employee-day uses the existing server-side `calculateDailyAttendance` helper. The service does not reproduce worked-hour or overtime calculations in SQL or React.
+- Approved leave and organization public holidays are excluded from the attendance-rate denominator. The existing clock-in route explicitly blocks clock-in on both categories.
+- Period attendance is weighted by eligible scheduled employee-days. A zero denominator is returned as `null` and displayed as N/A.
+- Period summaries distinguish scheduled hours, worked hours, regular worked hours, potential overtime and payable overtime. Approved preauthorization minutes are passed into the existing calculator.
+- The current-day pulse distinguishes scheduled shifts, present employees, not-yet-due shifts, missing clock-in during an active shift, open sessions and completed sessions.
+- The endpoint does not infer lateness or confirmed absence. A missing clock-in during an active shift is explicitly labelled a live exception.
+- A 100,000 scheduled employee-day result limit fails explicitly with HTTP 413; results are not silently truncated.
+- The reusable `ManagementDashboardAttendanceAnalytics` section uses the existing component system, an accessible CSS-based daily trend, loading/error/retry states and theme-aware styles. No charting dependency or migration was added.
+
+**Preservation:** The component is exported for later composition but is not mounted in any live dashboard in Step 7. Existing attendance routes/reports, overview APIs, clocking flows, dashboard layouts and personal My Day remain unchanged.
+
+**Verification:** Source inspection and static source checks only. No frontend/backend build, runtime database/API validation, browser test or full regression suite was run. Reconcile Step 7 figures with the attendance calendar and reports using live tenant data before visible dashboard integration in Step 12.
+
 ## 6. Current dashboard behavior to preserve during integration
 
 The current dashboard implementation is in `frontend/src/components/features/WorkspaceDashboard.tsx`.
@@ -203,21 +234,6 @@ The current dashboard implementation is in `frontend/src/components/features/Wor
 Do not replace these data sources until the replacement has been verified against the existing behavior and contracts.
 
 ## 7. Remaining implementation roadmap
-
-### Step 7 of 14 — Attendance and working-hours analytics
-
-**Goal:** Add reliable attendance pulse and hours metrics.
-
-**Implementation approach:**
-1. Inspect current schedules, work schedule assignments, approved leave/holiday handling, attendance event streams and correction resolution.
-2. Reuse server-side `calculateDailyAttendance`; never recreate attendance calculations in React or an unverified SQL shortcut.
-3. Reconcile the current-day eligible scheduled population, present population, open sessions, completed sessions, not-yet-due and post-shift no-clock-in states.
-4. Calculate attendance rate only with the contract's eligible denominator. Zero denominator is N/A.
-5. Add historical daily trends only after period boundaries and effective correction rules are verified.
-6. Display scheduled, regular worked, potential overtime, and payable overtime separately.
-7. Preserve the current personal My Day attendance data and clocking logic.
-
-**Acceptance:** role-scoped numbers reconcile with existing attendance calendar/report results for the same dates, including approved corrections and organization timezone.
 
 ### Step 8 of 14 — Workforce composition and movement analytics
 
@@ -332,13 +348,13 @@ Do not replace these data sources until the replacement has been verified agains
 
 ## 9. Verification status at this handoff
 
-- GitHub confirms Steps 2, 3, 4, 5 and 6 implementation commits are on `main` in sequence.
-- Step 6 adds a new shared workforce-summary service and authenticated API route; the three existing overview endpoints and their response contracts are unchanged.
-- The shared KPI component is exported and ready for opt-in integration; it is not mounted into the current dashboards.
-- Department Manager scope is derived from the authenticated manager employee ID and assigned department relationship using SQL `EXISTS`.
-- The shared workforce population explicitly excludes organization-administrator role records. Legacy dashboards retain their previous definitions until their live figures are reconciled.
-- No database migration or new dependency was introduced.
-- Source-level checks were performed for Step 6. No frontend/backend build, runtime/API verification or full regression suite has been run. Do not describe Step 6 as runtime-certified.
+- GitHub confirms Steps 2–6 implementation commits are on `main`; Step 7 is implemented in the current working change and will be recorded after commit verification.
+- Step 6's shared workforce-summary source and component remain exported but not mounted in the existing dashboards.
+- Step 7 adds a role-scoped, snapshot-consistent attendance summary endpoint and a reusable attendance analytics component. The new UI remains opt-in and is not mounted into `WorkspaceDashboard.tsx`.
+- Department Manager scope is derived from the authenticated manager employee ID and assigned-department relationship; optional department filters are validated within that existing scope.
+- Step 7 reuses `calculateDailyAttendance`, handles effective approved attendance corrections, approved missing punches, approved preauthorization overtime, active shift schedules, approved leave and public holidays.
+- Step 7 source-level checks are the only verification completed so far. No frontend/backend build, runtime/API verification, browser testing or full regression suite has been run. Do not describe the work as runtime-certified.
+- No database migration or new dependency was introduced for Steps 6–7.
 - Full regression testing remains gated until the user says **"lets test now"**.
 
 ## 10. Relevant commits
@@ -349,4 +365,5 @@ Do not replace these data sources until the replacement has been verified agains
 - Step 5 — shared dashboard shell and handoff: [f628153a24ab93864b1612889515a31d4e19a6f8](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/f628153a24ab93864b1612889515a31d4e19a6f8)
 - Step 6 — shared workforce KPI source and component: [99d6365ef03ad5cab523319ab7e3d729d64cf80d](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/99d6365ef03ad5cab523319ab7e3d729d64cf80d)
 
+- Step 7 — role-scoped attendance and working-hours analytics: pending commit verification
 Step 1 was completed as source audit and UX blueprint work and did not create a repository commit.

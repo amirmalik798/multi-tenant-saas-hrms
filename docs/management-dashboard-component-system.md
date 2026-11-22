@@ -60,3 +60,17 @@ The project does not currently include a dedicated charting package. This step t
 This step adds the component library and imports its theme-aware stylesheet into the frontend global stylesheet. It does not modify `WorkspaceDashboard`, role dashboards, existing `Panel` or `PageHeader` primitives, API routes, personal My Day, or business logic.
 
 Step 5 established the shared management-dashboard shell and reporting controls. Step 6 added the opt-in `ManagementDashboardWorkforceKpis` composite section, backed by a new role-scoped server aggregate and the existing metric-card primitives. The section is exported but is not mounted into live dashboards yet. Subsequent steps will connect the remaining verified datasets and compose the role-specific dashboards incrementally while retaining existing routes and actions.
+
+## 7. Attendance analytics composite section (Step 7)
+
+`ManagementDashboardAttendanceAnalytics` composes the existing section heading, metric cards/grid, chart panel, general panel, skeletons and error state. It loads only the new authenticated attendance-summary endpoint and accepts reporting dates and optional department narrowing from its parent. The backend revalidates these filters against the authenticated scope.
+
+The section presents:
+
+- Attendance rate and eligible/present scheduled employee-days.
+- Scheduled, worked, regular-worked, potential-overtime and payable-overtime hours.
+- A CSS-based accessible daily attendance trend with text labels and N/A states.
+- A current-day shift pulse for scheduled/present/not-yet-due/live-exception/open/completed counts.
+
+It uses the existing theme tokens and responsive styles and adds no chart dependency. The composite section is exported for reuse but is intentionally not mounted into the existing dashboards until the later role-specific composition step. The separate personal My Day experience is not affected.
+

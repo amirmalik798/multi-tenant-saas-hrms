@@ -37,3 +37,9 @@ export type {
   ManagementDashboardSkeletonProps,
   ManagementDashboardTone,
 } from "./ManagementDashboardPrimitives";
+
+export { ManagementDashboardAttendanceAnalytics } from "./ManagementDashboardAttendanceAnalytics";
+
+export type {
+  ManagementDashboardAttendanceAnalyticsProps,
+} from "./ManagementDashboardAttendanceAnalytics";
