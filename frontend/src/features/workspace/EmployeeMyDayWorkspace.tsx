@@ -268,8 +268,8 @@ export function PersonalMyDayWorkspace() {
       return;
     }
     if (!today || timeZoneStatus !== "ready") {
+      setLoading(false);
       if (!silent) {
-        setLoading(false);
         setCriticalError("Your organization's time zone is not available yet. My Day will load when the work calendar can be verified.");
       }
       return;
@@ -310,7 +310,7 @@ export function PersonalMyDayWorkspace() {
     setPartialWarning(optionalFailures > 0
       ? "Some personal information is temporarily unavailable. Missing sections will retry automatically."
       : "");
-    if (!silent && requestId === loadSequenceRef.current) setLoading(false);
+    if (requestId === loadSequenceRef.current) setLoading(false);
   }, [today, timeZoneStatus, personalScopeQuery, personalScopeParam, isPersonalWorkforceRole, user.role, user.employeeId]);
 
   useEffect(() => {
