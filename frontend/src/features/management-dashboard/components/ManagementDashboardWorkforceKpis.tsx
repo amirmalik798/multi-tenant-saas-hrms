@@ -114,7 +114,9 @@ function isWorkforceSummaryResponse(
     return false;
   }
 
-  if (!isRecord(value.workforce) || !isRecord(value.departments)) {
+  const workforce = value.workforce;
+  const departments = value.departments;
+  if (!isRecord(workforce) || !isRecord(departments)) {
     return false;
   }
 
@@ -129,8 +131,8 @@ function isWorkforceSummaryResponse(
 
   const departmentFields = ["total", "active", "inactive"] as const;
 
-  return workforceFields.every((field) => isCount(value.workforce[field])) &&
-    departmentFields.every((field) => isCount(value.departments[field]));
+  return workforceFields.every((field) => isCount(workforce[field])) &&
+    departmentFields.every((field) => isCount(departments[field]));
 }
 
 function roleScopeLabel(role: ManagementRole): string {
