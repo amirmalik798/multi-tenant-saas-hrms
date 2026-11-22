@@ -1,3 +1,14 @@
+export { ManagementDashboardShell } from "./ManagementDashboardShell";
+
+export type {
+  ManagementDashboardDateRange,
+  ManagementDashboardDepartmentOption,
+  ManagementDashboardFilterState,
+  ManagementDashboardPeriod,
+  ManagementDashboardRole,
+  ManagementDashboardShellProps,
+} from "./ManagementDashboardShell";
+
 export {
   ManagementDashboardChartLegend,
   ManagementDashboardChartPanel,
