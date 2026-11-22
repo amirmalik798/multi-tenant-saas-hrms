@@ -4655,3 +4655,70 @@ body {
  .myday-leave-row-copy small{font-size:9px}
  .myday-leave-footnote{font-size:9px}
 }
+
+
+/* App-branded, text-free progress state used while payroll PDFs are prepared. */
+.pdf-preparation-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 86px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--surface), var(--surface-muted));
+}
+.pdf-preparation-indicator-workspace {
+  min-height: 64px;
+  margin-top: 12px;
+  border-color: transparent;
+  background: transparent;
+}
+.pdf-preparation-spinner {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-right-color: #29aaa5;
+  border-radius: 50%;
+  filter: drop-shadow(0 2px 5px rgba(35, 105, 180, .18));
+  animation: pdf-preparation-spin 1s cubic-bezier(.55, .15, .35, .9) infinite;
+}
+.pdf-preparation-spinner::before {
+  position: absolute;
+  inset: 6px;
+  border: 2px solid transparent;
+  border-bottom-color: var(--accent-strong);
+  border-left-color: rgba(41, 170, 165, .58);
+  border-radius: 50%;
+  content: "";
+  animation: pdf-preparation-spin-reverse 1.4s linear infinite;
+}
+.pdf-preparation-spinner-core {
+  width: 10px;
+  height: 10px;
+  border: 1px solid rgba(255, 255, 255, .35);
+  border-radius: 3px;
+  background: linear-gradient(145deg, var(--accent), #29aaa5);
+  box-shadow: 0 2px 8px rgba(35, 105, 180, .24);
+  transform: rotate(45deg);
+}
+@keyframes pdf-preparation-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes pdf-preparation-spin-reverse {
+  to { transform: rotate(-360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pdf-preparation-spinner,
+  .pdf-preparation-spinner::before {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
