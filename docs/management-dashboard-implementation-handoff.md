@@ -371,7 +371,7 @@ Do not replace these data sources until the replacement has been verified agains
 
 ## 9. Verification status at this handoff
 
-- GitHub confirms Steps 2–9 are committed on `main`. The verified Step 9 handoff head is `ddf3339275cb9c6090247b189d5ce6a0aba60971`.
+- GitHub confirms Steps 2–9 are committed on `main`; the implementation, scope-correction and handoff commits are listed in Section 10.
 - Step 6's shared workforce-summary source and component remain exported but not mounted in the existing dashboards.
 - Step 7 adds a role-scoped, snapshot-consistent attendance summary endpoint and a reusable attendance analytics component. The new UI remains opt-in and is not mounted into `WorkspaceDashboard.tsx`.
 - Step 8 adds a workforce-composition endpoint and opt-in component using the exact Step 6 workforce population. Status, department, unassigned and role totals are reconciled to the shared workforce KPI source before returning.
