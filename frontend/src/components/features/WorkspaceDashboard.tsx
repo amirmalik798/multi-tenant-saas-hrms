@@ -4,15 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Activity, AlertCircle, ArrowRight, ArrowUpRight, Building2, CalendarClock, CheckCircle2, Clock3, FileClock, Mail, ShieldCheck, Users, Wallet } from "lucide-react";
 import { useWorkspace } from "@/components/layout/WorkspaceGate";
-import { Button } from "@/components/ui/Button";
 import { Panel, PanelHeading } from "@/components/ui/Panel";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { apiRequest, isRecord, pickArray, stringValue, numberValue } from "@/lib/api-client";
 import { formatDate, formatNumber, humanize } from "@/lib/format";
 import { roleLabels } from "@/lib/workspace-config";
 import { useSmartRefresh } from "@/lib/smart-refresh";
-import { notifyAttendanceStatusChanged, useAttendanceRefresh } from "@/lib/attendance-events";
+import { useAttendanceRefresh } from "@/lib/attendance-events";
 import type { WorkspaceRole } from "@/types/workspace";
 import { EmployeeMyDayWorkspace } from "@/features/workspace/EmployeeMyDayWorkspace";
 
@@ -190,97 +188,6 @@ function AttentionLinks({ role, stats, reviews }: { role: WorkspaceRole; stats: 
 
 function TaskLink({ href, title, description, count }: { href: string; title: string; description: string; count: number }) {
   return <Link href={href} className="task-row"><div><strong>{title}</strong><span>{description}</span></div><span style={{ display: "flex", alignItems: "center", gap: 9 }}><span className="task-count">{count}</span><ArrowRight size={14} color="var(--subtle)" /></span></Link>;
-}
-
-async function readEmployeeClockStatus(): Promise<"CLOCKED_IN" | "CLOCKED_OUT"> {
-  const result = await apiRequest<{ clockStatus?: unknown; data?: { clockStatus?: unknown } }>("/attendance/events");
-  const current = result.clockStatus ?? result.data?.clockStatus;
-  if (current !== "CLOCKED_IN" && current !== "CLOCKED_OUT") throw new Error("Your current attendance status could not be confirmed.");
-  return current;
-}
-
-function formatPunchTimestamp(value: unknown, timeZone: string) {
-  if (typeof value !== "string" || !value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-      timeZone,
-    }).format(date);
-  } catch {
-    return value;
-  }
-}
-
-function EmployeeHomeContent({ clockStatus, events, timeZone }: { clockStatus?: string; events: Record<string, unknown>[]; timeZone: string }) {
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<"CLOCKED_IN" | "CLOCKED_OUT" | "loading" | "unavailable">(
-    clockStatus === "CLOCKED_IN" || clockStatus === "CLOCKED_OUT" ? clockStatus : "loading",
-  );
-  const [error, setError] = useState("");
-  useEffect(() => {
-    if (clockStatus === "CLOCKED_IN" || clockStatus === "CLOCKED_OUT") {
-      setStatus(clockStatus);
-      return;
-    }
-    let active = true;
-    void readEmployeeClockStatus().then((current) => { if (active) setStatus(current); })
-      .catch(() => { if (active) setStatus("unavailable"); });
-    return () => { active = false; };
-  }, [clockStatus]);
-  useSmartRefresh(async () => {
-    if (status !== "loading" && status !== "unavailable") return;
-    try { setStatus(await readEmployeeClockStatus()); }
-    catch { setStatus("unavailable"); }
-  }, status === "loading" || status === "unavailable");
-
-  async function punch() {
-    if (saving || (status !== "CLOCKED_IN" && status !== "CLOCKED_OUT")) return;
-    setSaving(true); setError("");
-    const nextAction = status === "CLOCKED_IN" ? "CLOCK_OUT" : "CLOCK_IN";
-    const expected = nextAction === "CLOCK_IN" ? "CLOCKED_IN" : "CLOCKED_OUT";
-    try {
-      await apiRequest("/attendance/events", { method: "POST", body: JSON.stringify({ action: nextAction }) });
-      const confirmed = await readEmployeeClockStatus();
-      if (confirmed !== expected) throw new Error("The attendance action was submitted, but the updated clock status could not be confirmed.");
-      setStatus(confirmed);
-      notifyAttendanceStatusChanged();
-    } catch (caught) {
-      // A delayed/lost response may still have recorded the punch. Re-read the
-      // server state before showing an error or allowing another attempt.
-      try {
-        const confirmed = await readEmployeeClockStatus();
-        setStatus(confirmed);
-        if (confirmed === expected) {
-          notifyAttendanceStatusChanged();
-          return;
-        }
-      } catch {
-        setStatus("unavailable");
-      }
-      setError(caught instanceof Error ? caught.message : "The attendance action could not be completed.");
-    } finally { setSaving(false); }
-  }
-  return <div className="page-grid grid-2" style={{ marginTop: 18 }}>
-    <Panel className="panel-pad">
-      <p className="eyebrow">TODAY</p><h2 style={{ fontSize: 18, color: "var(--text-strong)", margin: "4px 0 0", letterSpacing: "-.025em" }}>Your attendance</h2>
-      <p style={{ color: "var(--muted)", fontSize: 12, margin: "6px 0 18px" }}>Your clock action is validated by the organization’s active shift and attendance rules.</p>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, border: "1px solid var(--border)", borderRadius: 11, background: "var(--surface-muted)" }}><span className="metric-icon"><Clock3 size={18} /></span><div><strong style={{ color: "var(--text-strong)", display: "block", fontSize: 13 }}>{status === "loading" ? "Checking attendance status…" : status === "unavailable" ? "Status unavailable" : humanize(status)}</strong><span style={{ color: "var(--muted)", fontSize: 12 }}>Current clock status</span></div><span style={{ marginLeft: "auto" }}><StatusBadge value={status} /></span></div>
-      {error ? <p role="alert" className="field-error" style={{ marginTop: 12 }}>{error}</p> : null}
-      <Button size="lg" className={`attendance-action-button ${status === "CLOCKED_IN" ? "is-clock-out" : "is-clock-in"}`} busy={saving} disabled={saving || (status !== "CLOCKED_IN" && status !== "CLOCKED_OUT")} onClick={() => void punch()} leading={<Clock3 size={16} />}>{saving ? "Recording…" : status === "CLOCKED_IN" ? "Clock out" : status === "CLOCKED_OUT" ? "Clock in" : status === "loading" ? "Checking status…" : "Clock status unavailable"}</Button>
-      <p className="field-hint" style={{ marginTop: 10 }}>If your action is outside the permitted shift window, the server will reject it and explain why.</p>
-    </Panel>
-    <Panel>
-      <PanelHeading title="Recent punches" description="Your most recent recorded attendance events." />
-      {events.length ? events.slice(0, 6).map((event, index) => <div className="activity-row" key={stringValue(event, "id") || index}><span className="activity-dot" /><div><strong>{humanize(stringValue(event, "eventType") || "Attendance event")}</strong><span>{formatPunchTimestamp(event.recordedAt, timeZone)} · {stringValue(event, "source") || "Recorded event"}</span></div></div>) : <div className="empty-state"><div className="state-icon"><Clock3 size={18} /></div><h3>No punches recorded yet</h3><p>Your attendance history will appear here once an event is recorded.</p></div>}
-    </Panel>
-  </div>;
 }
 
 function ClipboardIcon(props: { size?: number }) { return <FileClock size={props.size ?? 16} />; }

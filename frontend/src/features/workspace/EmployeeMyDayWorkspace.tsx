@@ -182,18 +182,18 @@ export function EmployeeMyDayWorkspace() {
     statusKnown && !savingPunch && !approvedLeaveToday && !holidayToday;
 
   const weekStart = today ? mondayOf(today) : "";
-  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => {
+  const weekDays = useMemo(() => weekStart ? Array.from({ length: 7 }, (_, index) => {
     const date = addCalendarDays(weekStart, index);
     const entry = entriesByDate.get(date);
     return { date, label: dayLabel(date).split(" ")[0], worked: Number(entry?.workedMinutes ?? 0), scheduled: scheduledWorkMinutes(entry) };
-  }), [weekStart, entriesByDate]);
+  }) : [], [weekStart, entriesByDate]);
   const weekWorked = weekDays.filter((day) => day.date <= today).reduce((sum, day) => sum + day.worked, 0);
   const weekScheduledToDate = weekDays.filter((day) => day.date <= today).reduce((sum, day) => sum + day.scheduled, 0);
   const maxChartMinutes = Math.max(600, ...weekDays.map((day) => Math.max(day.worked, day.scheduled)));
-  const upcomingDays = useMemo(() => Array.from({ length: 7 }, (_, index) => {
+  const upcomingDays = useMemo(() => today ? Array.from({ length: 7 }, (_, index) => {
     const date = addCalendarDays(today, index + 1);
     return { date, entry: entriesByDate.get(date) };
-  }), [today, entriesByDate]);
+  }) : [], [today, entriesByDate]);
 
   const allRequests = useMemo(() => buildRequests(snapshot), [snapshot]);
   const requestSourcesLoaded = Boolean(snapshot.leave && snapshot.corrections && snapshot.overtime);
