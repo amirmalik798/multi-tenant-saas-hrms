@@ -227,7 +227,6 @@ export function EmployeeMyDayWorkspace() {
   const clockStatus = snapshot.punches?.clockStatus;
   const hasAttendanceEvents = todaysEvents.length > 0;
   const isClockedIn = clockStatus === "CLOCKED_IN";
-  const statusKnown = isClockedIn || clockStatus === "CLOCKED_OUT";
   const scheduledMinutes = scheduledWorkMinutes(todayEntry);
   const workedMinutes = Number(todayEntry?.workedMinutes ?? 0);
   const regularMinutes = Number(todayEntry?.regularWorkedMinutes ?? workedMinutes);

@@ -258,9 +258,12 @@ export function WorkspaceClock({
   } else if (status === "unavailable") {
     actionAvailabilityLabel = "Unavailable";
     actionAvailabilityDetail = "Your current attendance status could not be confirmed. Try again shortly.";
-  } else if (shiftStatus !== "ready") {
+  } else if (shiftStatus === "loading") {
     actionAvailabilityLabel = "Checking shift";
-    actionAvailabilityDetail = "Your assigned shift and attendance eligibility could not yet be verified.";
+    actionAvailabilityDetail = "Your assigned shift and attendance eligibility are being checked.";
+  } else if (shiftStatus === "unavailable") {
+    actionAvailabilityLabel = "Schedule unavailable";
+    actionAvailabilityDetail = "Your assigned shift could not be retrieved. Clock-in is disabled until your shift eligibility can be verified.";
   } else {
     switch (eligibilityReason) {
       case "APPROVED_LEAVE":
@@ -297,18 +300,11 @@ export function WorkspaceClock({
     }
   }
 
-  const currentClockAction: ClockAction | null = status === "CLOCKED_IN"
-    ? "CLOCK_OUT"
-    : status === "CLOCKED_OUT"
-      ? "CLOCK_IN"
-      : null;
   const headerTone = status === "CLOCKED_IN"
     ? "is-clock-out"
     : status === "CLOCKED_OUT" && canPerformClockAction
       ? "is-clock-in"
       : "is-clock-unknown";
-  const headerActionLabel = actionAvailabilityLabel.toUpperCase();
-
   async function performAction() {
     if (!showAttendanceStatus || submitting || !canPerformClockAction) return;
     setSubmitting(true);
