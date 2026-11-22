@@ -180,8 +180,19 @@ function isPayrollSummary(value: unknown): value is PayrollSummary {
 }
 
 function isOvertimeSummary(value: unknown): value is OvertimeSummary {
-  if (!isRecord(value) || !isRecord(value.preauthorization) ||
-    !isRecord(value.worked) || !isRecord(value.excessReviewCases)) {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const preauthorization = value.preauthorization;
+  const worked = value.worked;
+  const excessReviewCases = value.excessReviewCases;
+
+  if (
+    !isRecord(preauthorization) ||
+    !isRecord(worked) ||
+    !isRecord(excessReviewCases)
+  ) {
     return false;
   }
 
@@ -207,16 +218,16 @@ function isOvertimeSummary(value: unknown): value is OvertimeSummary {
 
   if (
     !isCount(value.scheduledEmployees) ||
-    !requestFields.every((field) => isCount(value.preauthorization[field])) ||
-    !workedFields.every((field) => isCount(value.worked[field])) ||
-    !reviewFields.every((field) => isCount(value.excessReviewCases[field]))
+    !requestFields.every((field) => isCount(preauthorization[field])) ||
+    !workedFields.every((field) => isCount(worked[field])) ||
+    !reviewFields.every((field) => isCount(excessReviewCases[field]))
   ) {
     return false;
   }
 
-  const actual = value.worked.actualOvertimeMinutes as number;
-  const payable = value.worked.payableOvertimeMinutes as number;
-  const unapproved = value.worked.unapprovedExcessMinutes as number;
+  const actual = worked.actualOvertimeMinutes as number;
+  const payable = worked.payableOvertimeMinutes as number;
+  const unapproved = worked.unapprovedExcessMinutes as number;
 
   return actual >= payable && actual - payable === unapproved;
 }
