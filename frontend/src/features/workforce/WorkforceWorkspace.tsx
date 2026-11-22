@@ -79,6 +79,7 @@ export function WorkforceWorkspace() {
   const detailRequestRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [listError, setListError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [departmentFilter, setDepartmentFilter] = useState("ALL");
@@ -102,7 +103,7 @@ export function WorkforceWorkspace() {
 
   const load = useCallback(async (silent = false) => {
     const requestId = ++listRequestRef.current;
-    if (!silent) setLoading(true); setError("");
+    if (!silent) setLoading(true); setError(""); setListError("");
     try {
       const params = new URLSearchParams({ page: String(page), limit: "50", sortBy: "name", sortOrder: "asc" });
       if (search.trim()) params.set("q", search.trim());
@@ -114,10 +115,15 @@ export function WorkforceWorkspace() {
       const result = await apiRequest<DirectoryResponse>(`/employees?${params.toString()}`);
       if (requestId !== listRequestRef.current) return;
       setRows(Array.isArray(result.employees) ? result.employees : []);
+      setListError("");
       setTotal(result.pagination?.total ?? 0);
       setTotalPages(Math.max(1, result.pagination?.totalPages ?? 1));
     } catch (caught) {
-      if (requestId === listRequestRef.current) setError(caught instanceof Error ? caught.message : "Unable to load workforce records.");
+      if (requestId === listRequestRef.current) {
+        const message = caught instanceof Error ? caught.message : "Unable to load workforce records.";
+        setError(message);
+        setListError(message);
+      }
     } finally { if (!silent && requestId === listRequestRef.current) setLoading(false); }
   }, [page, search, statusFilter, departmentFilter]);
 
@@ -225,6 +231,7 @@ export function WorkforceWorkspace() {
         </div>
         <div className="toolbar-right"><span style={{ color: "var(--muted)", fontSize: 11 }}>{loading ? "Loading…" : `${total} people`}</span></div>
       </div>
+      {listError && rows.length > 0 ? <div className="form-error" role="alert" style={{ marginBottom: 12 }}>The latest workforce refresh failed. The rows shown are from the last successful load and may not match the current filters. {listError}</div> : null}
       {error && !rows.length ? <div className="error-state"><div className="state-icon"><X size={18} /></div><h3>Workforce could not be loaded</h3><p>{error}</p><Button variant="secondary" onClick={() => void load()}>Retry</Button></div> : null}
       {loading && !rows.length ? <TableSkeleton /> : !rows.length && !error ? <div className="empty-state"><div className="state-icon"><Users size={19} /></div><h3>{search || statusFilter !== "ALL" || departmentFilter !== "ALL" ? "No matching people" : "No workforce records yet"}</h3><p>{search || statusFilter !== "ALL" || departmentFilter !== "ALL" ? "Try adjusting your search or filters." : "Workforce profiles will appear here after they have been created."}</p>{canCreate ? <Button size="sm" variant="primary" leading={<Plus size={14} />} onClick={() => setDrawerMode("create")}>Add workforce member</Button> : null}</div> : null}
       {rows.length ? <><div className="table-wrap"><table className="data-table"><thead><tr><th>Person</th><th>Role & department</th><th>Manager</th><th>Employment</th><th>Invitation</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
