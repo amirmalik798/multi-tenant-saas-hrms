@@ -74,3 +74,15 @@ The section presents:
 
 It uses the existing theme tokens and responsive styles and adds no chart dependency. The composite section is exported for reuse but is intentionally not mounted into the existing dashboards until the later role-specific composition step. The separate personal My Day experience is not affected.
 
+## 8. Workforce composition composite section (Step 8)
+
+`ManagementDashboardWorkforceComposition` composes the shared heading, chart panels, chart legend, grid, skeleton and error state components. It loads the new role-scoped workforce-composition endpoint and displays:
+
+- Current active, inactive and former workforce status composition.
+- Department-level status distribution, including authorized departments with zero employees.
+- Workforce-role distribution.
+- An explicit unassigned group for Organization Admin/HR Manager and an N/A explanation for Department Manager.
+- A data-readiness panel explaining why joiner, departure, reactivation and turnover metrics are deferred.
+
+The backend reconciles all composition totals against the existing Step 6 workforce-summary service inside the same database snapshot. The section is exported but remains unmounted in the live dashboards until Step 12. It introduces no chart package or database migration.
+

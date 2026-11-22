@@ -4,7 +4,7 @@
 **Repository:** amirmalik798/multi-tenant-saas-hrms  
 **Active branch:** main  
 **Roadmap:** 14 steps  
-**Current status:** Step 7 complete; Steps 1–7 complete; Steps 8–14 remain
+**Current status:** Step 8 complete; Steps 1–8 complete; Steps 9–14 remain
 
 ## 1. Objective
 
@@ -219,6 +219,42 @@ Implemented:
 
 **Verification:** Source inspection and static source checks only. No frontend/backend build, runtime database/API validation, browser test or full regression suite was run. Reconcile Step 7 figures with the attendance calendar and reports using live tenant data before visible dashboard integration in Step 12.
 
+### Step 8 of 14 — Workforce composition and movement analytics
+
+**Status:** Implemented as additive, current-state composition analytics. Historical movement and turnover are explicitly deferred.
+
+**Files:**
+- `backend/lib/management-dashboard/workforce-composition.ts`
+- `backend/app/api/management-dashboard/workforce-composition/route.ts`
+- `frontend/src/features/management-dashboard/components/ManagementDashboardWorkforceComposition.tsx`
+- Updated `frontend/src/features/management-dashboard/components/index.ts`
+- Appended workforce-composition styles to `frontend/src/features/management-dashboard/management-dashboard.css`
+- Updated the metric contract, architecture and component-system documents.
+
+**Implemented:**
+- New authenticated endpoint `GET /api/management-dashboard/workforce-composition`.
+- Reuses the exact Step 6 workforce population definition and `loadManagementDashboardWorkforceSummary` inside the same `REPEATABLE READ READ ONLY` snapshot.
+- Organization Admin and HR Manager receive tenant-wide composition. Department Manager uses the authenticated manager employee ID and an `EXISTS` relationship to assigned departments.
+- Employment-status composition returns active, inactive, former and total counts.
+- Department composition includes every authorized department, even when its workforce count is zero, with active/inactive/former/total counts.
+- Organization Admin and HR Manager receive an unassigned group for employees without a valid tenant-local department. Department Manager receives N/A because the population already excludes unassigned employees by its assigned-department scope.
+- Workforce-role composition groups the same canonical employee population by its organization-scoped role.
+- The service reconciles status totals to Step 6 shared workforce KPI totals, department totals to assigned employees, unassigned active employees to the Step 6 active-unassigned count, and role totals to the shared headcount. An inconsistency fails the request; it is not rendered as zero.
+- New `ManagementDashboardWorkforceComposition` section uses shared chart panels, legends, loading/error states and theme-aware responsive stacked bars.
+- The UI is exported but intentionally not mounted into existing dashboards in this step.
+
+**Movement audit and decision:**
+- `writeEmployeeHistory` stores event types and before/after snapshots but its insert does not set `effective_at`. The checked-in source did not establish the table default that supplies this field.
+- `PROFILE_CREATED` occurs when the workforce profile is created in `INACTIVE` status pending invitation acceptance. `INVITATION_ACCEPTED` is the later transition to `ACTIVE`.
+- Profile status edits write `EMPLOYMENT_STATUS_CHANGED`; the exact effective-date semantics remain unverified.
+- `joining_date` is user-entered during profile creation, so it cannot be treated as the actual activation date.
+- Former employees cannot be reactivated through the ordinary profile edit route, and no authoritative rehire/separation event contract was verified.
+- Joiners, departures, reactivations and turnover are therefore not calculated. The API and UI explicitly mark movement analytics as deferred.
+
+**Preservation:** Existing dashboard pages, workforce-summary/overview APIs, employee history, profile/invitation workflows and personal My Day remain unchanged. No database migration or dependency was introduced.
+
+**Verification:** Source-level inspection and reconciliation-contract checks only. No build, runtime database/API test, browser test or full regression suite was run.
+
 ## 6. Current dashboard behavior to preserve during integration
 
 The current dashboard implementation is in `frontend/src/components/features/WorkspaceDashboard.tsx`.
@@ -234,19 +270,6 @@ The current dashboard implementation is in `frontend/src/components/features/Wor
 Do not replace these data sources until the replacement has been verified against the existing behavior and contracts.
 
 ## 7. Remaining implementation roadmap
-
-### Step 8 of 14 — Workforce composition and movement analytics
-
-**Goal:** Add consistent composition charts and reliable workforce trends.
-
-**Implementation approach:**
-1. Build department and employment-status composition from the Step 6 workforce scope.
-2. Ensure chart totals reconcile with shared KPI totals.
-3. Audit `employee_history` event types and effective date semantics before implementing joiners, departures or turnover.
-4. If those semantics cannot be proven, ship composition only and clearly defer movement/turnover.
-5. Provide text legends, accessible summaries and authorized detail routes.
-
-**Acceptance:** charts reconcile to the exact workforce population; no guessed hire/termination classification or turnover rate.
 
 ### Step 9 of 14 — Leave and workforce availability
 
@@ -351,10 +374,12 @@ Do not replace these data sources until the replacement has been verified agains
 - GitHub confirms Steps 2–6 implementation commits are on `main`; Step 7 is implemented in the current working change and will be recorded after commit verification.
 - Step 6's shared workforce-summary source and component remain exported but not mounted in the existing dashboards.
 - Step 7 adds a role-scoped, snapshot-consistent attendance summary endpoint and a reusable attendance analytics component. The new UI remains opt-in and is not mounted into `WorkspaceDashboard.tsx`.
+- Step 8 adds a workforce-composition endpoint and opt-in component using the exact Step 6 workforce population. Status, department, unassigned and role totals are reconciled to the shared workforce KPI source before returning.
+- Step 8 audited employee-history event writers. Because `effective_at` semantics and authoritative rehire/separation dates could not be verified, joiner/departure/reactivation/turnover metrics are explicitly deferred.
 - Department Manager scope is derived from the authenticated manager employee ID and assigned-department relationship; optional department filters are validated within that existing scope.
 - Step 7 reuses `calculateDailyAttendance`, handles effective approved attendance corrections, approved missing punches, approved preauthorization overtime, active shift schedules, approved leave and public holidays.
-- Step 7 source-level checks are the only verification completed so far. No frontend/backend build, runtime/API verification, browser testing or full regression suite has been run. Do not describe the work as runtime-certified.
-- No database migration or new dependency was introduced for Steps 6–7.
+- Steps 7–8 have source-level checks only. No frontend/backend build, runtime/API verification, browser testing or full regression suite has been run. Do not describe the work as runtime-certified.
+- No database migration or new dependency was introduced for Steps 6–8.
 - Full regression testing remains gated until the user says **"lets test now"**.
 
 ## 10. Relevant commits
@@ -366,4 +391,5 @@ Do not replace these data sources until the replacement has been verified agains
 - Step 6 — shared workforce KPI source and component: [99d6365ef03ad5cab523319ab7e3d729d64cf80d](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/99d6365ef03ad5cab523319ab7e3d729d64cf80d)
 
 - Step 7 — role-scoped attendance and working-hours analytics: [b11f1e29cdd3943cc60ecf680b7905fee73e5b8c](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/b11f1e29cdd3943cc60ecf680b7905fee73e5b8c)
+- Step 8 — workforce composition and movement-readiness audit: pending commit verification
 Step 1 was completed as source audit and UX blueprint work and did not create a repository commit.

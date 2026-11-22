@@ -942,3 +942,320 @@
     transition: none;
   }
 }
+
+/* Workforce composition: accessible status stacks and role/department mix.
+   Colours are tied to the standard dashboard status tones. */
+.md-composition-section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 15px;
+}
+
+.md-composition-heading {
+  margin-bottom: 0;
+}
+
+.md-composition-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.md-composition-meta span:last-child {
+  color: var(--subtle);
+  text-align: right;
+}
+
+.md-composition-panels {
+  align-items: stretch;
+}
+
+.md-composition-panels > * {
+  min-width: 0;
+}
+
+.md-composition-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 2px 0 15px;
+}
+
+.md-composition-summary strong {
+  color: var(--text-strong);
+  font-size: 29px;
+  font-weight: 790;
+  letter-spacing: -.055em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.md-composition-summary span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.md-composition-stack {
+  display: flex;
+  width: 100%;
+  height: 13px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.md-composition-segment {
+  display: block;
+  height: 100%;
+  min-width: 0;
+}
+
+.md-composition-segment-active {
+  background: var(--success);
+}
+
+.md-composition-segment-inactive {
+  background: var(--warning);
+}
+
+.md-composition-segment-former {
+  background: var(--danger);
+}
+
+.md-composition-segment-empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--surface-muted),
+    var(--surface-muted) 5px,
+    var(--border) 5px,
+    var(--border) 6px
+  );
+}
+
+.md-composition-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 15px;
+}
+
+.md-composition-counts > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.md-composition-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.md-composition-dot-active { background: var(--success); }
+.md-composition-dot-inactive { background: var(--warning); }
+.md-composition-dot-former { background: var(--danger); }
+
+.md-composition-department-list,
+.md-composition-role-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.md-composition-department {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.md-composition-department + .md-composition-department {
+  padding-top: 13px;
+  border-top: 1px solid var(--border);
+}
+
+.md-composition-department-heading,
+.md-composition-role-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.md-composition-department-heading > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 3px;
+}
+
+.md-composition-department-heading strong,
+.md-composition-role-heading strong {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 10px;
+  font-weight: 720;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+}
+
+.md-composition-department-heading span {
+  color: var(--subtle);
+  font-size: 9px;
+  line-height: 1.35;
+  text-transform: capitalize;
+}
+
+.md-composition-department-heading b,
+.md-composition-role-heading b {
+  flex: 0 0 auto;
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 780;
+  font-variant-numeric: tabular-nums;
+}
+
+.md-composition-unassigned {
+  padding: 12px;
+  border: 1px dashed var(--border-strong, var(--border));
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+
+.md-composition-scope-note {
+  margin: 3px 0 0;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  background: var(--surface-muted);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.md-composition-role {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.md-composition-role-track {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.md-composition-role-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.md-composition-role > small {
+  color: var(--subtle);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.md-composition-empty {
+  margin: 0;
+  padding: 18px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  background: var(--surface-muted);
+  font-size: 10px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.md-composition-deferred-panel {
+  align-self: stretch;
+}
+
+.md-composition-deferred {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 170px;
+  justify-content: center;
+}
+
+.md-composition-deferred-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 12px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  background: var(--surface-muted);
+}
+
+.md-composition-deferred > strong {
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.4;
+}
+
+.md-composition-deferred > p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.md-composition-deferred > small {
+  margin-top: 10px;
+  color: var(--subtle);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.md-composition-definition {
+  margin: 0;
+  color: var(--subtle);
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+@media (max-width: 620px) {
+  .md-composition-meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .md-composition-meta span:last-child {
+    text-align: left;
+  }
+
+  .md-composition-counts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+  }
+}

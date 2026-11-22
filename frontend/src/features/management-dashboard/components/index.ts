@@ -43,3 +43,5 @@ export { ManagementDashboardAttendanceAnalytics } from "./ManagementDashboardAtt
 export type {
   ManagementDashboardAttendanceAnalyticsProps,
 } from "./ManagementDashboardAttendanceAnalytics";
+
+export { ManagementDashboardWorkforceComposition } from "./ManagementDashboardWorkforceComposition";

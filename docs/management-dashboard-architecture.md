@@ -79,6 +79,16 @@ For each scheduled employee-day, the service calls the existing `calculateDailyA
 
 The endpoint enforces a 31-day date limit and a 100,000-row calculation limit. It returns an error when the row limit is exceeded rather than silently truncating the result. The corresponding `ManagementDashboardAttendanceAnalytics` frontend section is exported but remains opt-in and is not mounted into the live dashboards in Step 7.
 
+### Workforce composition summary (Step 8)
+
+**GET /api/management-dashboard/workforce-composition**
+
+The Step 8 endpoint provides current employment-status, department and workforce-role composition using the same canonical population key and server-derived role scope as the Step 6 workforce-summary endpoint. Department Manager data is restricted to departments whose `manager_id` matches the authenticated manager employee ID. The endpoint loads the shared workforce summary inside the same read-only snapshot and verifies that status totals, assigned department totals, unassigned totals and role totals reconcile before returning data. Empty authorized departments remain visible with zero counts.
+
+Organization Admin and HR Manager receive an explicit unassigned composition; Department Manager receives N/A because its population is already restricted to assigned departments. The frontend `ManagementDashboardWorkforceComposition` component is exported but remains opt-in and unmounted until the later role-specific composition step.
+
+The employee-history audit did not establish a reliable effective-date contract. `writeEmployeeHistory` does not explicitly set `effective_at`; `PROFILE_CREATED` is recorded while a workforce profile is inactive pending invitation, and `INVITATION_ACCEPTED` is the later activation event. `joining_date` is user-entered, and no verified rehire/separation effective-date workflow was found. The endpoint therefore reports current composition only and explicitly marks movement/turnover as deferred.
+
 ## 5. Snapshot and data consistency
 
 All future unified dashboard aggregation services should execute through withManagementDashboardSnapshot:
