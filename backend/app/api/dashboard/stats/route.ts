@@ -114,6 +114,19 @@ export async function GET() {
         (SELECT COUNT(*) FROM public.employee_invitations AS ei JOIN public.organizations AS org ON org.id = ei.organization_id WHERE ei.status = 'PENDING' AND ei.expires_at > NOW() AND org.status <> 'ARCHIVED') AS pending_employee_invitations
     `),
     ]);
+    const organizationCounts: Record<string, number> = {};
+    for (const row of organizationResult.rows) {
+      organizationCounts[String(row.status)] = Number(row.count);
+    }
+
+    const monthlyRegistrations = monthlyRegistrationResult.rows.map((row) => ({
+      month: String(row.month),
+      count: Number(row.count ?? 0),
+    }));
+    const userCounts = userResult.rows[0] ?? {};
+    const employeeCounts = employeeResult.rows[0] ?? {};
+    const totalEmployees = Number(employeeCounts.total_employees ?? 0);
+
     const invitationCounts = invitationResult.rows[0] ?? {};
     const pendingOrganizationInvitations = Number(invitationCounts.pending_organization_invitations ?? 0);
     const pendingEmployeeInvitations = Number(invitationCounts.pending_employee_invitations ?? 0);
