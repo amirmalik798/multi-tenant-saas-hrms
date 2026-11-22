@@ -91,7 +91,7 @@ export async function GET(request: Request) {
                   WHERE su.organization_id = o.id AND su.account_scope = 'ORGANIZATION'
                     AND sr.name = 'ORGANIZATION_ADMIN' AND sr.scope = 'ORGANIZATION'
                     AND sr.organization_id = o.id AND su.email ILIKE $3)
-          )::integer AS matching_total
+          ))::integer AS matching_total
         FROM organizations AS o
       `, [search, status, searchPattern]),
     ]);
