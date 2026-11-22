@@ -90,7 +90,7 @@ export async function GET(request: Request) {
         scope = requestedScope === "self" ? "SELF" : "ALL";
         if (scope === "SELF") scopeEmployeeId = actor.employeeId;
       } else if (actor.roleName === "DEPARTMENT_MANAGER") {
-        scope = "DEPARTMENT";
+        scope = url.searchParams.get("scope") === "self" ? "SELF" : "DEPARTMENT";
         scopeEmployeeId = actor.employeeId;
       } else if (actor.roleName === "EMPLOYEE") {
         scope = "SELF";

@@ -14,7 +14,15 @@ export async function GET(request: Request) {
     const values: unknown[] = [actor.organizationId];
     const conditions = ["r.organization_id = $1::uuid"];
     if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "EMPLOYEE") {
-      values.push(actor.employeeId); conditions.push(`r.employee_id = $${values.length}::uuid`);
+      values.push(actor.employeeId); conditions.push(`r.employee_id = ${values.length}::uuid`);
+    } else if (
+      actor.kind === "ORGANIZATION_USER" &&
+      (actor.roleName === "HR_MANAGER" || actor.roleName === "DEPARTMENT_MANAGER") &&
+      new URL(request.url).searchParams.get("scope") === "self"
+    ) {
+      if (!actor.employeeId) return jsonResponse({ message: "A linked employee record is required for personal leave requests" }, 403);
+      values.push(actor.employeeId);
+      conditions.push(`r.employee_id = ${values.length}::uuid`);
     } else if (actor.kind === "ORGANIZATION_USER" && actor.roleName === "DEPARTMENT_MANAGER") {
       values.push(actor.employeeId);
       conditions.push(`(
