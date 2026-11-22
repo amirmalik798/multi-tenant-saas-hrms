@@ -59,4 +59,4 @@ The project does not currently include a dedicated charting package. This step t
 
 This step adds the component library and imports its theme-aware stylesheet into the frontend global stylesheet. It does not modify `WorkspaceDashboard`, role dashboards, existing `Panel` or `PageHeader` primitives, API routes, personal My Day, or business logic.
 
-Step 5 will establish the shared management dashboard shell and controls. Subsequent steps will move dashboard content onto these primitives incrementally while retaining the existing role-specific routes and actions.
+Step 5 established the shared management-dashboard shell and reporting controls. Step 6 added the opt-in `ManagementDashboardWorkforceKpis` composite section, backed by a new role-scoped server aggregate and the existing metric-card primitives. The section is exported but is not mounted into live dashboards yet. Subsequent steps will connect the remaining verified datasets and compose the role-specific dashboards incrementally while retaining existing routes and actions.

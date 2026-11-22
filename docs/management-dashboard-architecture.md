@@ -22,7 +22,7 @@ The shared architecture centralizes identity-to-scope mapping, tenant metadata, 
 | Scope mapper | Convert the authenticated permission actor to a management-dashboard scope | Allow only Organization Admin, HR Manager, and Department Manager; all other roles fail closed |
 | Snapshot runner | Open one PostgreSQL **REPEATABLE READ READ ONLY** transaction for a dashboard read | Commit on success; roll back on failure; always release the connection |
 | Context loader | Load active organization metadata, validated time zone, work date, week-start setting, and authorized department context | All queries use the tenant ID and manager identity from the server-derived scope |
-| Metric services (subsequent steps) | Produce typed workforce, attendance, availability, overtime, payroll, and action-center datasets | Reuse authoritative domain calculations and existing permission rules; never duplicate business calculations in React |
+| Metric services | The shared workforce-summary service is implemented in Step 6; attendance, availability, overtime, payroll and action-center services remain subsequent work | Reuse authoritative domain calculations and existing permission rules; never duplicate business calculations in React |
 | Presentation layer (subsequent steps) | Render shared cards, charts, filters, and drill-downs with role-aware content | Client-side presentation does not constitute authorization |
 
 ## 3. Access-scope contract
@@ -52,6 +52,19 @@ It does not return employee records, payroll values, personal attendance, review
 
 The endpoint uses the existing getTenantPermissionActor session/tenant/licensing boundary and jsonResponse no-cache headers. Employee access is rejected. No organization or department identifier is accepted from the browser.
 
+### Shared workforce KPI endpoint (Step 6)
+
+**GET /api/management-dashboard/workforce-summary**
+
+This endpoint adds the first shared aggregate on top of the scope and snapshot foundation. It derives the actor and scope from the authenticated session, loads organization context and workforce aggregates in one read-only snapshot, and returns a versioned response.
+
+The shared workforce population excludes organization-scoped role names `ORGANIZATION_ADMIN`, `ORG_ADMIN`, and `ORGANIZATION_ADMINISTRATOR`. Missing linked role records retain the established `EMPLOYEE` fallback. The aggregate returns total/active/inactive/former workforce, assigned and active-unassigned counts, and total/active/inactive departments.
+
+For Department Managers, employee scope is an `EXISTS` relationship to departments whose `manager_id` matches the authenticated actor employee ID. This keeps multi-department membership unique and prevents browser input from widening the population.
+
+The new endpoint does not change the existing Organization Admin, HR Manager or Department Manager overview endpoints. The opt-in `ManagementDashboardWorkforceKpis` component uses the shared metric cards and loading/error states but is not yet mounted into the visible dashboards. Existing KPI cards remain until actual tenant figures have been reconciled.
+
+
 ## 5. Snapshot and data consistency
 
 All future unified dashboard aggregation services should execute through withManagementDashboardSnapshot:
@@ -73,6 +86,7 @@ A failed source must remain an error/unavailable state. Do not coerce a failed q
 - The existing dashboard UI continues using its current data sources during this foundation step.
 - Employee My Day and the personal My Day views for HR Manager and Department Manager are untouched.
 - No database migration, schema change, new permission, or business-rule change is introduced.
+- Step 6 adds an opt-in workforce aggregate and KPI component; existing dashboard UI and personal My Day remain unchanged.
 
 The new context endpoint is not yet wired into the visible dashboards. It establishes the shared, server-controlled foundation; subsequent steps add reusable presentation components and metric services incrementally.
 

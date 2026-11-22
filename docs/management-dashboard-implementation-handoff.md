@@ -4,7 +4,7 @@
 **Repository:** amirmalik798/multi-tenant-saas-hrms  
 **Active branch:** main  
 **Roadmap:** 14 steps  
-**Current status:** Step 5 complete; Steps 1–5 complete; Steps 6–14 remain
+**Current status:** Step 6 complete; Steps 1–6 complete; Steps 7–14 remain
 
 ## 1. Objective
 
@@ -156,6 +156,38 @@ The shell does not fetch data, call any endpoint, decide authorization, or apply
 
 **Crucial preservation choice:** the current `WorkspaceDashboard.tsx`, all role routes, existing dashboard cards/panels, existing overview APIs and My Day components remain unchanged. The new shell is an opt-in component and is not mounted into live dashboards in Step 5. This prevents an unsolicited visual or workflow change before the new data sections are ready.
 
+### Step 6 of 14 — Shared workforce KPI cards
+
+**Status:** Complete.
+
+**Files:**
+- `backend/lib/management-dashboard/workforce-summary.ts`
+- `backend/app/api/management-dashboard/workforce-summary/route.ts`
+- `frontend/src/features/management-dashboard/components/ManagementDashboardWorkforceKpis.tsx`
+- Updated `frontend/src/features/management-dashboard/components/index.ts`
+- Appended opt-in workforce-section styles to `frontend/src/features/management-dashboard/management-dashboard.css`
+- Updated `docs/management-dashboard-metric-contract.md`
+
+**Implementation commit:** [`99d6365ef03ad5cab523319ab7e3d729d64cf80d`](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/99d6365ef03ad5cab523319ab7e3d729d64cf80d)
+
+Implemented:
+
+- New authenticated endpoint `GET /api/management-dashboard/workforce-summary`.
+- New shared read service using the server-derived `ManagementDashboardScope` and the existing `withManagementDashboardSnapshot` transaction helper.
+- A single canonical workforce population for all three roles. It excludes organization-scoped workforce role names `ORGANIZATION_ADMIN`, `ORG_ADMIN`, and `ORGANIZATION_ADMINISTRATOR`. A missing linked role uses the same `COALESCE(..., 'EMPLOYEE')` fallback already present in the HR Manager overview query.
+- Organization Admin and HR Manager receive tenant-wide records. Department Manager receives only employee records whose department is linked to a department managed by the authenticated manager employee ID.
+- Department Manager population uses SQL `EXISTS`, so a person cannot be counted more than once through multiple assigned departments.
+- Shared counts for total, active, inactive, former, assigned and active-unassigned workforce, plus total/active/inactive department counts.
+- A shared `ManagementDashboardWorkforceKpis` UI section using the reusable metric cards, grid, section heading, loading skeleton and error/retry state.
+- Active-unassigned workforce is shown as N/A for Department Managers because the population is already restricted to assigned departments; it is not represented as a meaningful zero.
+- The metric contract now records the shared workforce population and its role scope.
+
+**Compatibility decision:** The legacy Organization Admin statistics query counts all employee rows, whereas the legacy HR Manager overview excludes organization-administrator role records. The legacy Department Manager team query does not use that same explicit role exclusion. Those endpoints and their existing KPI values are untouched. The new shared KPI population has one explicit definition; do not replace legacy cards until the figures have been compared against actual tenant data and the migration is deliberately performed in a later integration step.
+
+**Crucial preservation choice:** The new KPI section is exported for reuse but is not mounted inside `WorkspaceDashboard.tsx`. Existing dashboard layout, cards, pages, approval actions, navigation, personal My Day and API consumers remain unchanged. The endpoint has no browser-supplied organization or department filter; any future narrowing must first be validated against the server-derived scope.
+
+**Verification:** Source-level checks confirmed role resolution, tenant scoping, administrator-role exclusions, Department Manager `EXISTS` scope, snapshot usage, versioned response, shared component export, loading/error behavior, and that the existing dashboard was not wired to the new section. No build or runtime test was run.
+
 ## 6. Current dashboard behavior to preserve during integration
 
 The current dashboard implementation is in `frontend/src/components/features/WorkspaceDashboard.tsx`.
@@ -165,26 +197,12 @@ The current dashboard implementation is in `frontend/src/components/features/Wor
 - Department Manager loads `/department-manager/overview` and separately loads `/leave/requests` for its current pending leave display.
 - HR Manager and Department Manager render `PersonalMyDayWorkspace` before the management overview.
 - Employee route renders `EmployeeMyDayWorkspace`.
+- The shared workforce KPI section is available as an opt-in component backed by `/management-dashboard/workforce-summary`; it is not yet mounted into any live role dashboard.
 - Existing role-specific KPI labels, departments, attention links, activity panels and review queue destinations must remain functional during the gradual rollout.
 
 Do not replace these data sources until the replacement has been verified against the existing behavior and contracts.
 
 ## 7. Remaining implementation roadmap
-
-### Step 6 of 14 — Shared workforce KPI cards
-
-**Goal:** Introduce the first common KPI section across all three roles.
-
-**Implementation approach:**
-1. Define a typed, versioned workforce-summary response without changing the legacy endpoints.
-2. Add a server service that consumes the scope mapper and snapshot helper.
-3. Use distinct workforce employee sets and preserve the existing canonical workforce-role exclusions.
-4. Calculate total, active, inactive and former workforce; department counts and unassigned workforce only where meaningful and authorized.
-5. Use the same KPI card component and definitions across roles; Department Manager receives assigned-department population only.
-6. Keep legacy role-specific cards/fields available until all current consumers are safely migrated.
-7. Integrate the shared cards as an additional section or carefully replace only matching equivalents after reconciliation; do not remove current management actions.
-
-**Acceptance:** totals reconcile with the source datasets and existing counts; no duplicate headcount for a manager's multiple departments; Employee and cross-tenant access denied.
 
 ### Step 7 of 14 — Attendance and working-hours analytics
 
@@ -314,18 +332,21 @@ Do not replace these data sources until the replacement has been verified agains
 
 ## 9. Verification status at this handoff
 
-- GitHub confirms Steps 2, 3, 4 and 5 commits are on `main` in sequence.
-- Step 5 adds the shell component, updates the component export barrel, appends shell-specific CSS, and adds this handoff document.
-- Existing `WorkspaceDashboard.tsx`, overview API routes, role routes, and personal My Day files are intentionally not changed in Step 5.
-- No database migration and no new dependency were introduced.
-- The shell component is not yet mounted in any live management dashboard.
-- No build, runtime check, or full regression suite has been run as part of this handoff. Do not describe Step 5 as runtime-certified.
+- GitHub confirms Steps 2, 3, 4, 5 and 6 implementation commits are on `main` in sequence.
+- Step 6 adds a new shared workforce-summary service and authenticated API route; the three existing overview endpoints and their response contracts are unchanged.
+- The shared KPI component is exported and ready for opt-in integration; it is not mounted into the current dashboards.
+- Department Manager scope is derived from the authenticated manager employee ID and assigned department relationship using SQL `EXISTS`.
+- The shared workforce population explicitly excludes organization-administrator role records. Legacy dashboards retain their previous definitions until their live figures are reconciled.
+- No database migration or new dependency was introduced.
+- Source-level checks were performed for Step 6. No frontend/backend build, runtime/API verification or full regression suite has been run. Do not describe Step 6 as runtime-certified.
+- Full regression testing remains gated until the user says **"lets test now"**.
 
 ## 10. Relevant commits
 
 - Step 2 — KPI/access contract: `7e86cc8268aac9e811f118dbc995d66ebae03e23`
 - Step 3 — secure dashboard data foundation: `01f50863412500148bd9d916cfea2e197a8f2087`
 - Step 4 — reusable UI components: `d41a577cfb1a4bcdaa2f7f76ce29ecdc7a393916`
-- Step 5 — shared dashboard shell and handoff: see the commit URL provided with this handoff.
+- Step 5 — shared dashboard shell and handoff: [f628153a24ab93864b1612889515a31d4e19a6f8](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/f628153a24ab93864b1612889515a31d4e19a6f8)
+- Step 6 — shared workforce KPI source and component: [99d6365ef03ad5cab523319ab7e3d729d64cf80d](https://github.com/amirmalik798/multi-tenant-saas-hrms/commit/99d6365ef03ad5cab523319ab7e3d729d64cf80d)
 
 Step 1 was completed as source audit and UX blueprint work and did not create a repository commit.
