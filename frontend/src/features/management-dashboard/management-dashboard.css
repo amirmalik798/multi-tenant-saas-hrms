@@ -1913,3 +1913,151 @@
     justify-content: flex-start;
   }
 }
+
+
+/* First-screen shortcuts for HR Manager and Department Manager dashboards. */
+.workspace-dashboard-quick-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 0% 50%, color-mix(in srgb, var(--accent-soft) 75%, transparent), transparent 46%),
+    linear-gradient(135deg, var(--surface), var(--surface-muted));
+  box-shadow: 0 5px 18px rgba(15, 23, 42, .035), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.workspace-dashboard-quick-nav-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 175px;
+  padding-left: 3px;
+}
+.workspace-dashboard-quick-nav-copy > span {
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 820;
+  letter-spacing: .11em;
+}
+.workspace-dashboard-quick-nav-copy > strong {
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 740;
+  letter-spacing: -.015em;
+}
+.workspace-dashboard-quick-nav-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 9px;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 660px;
+}
+.workspace-dashboard-quick-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 54px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  text-decoration: none;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+.workspace-dashboard-quick-link:hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: var(--surface);
+  box-shadow: 0 5px 14px rgba(15, 23, 42, .06);
+  transform: translateY(-1px);
+}
+.workspace-dashboard-quick-link-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: 10px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+.workspace-dashboard-quick-link-copy {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.workspace-dashboard-quick-link-copy strong {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 11px;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-dashboard-quick-link-copy small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-dashboard-quick-link > svg:last-child {
+  flex: 0 0 auto;
+  color: var(--subtle);
+  transition: color 150ms ease, transform 150ms ease;
+}
+.workspace-dashboard-quick-link:hover > svg:last-child {
+  color: var(--accent-strong);
+  transform: translateX(2px);
+}
+.workspace-dashboard-quick-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.workspace-dashboard-anchor {
+  min-width: 0;
+  scroll-margin-top: 20px;
+}
+@media (max-width: 920px) {
+  .workspace-dashboard-quick-nav {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .workspace-dashboard-quick-nav-copy {
+    min-width: 0;
+  }
+  .workspace-dashboard-quick-nav-actions {
+    width: 100%;
+    max-width: none;
+  }
+}
+@media (max-width: 560px) {
+  .workspace-dashboard-quick-nav {
+    padding: 10px;
+  }
+  .workspace-dashboard-quick-nav-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workspace-dashboard-quick-link {
+    min-height: 52px;
+  }
+  .workspace-dashboard-quick-link-copy small {
+    white-space: normal;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-dashboard-quick-link,
+  .workspace-dashboard-quick-link > svg:last-child {
+    transition: none;
+  }
+  html { scroll-behavior: auto; }
+}
