@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle, ArrowRight, CalendarCheck, CalendarClock, CalendarDays,
   CheckCircle2, ChevronLeft, ChevronRight, Clock3, Coffee, FileClock, Mail,
@@ -231,6 +231,7 @@ export function PersonalMyDayWorkspace() {
   const currentMonth = today ? today.slice(0, 7) : "";
   const activeInsightsMonth = selectedInsightsMonth || currentMonth;
   const [clockNow, setClockNow] = useState(() => Date.now());
+  const loadSequenceRef = useRef(0);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClockNow(Date.now()), 15000);
@@ -258,6 +259,7 @@ export function PersonalMyDayWorkspace() {
   }, [activeInsightsMonth, currentMonth, timeZoneStatus, isPersonalWorkforceRole, user.role, user.employeeId]);
 
   const load = useCallback(async (silent = false) => {
+    const requestId = ++loadSequenceRef.current;
     if (!isPersonalWorkforceRole) {
       setSnapshot(EMPTY_SNAPSHOT);
       setLoading(false);
@@ -287,6 +289,7 @@ export function PersonalMyDayWorkspace() {
       apiRequest<RequestPayload>("/attendance/overtime" + personalScopeQuery),
       apiRequest<NotificationPayload>("/notifications/summary?scope=self"),
     ] as const);
+    if (requestId !== loadSequenceRef.current) return;
     const next: MyDaySnapshot = {
       calendar: results[0].status === "fulfilled" ? results[0].value : null,
       punches: results[1].status === "fulfilled" ? results[1].value : null,
@@ -307,10 +310,13 @@ export function PersonalMyDayWorkspace() {
     setPartialWarning(optionalFailures > 0
       ? "Some personal information is temporarily unavailable. Missing sections will retry automatically."
       : "");
-    if (!silent) setLoading(false);
+    if (!silent && requestId === loadSequenceRef.current) setLoading(false);
   }, [today, timeZoneStatus, personalScopeQuery, personalScopeParam, isPersonalWorkforceRole, user.role, user.employeeId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => { loadSequenceRef.current += 1; };
+  }, [load]);
   useSmartRefresh(() => load(true), Boolean(isPersonalWorkforceRole && today && timeZoneStatus === "ready"), 30000);
   useAttendanceRefresh(() => { void load(true); });
 
